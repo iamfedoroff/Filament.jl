@@ -16,9 +16,19 @@ struct Info
 end
 
 
-function Info(file_infos, file_input, file_initial_condition, file_medium,
+function Info(fname, file_input, file_initial_condition, file_medium,
               unit, grid, medium, field)
     fmt(x) = Formatting.fmt("18.12e", x)
+
+    revision = "unavailable"
+    try
+        cwdir = pwd()
+        cd(@__DIR__)
+        hg_num = readstring(@cmd("hg id -n"))
+        hg_id = readstring(@cmd("hg id"))
+        revision = string(strip(hg_num), ":", strip(hg_id))
+        cd(cwdir)
+    end
 
     file_input_content = readstring(file_input)
     file_initial_condition_content = readstring(file_initial_condition)
@@ -36,7 +46,7 @@ function Info(file_infos, file_input, file_initial_condition, file_medium,
                                    jlFilament
 ********************************************************************************
 datetime: $(now())
-revision:
+revision: $revision
 
 ********************************************************************************
                                    Input file
@@ -109,11 +119,11 @@ Component's name          multiphoton order K          Keldysh gamma
 ********************************************************************************
 """
 
-    fp = open(file_infos, "w")
+    fp = open(fname, "w")
     write(fp, sdata)
     close(fp)
 
-    return Info(file_infos)
+    return Info(fname)
 end
 
 

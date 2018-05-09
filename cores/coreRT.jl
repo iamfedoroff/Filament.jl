@@ -3,7 +3,6 @@ using PyCall
 @pyimport matplotlib.pyplot as plt
 @pyimport scipy.constants as sc
 
-# append the home directory of the project to the search path
 push!(LOAD_PATH, joinpath(@__DIR__, "..", "modules"))
 import Units
 import Grids
@@ -11,6 +10,7 @@ import Fields
 import Media
 import Models
 import Infos
+import Plots
 
 C0 = sc.c   # speed of light in vacuum
 
@@ -28,7 +28,7 @@ grid = Grids.Grid(rmax, Nr, tmin, tmax, Nt)
 
 # Read the initial condition file and prepare field
 include(abspath(file_initial_condition))
-z = z / unit.z   # normalize initial z
+z = z / unit.z   # convert initial z to dimensionless units
 field = Fields.Field(unit, grid, lam0, initial_condition)
 
 
@@ -46,13 +46,24 @@ if prefix_dir != ""
 end
 
 file_infos = joinpath(prefix_dir, string(prefix_name, "info.txt"))
-fname_plotdat = joinpath(prefix_dir, string(prefix_name, "plot.dat"))
-fname_plothdf = joinpath(prefix_dir, string(prefix_name, "plot.h5"))
-
 info = Infos.Info(file_infos, file_input, file_initial_condition, file_medium,
                   unit, grid, medium, field)
 
-# Infos.write_message(info, "Hello\n")
+file_plotdat = joinpath(prefix_dir, string(prefix_name, "plot.dat"))
+plotdat = Plots.PlotDAT(file_plotdat, unit)
+Plots.writeDAT(plotdat, z, field)
+
+file_plothdf = joinpath(prefix_dir, string(prefix_name, "plot.h5"))
+plothdf = Plots.PlotHDF(file_plothdf, unit, grid)
+Plots.writeHDF(plothdf, z, field)
+Plots.writeHDF_zdata(plothdf, z, field)
+
+
+# Prepare model
+keys = Dict()
+
+model = Models.Model(unit, grid, field, medium, keys)
+
 quit()
 
 
@@ -76,8 +87,7 @@ quit()
 
 
 
-# Prepare model
-# model = Models.Model(unit, grid, field, medium)
+
 
 # ******************************************************************************
 # Propagation

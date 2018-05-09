@@ -3,7 +3,7 @@ module Fields
 using PyCall
 @pyimport scipy.constants as sc
 
-using Grids
+import Grids
 
 C0 = sc.c   # speed of light in vacuum
 HBAR = sc.hbar   # the Planck constant (divided by 2*pi) [J*s]
@@ -193,7 +193,7 @@ function integral_power_spectrum(field)
     r = field.grid.r
     S = zeros(field.grid.Nw)
     for i=1:field.grid.Nr
-        Et = field.E[i, :]
+        Et = real(field.E[i, :])
         Ew = conj(rfft(Et))
         Ew = 2. * Ew * field.grid.dt
 

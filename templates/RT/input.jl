@@ -1,6 +1,6 @@
 prefix = "results/"   # the path and prefix for the output files
 
-# Initial condition ------------------------------------------------------------
+# Initial conditions -----------------------------------------------------------
 file_initial_condition = "gauss.jl"   # file with initial conditions
 
 # Medium -----------------------------------------------------------------------
