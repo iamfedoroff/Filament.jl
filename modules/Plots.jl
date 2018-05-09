@@ -84,7 +84,7 @@ end
 # ******************************************************************************
 # PlotHDF
 # ******************************************************************************
-VERSION = "2.0"
+VERSION = 2.0
 GROUP_UNIT = "units"
 GROUP_GRID = "grid"
 GROUP_FDAT = "field"
@@ -147,7 +147,8 @@ function writeHDF(plothdf::PlotHDF, z::Float64, field::Fields.Field)
 
     fp = HDF5.h5open(plothdf.fname, "r+")
     group_fdat = fp[GROUP_FDAT]
-    group_fdat[dset] = real(field.E)
+    # group_fdat[dset] = real(field.E)
+    group_fdat[dset] = transpose(real(field.E))
     HDF5.attrs(group_fdat[dset])["z"] = z
     HDF5.close(fp)
 end
@@ -172,12 +173,15 @@ function writeHDF_zdata(plothdf::PlotHDF, z::Float64, field::Fields.Field)
     data_name = "Fzx"
     if ! HDF5.exists(group_zdat, data_name)
         HDF5.d_create(group_zdat, data_name, Float64,
-                      ((1, field.grid.Nr), (-1, field.grid.Nr)),
+                      # ((1, field.grid.Nr), (-1, field.grid.Nr)),
+                      ((field.grid.Nr, 1), (field.grid.Nr, -1)),
                       "chunk", (1, 1))
     end
     data = group_zdat[data_name]
-    HDF5.set_dims!(data, (iz, field.grid.Nr))
-    data[iz, :] = Fields.fluence(field)
+    # HDF5.set_dims!(data, (iz, field.grid.Nr))
+    # data[iz, :] = Fields.fluence(field)
+    HDF5.set_dims!(data, (field.grid.Nr, iz))
+    data[:, iz] = Fields.fluence(field)
 
     data_name = "Nezx"
     if ! HDF5.exists(group_zdat, data_name)

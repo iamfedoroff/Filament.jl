@@ -3,6 +3,8 @@ using PyCall
 @pyimport matplotlib.pyplot as plt
 @pyimport scipy.constants as sc
 
+import Formatting
+
 push!(LOAD_PATH, joinpath(@__DIR__, "..", "modules"))
 import Units
 import Grids
@@ -60,12 +62,68 @@ Plots.writeHDF_zdata(plothdf, z, field)
 
 
 # Prepare model
-keys = Dict()
+keys = Dict(
+    "KPARAXIAL" => KPARAXIAL,
+    "rguard_width" => rguard_width, "tguard_width" => tguard_width,
+    "kguard" => kguard, "wguard" => wguard
+    )
 
-model = Models.Model(unit, grid, field, medium, keys)
+model = Models.Model(unit, field, medium, keys)
 
-quit()
 
+# Main loop
+stime = now()
+
+znext_plothdf = z + dz_plothdf
+
+dz_zdata = 0.5 * field.lam0
+znext_zdata = z + dz_zdata
+
+@timev while z < zmax
+    Imax = Fields.peak_intensity(field)
+    rhomax = Fields.peak_plasma_density(field)
+
+    # Adaptive z step
+    # dz = model.adaptive_dz(dzAdaptLevel, Imax, Nemax)
+    # dz = min(dz_initial, dz_plothdf, dz)
+    dz = min(dz_initial, dz_plothdf)
+    z = z + dz
+
+    print("z=$(Formatting.fmt("18.12e", z))[zu] " *
+          "I=$(Formatting.fmt("18.12e", Imax))[Iu] " *
+          "rho=$(Formatting.fmt("18.12e", rhomax))[rhou]\n")
+
+    Models.zstep(dz, field, model)
+
+    # Plots
+    Plots.writeDAT(plotdat, z, field)   # write to plotdat file
+
+    if z >= znext_plothdf
+        Plots.writeHDF(plothdf, z, field)   # write to plothdf file
+        znext_plothdf = znext_plothdf + dz_plothdf
+    end
+
+    if z >= znext_zdata
+        Plots.writeHDF_zdata(plothdf, z, field)  # write 1d data to plothdf file
+        znext_zdata = z + dz_zdata
+    end
+
+    # Exit conditions
+    if Imax > Istop
+        Plots.writeHDF_zdata(plothdf, z, field)
+        message = "Stop (Imax >= Istop): z=$(z)[zu], z=$(z * unit.z)[m]"
+        Infos.write_message(info, message)
+        break
+    end
+
+end
+
+etime = now()
+ttime = Dates.canonicalize(Dates.CompoundPeriod(etime - stime))
+message = "Start time: $(stime)\n" *
+          "End time:   $(etime)\n" *
+          "Run time:   $(ttime)\n"
+Infos.write_message(info, message)
 
 # unshift!(PyVector(pyimport("sys")["path"]), "/home/fedoroff/storage/projects/Filament/jlFilament/modules/")
 # @pyimport units
@@ -81,30 +139,3 @@ quit()
 # plt.tight_layout()
 # plt.show()
 # quit()
-
-
-
-
-
-
-
-
-# ******************************************************************************
-# Propagation
-# ******************************************************************************
-z = Media.diffraction_length(medium, field.w0, a0)
-
-I0 = abs2.(field.E[:, div(grid.Ny, 2)])
-
-Models.zstep(z, field, model)
-
-Iz = abs2.(field.E[:, div(grid.Ny, 2)])
-
-# ******************************************************************************
-# Plot
-# ******************************************************************************
-plt.figure(dpi=300)
-plt.plot(grid.x, I0)
-plt.plot(grid.x, Iz)
-plt.tight_layout()
-plt.show()

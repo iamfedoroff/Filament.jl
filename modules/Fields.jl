@@ -17,6 +17,7 @@ mutable struct Field
     grid :: Grids.Grid
 
     E :: Array{Complex{Float64}, 2}
+    S :: Array{Complex{Float64}, 2}
     rho :: Array{Float64, 1}
 end
 
@@ -30,9 +31,11 @@ function Field(unit, grid, lam0, initial_condition::Function)
         E[i, :] = signal_real_to_analytic(real(E[i, :]))
     end
 
+    S = zeros(Complex128, (grid.Nr, grid.Nw))
+
     rho = zeros(grid.Nr)
 
-    return Field(lam0, f0, w0, grid, E, rho)
+    return Field(lam0, f0, w0, grid, E, S, rho)
 end
 
 

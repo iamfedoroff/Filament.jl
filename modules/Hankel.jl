@@ -58,7 +58,7 @@ function HankelTransform(R::Float64, Nr::Int64, p::Int64=0)
 end
 
 
-function dht(ht::HankelTransform, f1)
+function dht(ht::HankelTransform, f1::Array{Complex128, 1})
     F1 = @. f1 * ht.RdivJ
     F2 = ht.T * F1
     f2 = @. F2 * ht.JdivV
@@ -66,7 +66,7 @@ function dht(ht::HankelTransform, f1)
 end
 
 
-function idht(ht::HankelTransform, f2)
+function idht(ht::HankelTransform, f2::Array{Complex128, 1})
     F2 = @. f2 * ht.VdivJ
     F1 = ht.T * F2
     f1 = @. F1 * ht.JdivR
@@ -74,15 +74,15 @@ function idht(ht::HankelTransform, f2)
 end
 
 
-function dht_loop(ht::HankelTransform, f1::Array{Float64, 1})
-    F1 = zeros(Float64, ht.Nr)
+function dht_loop(ht::HankelTransform, f1::Array{Complex128, 1})
+    F1 = zeros(Complex128, ht.Nr)
     for i=1:ht.Nr
         @inbounds F1[i] = f1[i] * ht.RdivJ[i]
     end
 
     F2 = ht.T * F1
 
-    f2 = zeros(Float64, ht.Nr)
+    f2 = zeros(Complex128, ht.Nr)
     for i=1:ht.Nr
         @inbounds f2[i] = F2[i] * ht.JdivV[i]
     end
@@ -90,15 +90,15 @@ function dht_loop(ht::HankelTransform, f1::Array{Float64, 1})
 end
 
 
-function idht_loop(ht::HankelTransform, f2::Array{Float64, 1})
-    F2 = zeros(Float64, ht.Nr)
+function idht_loop(ht::HankelTransform, f2::Array{Complex128, 1})
+    F2 = zeros(Complex128, ht.Nr)
     for i=1:ht.Nr
         @inbounds F2[i] = f2[i] * ht.VdivJ[i]
     end
 
     F1 = ht.T * F2
 
-    f1 = zeros(Float64, ht.Nr)
+    f1 = zeros(Complex128, ht.Nr)
     for i=1:ht.Nr
         @inbounds f1[i] = F1[i] * ht.JdivR[i]
     end
