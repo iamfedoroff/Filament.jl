@@ -99,18 +99,24 @@ function zstep(dz::Float64, field::Fields.Field, model::Models.Model)
     # Linear propagator --------------------------------------------------------
     for j=1:grid.Nw
         field.S[:, j] = Hankel.dht(grid.HT, field.S[:, j])
+    end
+
+    for j=1:grid.Nw
         for i=1:grid.Nr
             field.S[i, j] = field.S[i, j] *
                             exp(1im * model.KZ[i, j] * dz) *
                             model.Kguard[i, j]   # angular filter
         end
+    end
+
+    for j=1:grid.Nw
         field.S[:, j] = Hankel.idht(grid.HT, field.S[:, j])
     end
 
     # Temporal spectrum -> field -----------------------------------------------
     for i=1:grid.Nr
         field.S[i, :] = @. field.S[i, :] * model.Wguard   # spectral filter
-        Sa = spectrum_real_to_analytic(field.S[i, :], field.grid.Nt)
+        Sa = spectrum_real_to_analytic(field.S[i, :], grid.Nt)
         field.E[i, :] = fft(Sa) / grid.Nt   # frequency -> time
         field.E[i, :] = @. field.E[i, :] * model.Rguard[i] * model.Tguard   # spatial and temporal filters
     end
