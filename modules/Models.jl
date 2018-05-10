@@ -9,12 +9,12 @@ import Fields
 import Media
 import Hankel
 
-C0 = sc.c   # speed of light in vacuum
-EPS0 = sc.epsilon_0   # the electric constant (vacuum permittivity) [F/m]
-MU0 = sc.mu_0   # the magnetic constant [N/A^2]
-QE = sc.e   # elementary charge [C]
-ME = sc.m_e   # electron mass [kg]
-HBAR = sc.hbar   # the Planck constant (divided by 2*pi) [J*s]
+const C0 = sc.c   # speed of light in vacuum
+const EPS0 = sc.epsilon_0   # the electric constant (vacuum permittivity) [F/m]
+const MU0 = sc.mu_0   # the magnetic constant [N/A^2]
+const QE = sc.e   # elementary charge [C]
+const ME = sc.m_e   # electron mass [kg]
+const HBAR = sc.hbar   # the Planck constant (divided by 2*pi) [J*s]
 
 
 struct Model
@@ -89,27 +89,29 @@ end
 
 
 function zstep(dz::Float64, field::Fields.Field, model::Models.Model)
+    grid = field.grid
+
     # Field -> temporal spectrum -----------------------------------------------
-    for i=1:field.grid.Nr
+    for i=1:grid.Nr
         field.S[i, :] = conj(rfft(real(field.E[i, :])))   # time -> frequency
     end
 
     # Linear propagator --------------------------------------------------------
-    for j=1:field.grid.Nw
-        field.S[:, j] = Hankel.dht(field.grid.HT, field.S[:, j])
-        for i=1:field.grid.Nr
+    for j=1:grid.Nw
+        field.S[:, j] = Hankel.dht(grid.HT, field.S[:, j])
+        for i=1:grid.Nr
             field.S[i, j] = field.S[i, j] *
                             exp(1im * model.KZ[i, j] * dz) *
                             model.Kguard[i, j]   # angular filter
         end
-        field.S[:, j] = Hankel.idht(field.grid.HT, field.S[:, j])
+        field.S[:, j] = Hankel.idht(grid.HT, field.S[:, j])
     end
 
     # Temporal spectrum -> field -----------------------------------------------
-    for i=1:field.grid.Nr
+    for i=1:grid.Nr
         field.S[i, :] = @. field.S[i, :] * model.Wguard   # spectral filter
         Sa = spectrum_real_to_analytic(field.S[i, :], field.grid.Nt)
-        field.E[i, :] = fft(Sa) / field.grid.Nt   # frequency -> time
+        field.E[i, :] = fft(Sa) / grid.Nt   # frequency -> time
         field.E[i, :] = @. field.E[i, :] * model.Rguard[i] * model.Tguard   # spatial and temporal filters
     end
 end

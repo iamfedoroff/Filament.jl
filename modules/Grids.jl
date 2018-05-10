@@ -6,7 +6,7 @@ using PyCall
 
 import Hankel
 
-C0 = sc.c   # speed of light in vacuum
+const C0 = sc.c   # speed of light in vacuum
 
 
 struct Grid

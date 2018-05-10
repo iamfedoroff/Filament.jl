@@ -14,32 +14,37 @@ import Models
 import Infos
 import Plots
 
-C0 = sc.c   # speed of light in vacuum
+const C0 = sc.c   # speed of light in vacuum
 
-
+# ******************************************************************************
 # Read input file and change current working directory
+# ******************************************************************************
 file_input = abspath(ARGS[1])
 include(file_input)
 cd(dirname(file_input))
 
-
+# ******************************************************************************
 # Prepare units and grid
+# ******************************************************************************
 unit = Units.Unit(ru, zu, tu, Iu, rhou)
 grid = Grids.Grid(rmax, Nr, tmin, tmax, Nt)
 
-
+# ******************************************************************************
 # Read the initial condition file and prepare field
+# ******************************************************************************
 include(abspath(file_initial_condition))
 z = z / unit.z   # convert initial z to dimensionless units
 field = Fields.Field(unit, grid, lam0, initial_condition)
 
-
+# ******************************************************************************
 # Read the medium file and prepare medium
+# ******************************************************************************
 include(abspath(file_medium))
 medium = Media.Medium(permittivity, permeability, n2)
 
-
+# ******************************************************************************
 # Prepare output files
+# ******************************************************************************
 prefix_dir = dirname(prefix)
 prefix_name = basename(prefix)
 
@@ -60,18 +65,19 @@ plothdf = Plots.PlotHDF(file_plothdf, unit, grid)
 Plots.writeHDF(plothdf, z, field)
 Plots.writeHDF_zdata(plothdf, z, field)
 
-
+# ******************************************************************************
 # Prepare model
+# ******************************************************************************
 keys = Dict(
     "KPARAXIAL" => KPARAXIAL,
     "rguard_width" => rguard_width, "tguard_width" => tguard_width,
-    "kguard" => kguard, "wguard" => wguard
-    )
+    "kguard" => kguard, "wguard" => wguard)
 
 model = Models.Model(unit, field, medium, keys)
 
-
+# ******************************************************************************
 # Main loop
+# ******************************************************************************
 stime = now()
 
 znext_plothdf = z + dz_plothdf
@@ -79,7 +85,7 @@ znext_plothdf = z + dz_plothdf
 dz_zdata = 0.5 * field.lam0
 znext_zdata = z + dz_zdata
 
-@timev while z < zmax
+while z < zmax
     Imax = Fields.peak_intensity(field)
     rhomax = Fields.peak_plasma_density(field)
 
@@ -124,18 +130,3 @@ message = "Start time: $(stime)\n" *
           "End time:   $(etime)\n" *
           "Run time:   $(ttime)\n"
 Infos.write_message(info, message)
-
-# unshift!(PyVector(pyimport("sys")["path"]), "/home/fedoroff/storage/projects/Filament/jlFilament/modules/")
-# @pyimport units
-# unit = units.UnitRT(ru, zu, tu, Iu, rhou)
-
-
-# F = Fields.fluence(field)
-
-# plt.figure(dpi=300)
-# # plt.plot(grid.r, field.E[:, div(grid.Nt, 2)])
-# # plt.plot(grid.t, real(field.E[1, :]))
-# plt.plot(grid.r, F)
-# plt.tight_layout()
-# plt.show()
-# quit()

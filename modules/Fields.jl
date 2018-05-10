@@ -5,8 +5,8 @@ using PyCall
 
 import Grids
 
-C0 = sc.c   # speed of light in vacuum
-HBAR = sc.hbar   # the Planck constant (divided by 2*pi) [J*s]
+const C0 = sc.c   # speed of light in vacuum
+const HBAR = sc.hbar   # the Planck constant (divided by 2*pi) [J*s]
 
 
 mutable struct Field

@@ -5,8 +5,8 @@ using PyCall
 
 import ForwardDiff
 
-C0 = sc.c   # speed of light in vacuum
-EPS0 = sc.epsilon_0   # the electric constant (vacuum permittivity) [F/m]
+const C0 = sc.c   # speed of light in vacuum
+const EPS0 = sc.epsilon_0   # the electric constant (vacuum permittivity) [F/m]
 
 
 struct Medium

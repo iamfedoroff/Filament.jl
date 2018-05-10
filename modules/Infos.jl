@@ -8,7 +8,7 @@ import Formatting
 import Fields
 import Media
 
-C0 = sc.c   # speed of light in vacuum
+const C0 = sc.c   # speed of light in vacuum
 
 
 struct Info
@@ -99,8 +99,8 @@ k3 = $(fmt(Media.k3_func(medium, field.w0))) [s^3/m] - 3rd derivative of wave nu
 ga = $(fmt(Media.absorption_coefficient(medium, field.w0))) [1/m] - linear absorption coefficient (by field)
 vp = $(fmt(Media.phase_velocity(medium, field.w0) / C0)) [C0] - phase velocity
 vg = $(fmt(Media.group_velocity(medium, field.w0) / C0)) [C0] - group velocity
-n2  = $(medium.n2) [m^2/W] - Kerr nonlinear index
-chi3 = $(Media.chi3_func(medium, field.w0)) [m/V] - 3rd order nonlinear susceptibility
+n2  = $(fmt(medium.n2)) [m^2/W] - Kerr nonlinear index
+chi3 = $(fmt(Media.chi3_func(medium, field.w0))) [m/V] - 3rd order nonlinear susceptibility
 P   = $(fmt(P / Pcr)) [Pcr] - peak power
 Pcr = $(fmt(Pcr)) [W] - critical power
 Ld     = $(fmt(Media.diffraction_length(medium, field.w0, a0))) [m] - diffraction length

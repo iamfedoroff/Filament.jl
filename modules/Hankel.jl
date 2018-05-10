@@ -10,9 +10,11 @@ Additional info:
 """
 module Hankel
 
-import SpecialFunctions
 using PyCall
 @pyimport scipy.special as spec
+
+import SpecialFunctions
+
 
 struct HankelTransform
     R :: Float64
