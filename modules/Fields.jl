@@ -16,8 +16,8 @@ mutable struct Field
 
     grid :: Grids.Grid
 
-    E :: Array{Complex{Float64}, 2}
-    S :: Array{Complex{Float64}, 2}
+    E :: Array{Complex128, 2}
+    S :: Array{Complex128, 2}
     rho :: Array{Float64, 1}
 end
 

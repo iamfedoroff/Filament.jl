@@ -69,11 +69,12 @@ Plots.writeHDF_zdata(plothdf, z, field)
 # Prepare model
 # ******************************************************************************
 keys = Dict(
-    "KPARAXIAL" => KPARAXIAL,
+    "KPARAXIAL" => KPARAXIAL, "QPARAXIAL" => QPARAXIAL, "KERR" => KERR,
+    "THG" => THG,
     "rguard_width" => rguard_width, "tguard_width" => tguard_width,
     "kguard" => kguard, "wguard" => wguard)
 
-model = Models.Model(unit, field, medium, keys)
+model = Models.Model(unit, grid, field, medium, keys)
 
 # ******************************************************************************
 # Main loop
@@ -85,21 +86,20 @@ znext_plothdf = z + dz_plothdf
 dz_zdata = 0.5 * field.lam0
 znext_zdata = z + dz_zdata
 
-while z < zmax
+@time while z < zmax
     Imax = Fields.peak_intensity(field)
     rhomax = Fields.peak_plasma_density(field)
 
     # Adaptive z step
-    # dz = model.adaptive_dz(dzAdaptLevel, Imax, Nemax)
-    # dz = min(dz_initial, dz_plothdf, dz)
-    dz = min(dz_initial, dz_plothdf)
+    dz = Models.adaptive_dz(model, dzAdaptLevel, Imax, rhomax)
+    dz = min(dz_initial, dz_plothdf, dz)
     z = z + dz
 
     print("z=$(Formatting.fmt("18.12e", z))[zu] " *
           "I=$(Formatting.fmt("18.12e", Imax))[Iu] " *
           "rho=$(Formatting.fmt("18.12e", rhomax))[rhou]\n")
 
-    Models.zstep(dz, field, model)
+    Models.zstep(dz, grid, field, model)
 
     # Plots
     Plots.writeDAT(plotdat, z, field)   # write to plotdat file
@@ -117,7 +117,7 @@ while z < zmax
     # Exit conditions
     if Imax > Istop
         Plots.writeHDF_zdata(plothdf, z, field)
-        message = "Stop (Imax >= Istop): z=$(z)[zu], z=$(z * unit.z)[m]"
+        message = "Stop (Imax >= Istop): z=$(z)[zu], z=$(z * unit.z)[m]\n"
         Infos.write_message(info, message)
         break
     end

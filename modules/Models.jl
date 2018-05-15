@@ -5,6 +5,7 @@ using PyCall
 @pyimport matplotlib.pyplot as plt
 
 import Units
+import Grids
 import Fields
 import Media
 import Hankel
@@ -19,17 +20,19 @@ const HBAR = sc.hbar   # the Planck constant (divided by 2*pi) [J*s]
 
 struct Model
     KZ :: Array{Complex128, 2}
+    QZ :: Array{Complex128, 2}
+    Rk :: Float64
+    phi_kerr :: Float64
     Rguard :: Array{Float64, 1}
     Tguard :: Array{Float64, 1}
     Kguard :: Array{Float64, 2}
     Wguard :: Array{Float64, 1}
+    keys :: Dict{String, Any}
 end
 
 
-function Model(unit::Units.Unit, field::Fields.Field, medium::Media.Medium,
-               keys::Dict{String,Any})
-    grid = field.grid
-
+function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
+               medium::Media.Medium, keys::Dict{String, Any})
     # Guards -------------------------------------------------------------------
     # Spatial guard:
     rguard_width = keys["rguard_width"]
@@ -84,16 +87,135 @@ function Model(unit::Units.Unit, field::Fields.Field, medium::Media.Medium,
         end
     end
 
-    return Model(KZ, Rguard, Tguard, Kguard, Wguard)
+    # Nonlinear propagator -----------------------------------------------------
+    QPARAXIAL = keys["QPARAXIAL"]
+
+    n0 = real(Media.refractive_index(medium, field.w0))
+    Eu = Units.E(unit, n0)
+    mu = medium.permeability(grid.w * unit.w)
+
+    Qfactor = @. MU0 * mu * (grid.w * unit.w)^2 / 2. * unit.z / Eu
+
+    QZ = zeros(Complex128, (grid.Nr, grid.Nw))
+    if QPARAXIAL != 0
+        for j=1:grid.Nw
+            if beta[j] != 0.
+                for i=1:grid.Nr
+                    QZ[i, j] = Qfactor[j] / beta[j]
+                end
+            end
+        end
+    else
+        for j=1:grid.Nw
+            for i=1:grid.Nr
+                kzij = sqrt(beta[j]^2 - (grid.k[i] * unit.k)^2 + 0im)
+                if kzij != 0.
+                    QZ[i, j] = Qfactor[j] / kzij
+                end
+            end
+        end
+    end
+
+    # Kerr nonlinearity --------------------------------------------------------
+    KERR = keys["KERR"]
+    THG = keys["THG"]
+
+    Rk = Rk_func(unit, medium, field)
+    phi_kerr = phi_kerr_func(unit, medium, field)
+
+    return Model(KZ, QZ,
+                 Rk, phi_kerr,
+                 Rguard, Tguard, Kguard, Wguard,
+                 keys)
 end
 
 
-function zstep(dz::Float64, field::Fields.Field, model::Models.Model)
-    grid = field.grid
+function adaptive_dz(model, AdaptLevel, I, rho)
+    if model.keys["KERR"] != 0
+        dz_kerr = model.phi_kerr / I * AdaptLevel
+    else
+        dz_kerr = Inf
+    end
+
+    # if (model.keys["PLASMA"] != 0) & (rho != 0.)
+    #     dz_plasma = model.phi_plasma / rho * AdaptLevel
+    # else
+    #     dz_plasma = Inf
+    # end
+    dz_plasma = Inf
+
+    dz = min(dz_kerr, dz_plasma)
+    return dz
+end
+
+
+function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
+               model::Models.Model)
+
+    function func(S::Array{Complex128, 2})
+        res = zeros(Complex128, (grid.Nr, grid.Nw))
+
+        for i=1:grid.Nr
+            Sa = spectrum_real_to_analytic(S[i, :], grid.Nt)
+            Ea = fft(Sa) / grid.Nt   # frequency -> time
+            Et = real(Ea)
+
+            # Kerr nonlinearity:
+            if model.keys["KERR"] != 0
+                if model.keys["THG"] != 0
+                    Ftmp = @. Et^3
+                else
+                    Ftmp = @. 3. / 4. * abs2(Ea) * Et
+                end
+                Ftmp = @. Ftmp * model.Tguard   # temporal filter
+                Stmp = conj(rfft(Ftmp))   # time -> frequency
+
+                res[i, :] = @. res[i, :] + model.Rk * Stmp
+            end
+        end
+
+        # Nonparaxiality:
+        if model.keys["QPARAXIAL"] != 0
+            res = @. 1im * model.QZ * res
+        else
+            for j=1:grid.Nw
+                res[:, j] = Hankel.dht(grid.HT, res[:, j])
+            end
+            res = @. 1im * model.QZ * res
+            res = @. res * model.Kguard   # angular filter
+            for j=1:grid.Nw
+                res[:, j] = Hankel.idht(grid.HT, res[:, j])
+            end
+        end
+
+        return res
+    end
+
 
     # Field -> temporal spectrum -----------------------------------------------
     for i=1:grid.Nr
         field.S[i, :] = conj(rfft(real(field.E[i, :])))   # time -> frequency
+    end
+
+    # Nonlinear propagator -----------------------------------------------------
+    if model.keys["KERR"] != 0
+        # RK2:
+        # k1 = dz * func(field.S)
+        # k2 = dz * func(field.S + 2. / 3. * k1)
+        # field.S = field.S + (k1 + 3. * k2) / 4.
+
+        # RK3:
+        k1 = dz * func(field.S)
+        k2 = dz * func(field.S + 0.5 * k1)
+        k3 = dz * func(field.S - k1 + 2. * k2)
+        field.S = field.S + (k1 + 4. * k2 + k3) / 6.
+
+        # RK4:
+        # k1 = dz * func(field.S)
+        # k2 = dz * func(field.S + 0.5 * k1)
+        # k3 = dz * func(field.S + 0.5 * k2)
+        # k4 = dz * func(field.S + k3)
+        # field.S = field.S + (k1 + 2. * k2 + 2. * k3 + k4) / 6.
     end
 
     # Linear propagator --------------------------------------------------------
@@ -103,9 +225,8 @@ function zstep(dz::Float64, field::Fields.Field, model::Models.Model)
 
     for j=1:grid.Nw
         for i=1:grid.Nr
-            field.S[i, j] = field.S[i, j] *
-                            exp(1im * model.KZ[i, j] * dz) *
-                            model.Kguard[i, j]   # angular filter
+            field.S[i, j] = field.S[i, j] * exp(1im * model.KZ[i, j] * dz)
+            field.S[i, j] = field.S[i, j] * model.Kguard[i, j]   # angular filter
         end
     end
 
@@ -120,6 +241,42 @@ function zstep(dz::Float64, field::Fields.Field, model::Models.Model)
         field.E[i, :] = fft(Sa) / grid.Nt   # frequency -> time
         field.E[i, :] = @. field.E[i, :] * model.Rguard[i] * model.Tguard   # spatial and temporal filters
     end
+end
+
+
+function Rk_func(unit, medium, field)
+    n0 = real(Media.refractive_index(medium, field.w0))
+    Eu = Units.E(unit, n0)
+    chi3 = Media.chi3_func(medium, field.w0)
+    R = EPS0 * chi3 * Eu^3
+    return R
+end
+
+
+"""Kerr phase factor for adaptive z step."""
+function phi_kerr_func(unit, medium, field)
+    w0 = field.w0
+    n0 = real(Media.refractive_index(medium, field.w0))
+    k0 = Media.k_func(medium, w0)
+    Eu = Units.E(unit, n0)
+    mu = medium.permeability(w0)
+    chi3 = Media.chi3_func(medium, field.w0)
+    Rk0 = mu * w0^2 / (2. * C0^2) * chi3 * Eu^2 * unit.z
+
+    if real(Rk0) != 0.
+        phi_real = k0 / (3. / 4. * abs(real(Rk0)))
+    else
+        phi_real = Inf
+    end
+
+    if imag(Rk0) != 0.
+        phi_imag = k0 / (3. / 4. * abs(imag(Rk0)))
+    else
+        phi_imag = Inf
+    end
+
+    phi = min(phi_real, phi_imag)
+    return phi
 end
 
 
