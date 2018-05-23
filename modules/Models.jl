@@ -9,6 +9,7 @@ import Grids
 import Fields
 import Media
 import Hankel
+import Fourier
 
 const C0 = sc.c   # speed of light in vacuum
 const EPS0 = sc.epsilon_0   # the electric constant (vacuum permittivity) [F/m]
@@ -156,8 +157,8 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
         res = zeros(Complex128, (grid.Nr, grid.Nw))
 
         for i=1:grid.Nr
-            Sa = spectrum_real_to_analytic(S[i, :], grid.Nt)
-            Ea = fft(Sa) / grid.Nt   # frequency -> time
+            Sa = Fourier.spectrum_real_to_analytic(S[i, :], grid.Nt)
+            Ea = Fourier.ifft1d(Sa)   # frequency -> time
             Et = real(Ea)
 
             # Kerr nonlinearity:
@@ -168,7 +169,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
                     Ftmp = @. 3. / 4. * abs2(Ea) * Et
                 end
                 Ftmp = @. Ftmp * model.Tguard   # temporal filter
-                Stmp = conj(rfft(Ftmp))   # time -> frequency
+                Stmp = Fourier.rfft1d(Ftmp)   # time -> frequency
 
                 res[i, :] = @. res[i, :] + model.Rk * Stmp
             end
@@ -194,7 +195,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
     # Field -> temporal spectrum -----------------------------------------------
     for i=1:grid.Nr
-        field.S[i, :] = conj(rfft(real(field.E[i, :])))   # time -> frequency
+        field.S[i, :] = Fourier.rfft1d(real(field.E[i, :]))   # time -> frequency
     end
 
     # Nonlinear propagator -----------------------------------------------------
@@ -237,8 +238,8 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     # Temporal spectrum -> field -----------------------------------------------
     for i=1:grid.Nr
         field.S[i, :] = @. field.S[i, :] * model.Wguard   # spectral filter
-        Sa = spectrum_real_to_analytic(field.S[i, :], grid.Nt)
-        field.E[i, :] = fft(Sa) / grid.Nt   # frequency -> time
+        Sa = Fourier.spectrum_real_to_analytic(field.S[i, :], grid.Nt)
+        field.E[i, :] = Fourier.ifft1d(Sa)   # frequency -> time
         field.E[i, :] = @. field.E[i, :] * model.Rguard[i] * model.Tguard   # spatial and temporal filters
     end
 end
@@ -277,20 +278,6 @@ function phi_kerr_func(unit, medium, field)
 
     phi = min(phi_real, phi_imag)
     return phi
-end
-
-
-function spectrum_real_to_analytic(S, Nt)
-    Sa = zeros(Complex128, Nt)
-    if Nt % 2 == 0   # Nt is even
-        Sa[1] = S[1]
-        Sa[2:div(Nt, 2)] = 2. * S[2:div(Nt, 2)]
-        Sa[div(Nt, 2) + 1] = S[div(Nt, 2) + 1]
-    else   # Nt is odd
-        Sa[1] = S[1]
-        Sa[2:div(Nt + 1, 2)] = 2. * S[2:div(Nt + 1, 2)]
-    end
-    return Sa
 end
 
 

@@ -4,6 +4,7 @@ using PyCall
 @pyimport scipy.constants as sc
 
 import Grids
+import Fourier
 
 const C0 = sc.c   # speed of light in vacuum
 const HBAR = sc.hbar   # the Planck constant (divided by 2*pi) [J*s]
@@ -28,7 +29,7 @@ function Field(unit, grid, lam0, initial_condition::Function)
 
     E = initial_condition(grid.r, grid.t, unit.r, unit.t, unit.I)
     for i=1:grid.Nr
-        E[i, :] = signal_real_to_analytic(real(E[i, :]))
+        E[i, :] = Fourier.signal_real_to_analytic(real(E[i, :]))
     end
 
     S = zeros(Complex128, (grid.Nr, grid.Nw))
@@ -197,7 +198,7 @@ function integral_power_spectrum(field)
     S = zeros(field.grid.Nw)
     for i=1:field.grid.Nr
         Et = real(field.E[i, :])
-        Ew = conj(rfft(Et))
+        Ew = Fourier.rfft1d(Et)
         Ew = 2. * Ew * field.grid.dt
 
         dr = step(i, r)
@@ -205,22 +206,6 @@ function integral_power_spectrum(field)
     end
     S = S * 2. * pi
     return S
-end
-
-
-"""Real time signal -> analytic time signal."""
-function signal_real_to_analytic(Er::Array{Float64, 1})
-    N = length(Er)
-    S = ifft(Er) * N   # time -> frequency
-    if N % 2 == 0   # N is even
-        S[2:div(N, 2)] = 2. * S[2:div(N, 2)]
-        S[div(N, 2) + 2:end] = 0.
-    else:   # N is odd
-        S[2:div(N + 1, 2)] = 2. * S[2:div(N + 1, 2)]
-        S[div(N + 1, 2) + 1:end] = 0.
-    end
-    Ea = fft(S) / N   # frequency -> time
-    return Ea
 end
 
 
