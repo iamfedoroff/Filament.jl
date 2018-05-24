@@ -166,7 +166,7 @@ end
 
 
 function plasma_radius(field)
-    rad = radius(field.grid.r, field.rho)
+    rad = 2. * radius(field.grid.r, field.rho)
     # Factor 2. because rho(r) is only half of full distribution rho(x)
     return rad
 end

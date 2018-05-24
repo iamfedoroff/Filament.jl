@@ -10,6 +10,7 @@ import Units
 import Grids
 import Fields
 import Media
+import Plasmas
 import Models
 import Infos
 import Plots
@@ -37,10 +38,14 @@ z = z / unit.z   # convert initial z to dimensionless units
 field = Fields.Field(unit, grid, lam0, initial_condition)
 
 # ******************************************************************************
-# Read the medium file and prepare medium
+# Read the medium file and prepare medium and plasma
 # ******************************************************************************
 include(abspath(file_medium))
-medium = Media.Medium(permittivity, permeability, n2)
+medium = Media.Medium(permittivity, permeability, n2, rho0, nuc, mr)
+
+keys = Dict("IONARG" => IONARG, "AVALANCHE" => AVALANCHE)
+plasma = Plasmas.Plasma(unit, grid, field, medium, rho0, components, keys)
+Plasmas.free_charge(plasma, grid, field)
 
 # ******************************************************************************
 # Prepare output files
@@ -54,7 +59,7 @@ end
 
 file_infos = joinpath(prefix_dir, string(prefix_name, "info.txt"))
 info = Infos.Info(file_infos, file_input, file_initial_condition, file_medium,
-                  unit, grid, medium, field)
+                  unit, grid, field, medium, plasma)
 
 file_plotdat = joinpath(prefix_dir, string(prefix_name, "plot.dat"))
 plotdat = Plots.PlotDAT(file_plotdat, unit)
@@ -68,12 +73,11 @@ Plots.writeHDF_zdata(plothdf, z, field)
 # ******************************************************************************
 # Prepare model
 # ******************************************************************************
-keys = Dict(
-    "KPARAXIAL" => KPARAXIAL, "QPARAXIAL" => QPARAXIAL, "KERR" => KERR,
-    "THG" => THG,
-    "rguard_width" => rguard_width, "tguard_width" => tguard_width,
-    "kguard" => kguard, "wguard" => wguard)
-
+keys = Dict("KPARAXIAL" => KPARAXIAL, "QPARAXIAL" => QPARAXIAL, "KERR" => KERR,
+            "THG" => THG, "PLASMA" => PLASMA, "ILOSSES" => ILOSSES,
+            "IONARG" => IONARG, "rguard_width" => rguard_width,
+            "tguard_width" => tguard_width, "kguard" => kguard,
+            "wguard" => wguard)
 model = Models.Model(unit, grid, field, medium, keys)
 
 # ******************************************************************************
@@ -99,7 +103,7 @@ znext_zdata = z + dz_zdata
           "I=$(Formatting.fmt("18.12e", Imax))[Iu] " *
           "rho=$(Formatting.fmt("18.12e", rhomax))[rhou]\n")
 
-    Models.zstep(dz, grid, field, model)
+    Models.zstep(dz, grid, field, plasma, model)
 
     # Plots
     Plots.writeDAT(plotdat, z, field)   # write to plotdat file

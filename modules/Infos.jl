@@ -7,6 +7,7 @@ import Formatting
 
 import Fields
 import Media
+import MediaComponents
 
 const C0 = sc.c   # speed of light in vacuum
 
@@ -17,7 +18,7 @@ end
 
 
 function Info(fname, file_input, file_initial_condition, file_medium,
-              unit, grid, medium, field)
+              unit, grid, field, medium, plasma)
     fmt(x) = Formatting.fmt("18.12e", x)
 
     revision = "unavailable"
@@ -39,6 +40,12 @@ function Info(fname, file_input, file_initial_condition, file_medium,
     I0 = Fields.peak_intensity(field) * unit.I
     P = Fields.peak_power(field) * unit.r^2 * unit.I
     Pcr = Media.critical_power(medium, field.w0)
+
+    comp_tab = ""
+    for i=1:plasma.Ncomp
+        comp = plasma.components[i]
+        comp_tab = comp_tab * "$(Formatting.fmt("<25", comp.name)) $comp.K\n"
+    end
 
     sdata =
 """
@@ -111,9 +118,9 @@ Lnl    = $(fmt(Media.nonlinearity_length(medium, field.w0, I0))) [m] - length of
 zf     = $(fmt(Media.selffocusing_length(medium, field.w0, a0, P))) [m] - self-focusing distance
 
 --------------------------------------------------------------------------------
-Component's name          multiphoton order K          Keldysh gamma
+Component's name          multiphoton order K
 --------------------------------------------------------------------------------
-
+$comp_tab
 ********************************************************************************
                               Runtime information
 ********************************************************************************

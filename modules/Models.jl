@@ -8,6 +8,7 @@ import Units
 import Grids
 import Fields
 import Media
+import Plasmas
 import Hankel
 import Fourier
 import Guards
@@ -24,7 +25,10 @@ struct Model
     KZ :: Array{Complex128, 2}
     QZ :: Array{Complex128, 2}
     Rk :: Float64
+    Rp :: Array{Complex128, 1}
+    Ra :: Array{Complex128, 1}
     phi_kerr :: Float64
+    phi_plasma :: Float64
     guard :: Guards.GuardFilter
     keys :: Dict{String, Any}
 end
@@ -97,13 +101,17 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     end
 
     # Kerr nonlinearity --------------------------------------------------------
-    KERR = keys["KERR"]
-    THG = keys["THG"]
-
     Rk = Rk_func(unit, medium, field)
     phi_kerr = phi_kerr_func(unit, medium, field)
 
-    return Model(KZ, QZ, Rk, phi_kerr, guard, keys)
+    # Plasma nonlinearity ------------------------------------------------------
+    Rp = Rp_func(unit, grid, medium, field)
+    phi_plasma = phi_kerr_func(unit, medium, field)
+
+    # Losses due to multiphoton ionization -------------------------------------
+    Ra = Ra_func(unit, grid, medium, field)
+
+    return Model(KZ, QZ, Rk, Rp, Ra, phi_kerr, phi_plasma, guard, keys)
 end
 
 
@@ -114,12 +122,11 @@ function adaptive_dz(model, AdaptLevel, I, rho)
         dz_kerr = Inf
     end
 
-    # if (model.keys["PLASMA"] != 0) & (rho != 0.)
-    #     dz_plasma = model.phi_plasma / rho * AdaptLevel
-    # else
-    #     dz_plasma = Inf
-    # end
-    dz_plasma = Inf
+    if (model.keys["PLASMA"] != 0) & (rho != 0.)
+        dz_plasma = model.phi_plasma / rho * AdaptLevel
+    else
+        dz_plasma = Inf
+    end
 
     dz = min(dz_kerr, dz_plasma)
     return dz
@@ -127,7 +134,8 @@ end
 
 
 function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
-               model::Models.Model)
+               plasma::Plasmas.Plasma, model::Models.Model)
+
 
     function func(S::Array{Complex128, 2})
         res = zeros(Complex128, (grid.Nr, grid.Nw))
@@ -149,6 +157,38 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
                 res[i, :] = @. res[i, :] + model.Rk * Stmp
             end
+
+            # Plasma nonlinearity:
+            if model.keys["PLASMA"] != 0
+                rhot = plasma.rho[i, :]
+                Ftmp = @. rhot * Et
+                Ftmp = @. Ftmp * model.guard.T   # temporal filter
+                Stmp = Fourier.rfft1d(Ftmp)   # time -> frequency
+
+                res[i, :] = @. res[i, :] + model.Rp * Stmp
+            end
+
+            # Losses due to multiphoton ionization:
+            if model.keys["ILOSSES"] != 0
+                Kdrhot = plasma.Kdrho[i, :]
+
+                if model.keys["IONARG"] != 0
+                    It = @. abs2(Ea)
+                else
+                    It = @. Et^2
+                end
+
+                Ftmp = zeros(Float64, grid.Nt)
+                for j=1:grid.Nt
+                    if It[j] >= 1e-30
+                        Ftmp[j] = Kdrhot[j] / It[j] * Et[j]
+                    end
+                end
+                Ftmp = @. Ftmp * model.guard.T   # temporal filter
+                Stmp = Fourier.rfft1d(Ftmp)   # time -> frequency
+
+                res[i, :] = @. res[i, :] + model.Ra * Stmp
+            end
         end
 
         # Nonparaxiality:
@@ -168,6 +208,10 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
         return res
     end
 
+
+    if (model.keys["PLASMA"] != 0) | (model.keys["ILOSSES"] != 0)
+        Plasmas.free_charge(plasma, grid, field)
+    end
 
     # Field -> temporal spectrum -----------------------------------------------
     for i=1:grid.Nr
@@ -230,6 +274,39 @@ function Rk_func(unit, medium, field)
 end
 
 
+function Rp_func(unit, grid, medium, field)
+    n0 = real(Media.refractive_index(medium, field.w0))
+    Eu = Units.E(unit, n0)
+    nuc = medium.nuc
+    MR = medium.mr * ME   # reduced mass of electron and hole (effective mass)
+    R = zeros(Complex128, grid.Nw)
+    for i=1:grid.Nw
+        if grid.w[i] != 0.
+            R[i] = 1im / (grid.w[i] * unit.w) *
+                   QE^2 / MR / (nuc - 1im * (grid.w[i] * unit.w)) *
+                   unit.rho * Eu
+        end
+    end
+    return R
+end
+
+
+function Ra_func(unit, grid, medium, field)
+    n0 = real(Media.refractive_index(medium, field.w0))
+    Eu = Units.E(unit, n0)
+
+    R = zeros(Complex128, grid.Nw)
+    for i=1:grid.Nw
+        if grid.w[i] != 0.
+            R[i] = 1im / (grid.w[i] * unit.w) *
+                   HBAR * field.w0 * unit.rho / (unit.t * Eu)
+        end
+    end
+    R = 2. * R   # in order to be consistent with the previous versions
+    return R
+end
+
+
 """Kerr phase factor for adaptive z step."""
 function phi_kerr_func(unit, medium, field)
     w0 = field.w0
@@ -248,6 +325,32 @@ function phi_kerr_func(unit, medium, field)
 
     if imag(Rk0) != 0.
         phi_imag = k0 / (3. / 4. * abs(imag(Rk0)))
+    else
+        phi_imag = Inf
+    end
+
+    phi = min(phi_real, phi_imag)
+    return phi
+end
+
+
+"""Plasma phase factor for adaptive z step."""
+function phi_plasma(unit, medium, field)
+    w0 = field.w0
+    k0 = Media.k_func(medium, w0)
+    nuc = medium.nuc
+    mu = medium.permeability(w0)
+    MR = medium.mr * ME   # reduced mass of electron and hole (effective mass)
+    Rp0 = 0.5 * MU0 * mu * w0 / (nuc - 1im * w0) * QE^2 / MR * unit.rho * unit.z
+
+    if real(Rp0) != 0.
+        phi_real = k0 / abs(real(Rp0))
+    else
+        phi_real = Inf
+    end
+
+    if imag(Rp0) != 0.
+        phi_imag = k0 / abs(imag(Rp0))
     else
         phi_imag = Inf
     end
