@@ -302,7 +302,6 @@ function Ra_func(unit, grid, medium, field)
                    HBAR * field.w0 * unit.rho / (unit.t * Eu)
         end
     end
-    R = 2. * R   # in order to be consistent with the previous versions
     return R
 end
 
