@@ -13,7 +13,7 @@ import Media
 import Plasmas
 import Models
 import Infos
-import Plots
+import WritePlots
 
 const C0 = sc.c   # speed of light in vacuum
 
@@ -62,13 +62,13 @@ info = Infos.Info(file_infos, file_input, file_initial_condition, file_medium,
                   unit, grid, field, medium, plasma)
 
 file_plotdat = joinpath(prefix_dir, string(prefix_name, "plot.dat"))
-plotdat = Plots.PlotDAT(file_plotdat, unit)
-Plots.writeDAT(plotdat, z, field)
+plotdat = WritePlots.PlotDAT(file_plotdat, unit)
+WritePlots.writeDAT(plotdat, z, field)
 
 file_plothdf = joinpath(prefix_dir, string(prefix_name, "plot.h5"))
-plothdf = Plots.PlotHDF(file_plothdf, unit, grid)
-Plots.writeHDF(plothdf, z, field)
-Plots.writeHDF_zdata(plothdf, z, field)
+plothdf = WritePlots.PlotHDF(file_plothdf, unit, grid)
+WritePlots.writeHDF(plothdf, z, field)
+WritePlots.writeHDF_zdata(plothdf, z, field)
 
 # ******************************************************************************
 # Prepare model
@@ -105,22 +105,24 @@ znext_zdata = z + dz_zdata
 
     Models.zstep(dz, grid, field, plasma, model)
 
-    # Plots
-    Plots.writeDAT(plotdat, z, field)   # write to plotdat file
+    # Write integral parameters to dat file
+    WritePlots.writeDAT(plotdat, z, field)
 
+    # Write field to hdf file
     if z >= znext_plothdf
-        Plots.writeHDF(plothdf, z, field)   # write to plothdf file
+        WritePlots.writeHDF(plothdf, z, field)
         znext_plothdf = znext_plothdf + dz_plothdf
     end
 
+    # Write 1d field data to hdf file
     if z >= znext_zdata
-        Plots.writeHDF_zdata(plothdf, z, field)  # write 1d data to plothdf file
+        WritePlots.writeHDF_zdata(plothdf, z, field)
         znext_zdata = z + dz_zdata
     end
 
     # Exit conditions
     if Imax > Istop
-        Plots.writeHDF_zdata(plothdf, z, field)
+        WritePlots.writeHDF_zdata(plothdf, z, field)
         message = "Stop (Imax >= Istop): z=$(z)[zu], z=$(z * unit.z)[m]\n"
         Infos.write_message(info, message)
         break

@@ -1,4 +1,4 @@
-module Plots
+module WritePlots
 
 import Formatting
 import HDF5
