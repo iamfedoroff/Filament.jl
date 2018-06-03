@@ -44,7 +44,7 @@ function Info(fname, file_input, file_initial_condition, file_medium,
     comp_tab = ""
     for i=1:plasma.Ncomp
         comp = plasma.components[i]
-        comp_tab = comp_tab * "$(Formatting.fmt("<25", comp.name)) $comp.K\n"
+        comp_tab = comp_tab * "$(Formatting.fmt("<25", comp.name)) $(comp.K)\n"
     end
 
     sdata =
