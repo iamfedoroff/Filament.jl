@@ -24,8 +24,8 @@ end
 
 
 function Component(unit::Units.Unit, field::Fields.Field, medium::Media.Medium,
-                   name::String, frac::Float64, Ui::Float64,
-                   fname_tabfunc::String)
+                   nuc::Float64, mr::Float64, name::String, frac::Float64,
+                   Ui::Float64, fname_tabfunc::String)
 
     Ui = Ui * QE   # eV -> J
     tf = TabularFunctions.TabularFunction(unit, fname_tabfunc)
@@ -34,8 +34,7 @@ function Component(unit::Units.Unit, field::Fields.Field, medium::Media.Medium,
 
     n0 = real(Media.refractive_index(medium, field.w0))
     Eu = Units.E(unit, n0)
-    nuc = medium.nuc
-    MR = medium.mr * ME   # reduced mass of electron and hole (effective mass)
+    MR = mr * ME   # reduced mass of electron and hole (effective mass)
     sigma = QE^2 / MR * nuc / (nuc^2 + field.w0^2)
     Wava = sigma / Ui * Eu^2 * unit.t
 

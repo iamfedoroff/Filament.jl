@@ -13,9 +13,6 @@ struct Medium
     permittivity :: Function
     permeability :: Function
     n2 :: Float64
-    rho0 :: Float64
-    nuc :: Float64
-    mr :: Float64
 end
 
 

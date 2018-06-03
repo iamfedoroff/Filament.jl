@@ -10,6 +10,8 @@ import TabularFunctions
 
 mutable struct Plasma
     rho0 :: Float64
+    nuc :: Float64
+    mr :: Float64
     components :: Array{MediaComponents.Component, 1}
     Ncomp :: Int64
     rho :: Array{Float64, 2}
@@ -19,7 +21,7 @@ mutable struct Plasma
 end
 
 function Plasma(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
-                medium::Media.Medium, rho0::Float64,
+                medium::Media.Medium, rho0::Float64, nuc::Float64, mr::Float64,
                 components_dict::Array{Dict{String, Any}, 1},
                 keys)
     rho0 = rho0 / unit.rho
@@ -32,7 +34,7 @@ function Plasma(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
         frac = comp_dict["fraction"]
         Ui = comp_dict["ionization_energy"]
         fname_tabfunc = comp_dict["tabular_function"]
-        components[i] = MediaComponents.Component(unit, field, medium,
+        components[i] = MediaComponents.Component(unit, field, medium, nuc, mr,
                                                   name, frac, Ui, fname_tabfunc)
     end
 
@@ -40,7 +42,7 @@ function Plasma(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     Kdrho = zeros(Float64, (grid.Nr, grid.Nt))
     RI = zeros(Float64, (grid.Nr, grid.Nt))
 
-    return Plasma(rho0, components, Ncomp, rho, Kdrho, RI, keys)
+    return Plasma(rho0, nuc, mr, components, Ncomp, rho, Kdrho, RI, keys)
 end
 
 

@@ -35,7 +35,8 @@ end
 
 
 function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
-               medium::Media.Medium, keys::Dict{String, Any})
+               medium::Media.Medium, plasma::Plasmas.Plasma,
+               keys::Dict{String, Any})
     rguard_width = keys["rguard_width"]
     tguard_width = keys["tguard_width"]
     kguard = keys["kguard"]
@@ -101,15 +102,15 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     end
 
     # Kerr nonlinearity --------------------------------------------------------
-    Rk = Rk_func(unit, medium, field)
-    phi_kerr = phi_kerr_func(unit, medium, field)
+    Rk = Rk_func(unit, field, medium)
+    phi_kerr = phi_kerr_func(unit, field, medium)
 
     # Plasma nonlinearity ------------------------------------------------------
-    Rp = Rp_func(unit, grid, medium, field)
-    phi_plasma = phi_kerr_func(unit, medium, field)
+    Rp = Rp_func(unit, grid, field, medium, plasma)
+    phi_plasma = phi_kerr_func(unit, field, medium)
 
     # Losses due to multiphoton ionization -------------------------------------
-    Ra = Ra_func(unit, grid, medium, field)
+    Ra = Ra_func(unit, grid, field, medium)
 
     return Model(KZ, QZ, Rk, Rp, Ra, phi_kerr, phi_plasma, guard, keys)
 end
@@ -265,7 +266,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 end
 
 
-function Rk_func(unit, medium, field)
+function Rk_func(unit, field, medium)
     n0 = real(Media.refractive_index(medium, field.w0))
     Eu = Units.E(unit, n0)
     chi3 = Media.chi3_func(medium, field.w0)
@@ -274,11 +275,11 @@ function Rk_func(unit, medium, field)
 end
 
 
-function Rp_func(unit, grid, medium, field)
+function Rp_func(unit, grid, field, medium, plasma)
     n0 = real(Media.refractive_index(medium, field.w0))
     Eu = Units.E(unit, n0)
-    nuc = medium.nuc
-    MR = medium.mr * ME   # reduced mass of electron and hole (effective mass)
+    nuc = plasma.nuc
+    MR = plasma.mr * ME   # reduced mass of electron and hole (effective mass)
     R = zeros(Complex128, grid.Nw)
     for i=1:grid.Nw
         if grid.w[i] != 0.
@@ -291,7 +292,7 @@ function Rp_func(unit, grid, medium, field)
 end
 
 
-function Ra_func(unit, grid, medium, field)
+function Ra_func(unit, grid, field, medium)
     n0 = real(Media.refractive_index(medium, field.w0))
     Eu = Units.E(unit, n0)
 
@@ -307,7 +308,7 @@ end
 
 
 """Kerr phase factor for adaptive z step."""
-function phi_kerr_func(unit, medium, field)
+function phi_kerr_func(unit, field, medium)
     w0 = field.w0
     n0 = real(Media.refractive_index(medium, field.w0))
     k0 = Media.k_func(medium, w0)
@@ -334,7 +335,7 @@ end
 
 
 """Plasma phase factor for adaptive z step."""
-function phi_plasma(unit, medium, field)
+function phi_plasma(unit, field, medium)
     w0 = field.w0
     k0 = Media.k_func(medium, w0)
     nuc = medium.nuc

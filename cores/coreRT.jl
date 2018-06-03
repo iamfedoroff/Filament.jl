@@ -50,12 +50,11 @@ function main()
     # **************************************************************************
     # Read the medium file and prepare medium and plasma
     # **************************************************************************
-    medium = Media.Medium(Input.permittivity, Input.permeability, Input.n2,
-                          Input.rho0, Input.nuc, Input.mr)
+    medium = Media.Medium(Input.permittivity, Input.permeability, Input.n2)
 
     keys = Dict("IONARG" => Input.IONARG, "AVALANCHE" => Input.AVALANCHE)
-    plasma = Plasmas.Plasma(unit, grid, field, medium,
-                            Input.rho0, Input.components, keys)
+    plasma = Plasmas.Plasma(unit, grid, field, medium, Input.rho0, Input.nuc,
+                            Input.mr, Input.components, keys)
     Plasmas.free_charge(plasma, grid, field)
 
     # **************************************************************************
@@ -92,7 +91,7 @@ function main()
         "rguard_width" => Input.rguard_width,
         "tguard_width" => Input.tguard_width, "kguard" => Input.kguard,
         "wguard" => Input.wguard)
-    model = Models.Model(unit, grid, field, medium, keys)
+    model = Models.Model(unit, grid, field, medium, plasma, keys)
 
     # **************************************************************************
     # Main loop
