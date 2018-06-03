@@ -10,11 +10,9 @@ Additional info:
 """
 module Hankel
 
+import SpecialFunctions
 using PyCall
 @pyimport scipy.special as spec
-
-import SpecialFunctions
-
 
 struct HankelTransform
     R :: Float64
@@ -26,6 +24,8 @@ struct HankelTransform
     JdivV :: Array{Float64, 1}
     VdivJ :: Array{Float64, 1}
     JdivR :: Array{Float64, 1}
+    F1 :: Array{Complex128, 1}
+    F2 :: Array{Complex128, 1}
 end
 
 
@@ -56,54 +56,39 @@ function HankelTransform(R::Float64, Nr::Int64, p::Int64=0)
     VdivJ = @. V / J
     JdivR = @. J / R
 
-    return HankelTransform(R, Nr, r, v, T, RdivJ, JdivV, VdivJ, JdivR)
+    F1 = zeros(Complex128, length(J))
+    F2 = zeros(Complex128, length(J))
+
+    return HankelTransform(R, Nr, r, v, T, RdivJ, JdivV, VdivJ, JdivR, F1, F2)
+end
+
+
+function dht!(ht::HankelTransform, f::Array{Complex128, 1})
+    @inbounds @. ht.F1 = f * ht.RdivJ
+    A_mul_B!(ht.F2, ht.T, ht.F1)
+    @inbounds @. f = ht.F2 * ht.JdivV
+    return nothing
 end
 
 
 function dht(ht::HankelTransform, f1::Array{Complex128, 1})
-    F1 = @. f1 * ht.RdivJ
-    F2 = ht.T * F1
-    f2 = @. F2 * ht.JdivV
+    f2 = copy(f1)
+    dht!(ht, f2)
     return f2
+end
+
+
+function idht!(ht::HankelTransform, f::Array{Complex128, 1})
+    @inbounds @. ht.F2 = f * ht.VdivJ
+    A_mul_B!(ht.F1, ht.T, ht.F2)
+    @inbounds @. f = ht.F1 * ht.JdivR
+    return nothing
 end
 
 
 function idht(ht::HankelTransform, f2::Array{Complex128, 1})
-    F2 = @. f2 * ht.VdivJ
-    F1 = ht.T * F2
-    f1 = @. F1 * ht.JdivR
-    return f1
-end
-
-
-function dht_loop(ht::HankelTransform, f1::Array{Complex128, 1})
-    F1 = zeros(Complex128, ht.Nr)
-    for i=1:ht.Nr
-        @inbounds F1[i] = f1[i] * ht.RdivJ[i]
-    end
-
-    F2 = ht.T * F1
-
-    f2 = zeros(Complex128, ht.Nr)
-    for i=1:ht.Nr
-        @inbounds f2[i] = F2[i] * ht.JdivV[i]
-    end
-    return f2
-end
-
-
-function idht_loop(ht::HankelTransform, f2::Array{Complex128, 1})
-    F2 = zeros(Complex128, ht.Nr)
-    for i=1:ht.Nr
-        @inbounds F2[i] = f2[i] * ht.VdivJ[i]
-    end
-
-    F1 = ht.T * F2
-
-    f1 = zeros(Complex128, ht.Nr)
-    for i=1:ht.Nr
-        @inbounds f1[i] = F1[i] * ht.JdivR[i]
-    end
+    f1 = copy(f2)
+    idht!(ht, f1)
     return f1
 end
 
