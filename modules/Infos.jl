@@ -7,7 +7,7 @@ import Formatting
 
 import Fields
 import Media
-import MediaComponents
+import PlasmaComponents
 
 const C0 = sc.c   # speed of light in vacuum
 

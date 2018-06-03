@@ -1,4 +1,4 @@
-module MediaComponents
+module PlasmaComponents
 
 using PyCall
 @pyimport scipy.constants as sc

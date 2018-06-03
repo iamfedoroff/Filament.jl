@@ -4,7 +4,7 @@ import Units
 import Grids
 import Fields
 import Media
-import MediaComponents
+import PlasmaComponents
 import TabularFunctions
 
 
@@ -12,7 +12,7 @@ mutable struct Plasma
     rho0 :: Float64
     nuc :: Float64
     mr :: Float64
-    components :: Array{MediaComponents.Component, 1}
+    components :: Array{PlasmaComponents.Component, 1}
     Ncomp :: Int64
     rho :: Array{Float64, 2}
     Kdrho :: Array{Float64, 2}
@@ -27,14 +27,14 @@ function Plasma(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     rho0 = rho0 / unit.rho
 
     Ncomp = length(components_dict)
-    components = Array{MediaComponents.Component}(Ncomp)
+    components = Array{PlasmaComponents.Component}(Ncomp)
     for i=1:Ncomp
         comp_dict = components_dict[i]
         name = comp_dict["name"]
         frac = comp_dict["fraction"]
         Ui = comp_dict["ionization_energy"]
         fname_tabfunc = comp_dict["tabular_function"]
-        components[i] = MediaComponents.Component(unit, field, medium, nuc, mr,
+        components[i] = PlasmaComponents.Component(unit, field, medium, nuc, mr,
                                                   name, frac, Ui, fname_tabfunc)
     end
 
