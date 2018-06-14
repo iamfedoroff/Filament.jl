@@ -116,7 +116,8 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
 end
 
 
-function adaptive_dz(model, AdaptLevel, I, rho)
+function adaptive_dz(model::Model, AdaptLevel::Float64, I::Float64,
+                     rho::Float64)
     if model.keys["KERR"] != 0
         dz_kerr = model.phi_kerr / I * AdaptLevel
     else
@@ -266,7 +267,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 end
 
 
-function Rk_func(unit, field, medium)
+function Rk_func(unit::Units.Unit, field::Fields.Field, medium::Media.Medium)
     n0 = real(Media.refractive_index(medium, field.w0))
     Eu = Units.E(unit, n0)
     chi3 = Media.chi3_func(medium, field.w0)
@@ -275,7 +276,8 @@ function Rk_func(unit, field, medium)
 end
 
 
-function Rp_func(unit, grid, field, medium, plasma)
+function Rp_func(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
+                 medium::Media.Medium, plasma::Plasmas.Plasma)
     n0 = real(Media.refractive_index(medium, field.w0))
     Eu = Units.E(unit, n0)
     nuc = plasma.nuc
@@ -292,7 +294,8 @@ function Rp_func(unit, grid, field, medium, plasma)
 end
 
 
-function Ra_func(unit, grid, field, medium)
+function Ra_func(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
+                 medium::Media.Medium)
     n0 = real(Media.refractive_index(medium, field.w0))
     Eu = Units.E(unit, n0)
 
@@ -308,7 +311,8 @@ end
 
 
 """Kerr phase factor for adaptive z step."""
-function phi_kerr_func(unit, field, medium)
+function phi_kerr_func(unit::Units.Unit, field::Fields.Field,
+                       medium::Media.Medium)
     w0 = field.w0
     n0 = real(Media.refractive_index(medium, field.w0))
     k0 = Media.k_func(medium, w0)
@@ -335,7 +339,7 @@ end
 
 
 """Plasma phase factor for adaptive z step."""
-function phi_plasma(unit, field, medium)
+function phi_plasma(unit::Units.Unit, field::Fields.Field, medium::Media.Medium)
     w0 = field.w0
     k0 = Media.k_func(medium, w0)
     nuc = medium.nuc
