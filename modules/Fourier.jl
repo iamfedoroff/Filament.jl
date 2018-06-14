@@ -1,7 +1,7 @@
 module Fourier
 
 
-function fft1d(E)
+function fft1d(E::Array{Complex128, 1})
     S = ifft(E) * length(E)   # time -> frequency
     return S
 end
@@ -28,7 +28,7 @@ end
 """Real time signal -> analytic time signal."""
 function signal_real_to_analytic(Er::Array{Float64, 1})
     N = length(Er)
-    S = fft1d(Er)   # time -> frequency
+    S = fft1d(Er + 0im)   # time -> frequency
     if N % 2 == 0   # N is even
         S[2:div(N, 2)] = 2. * S[2:div(N, 2)]
         S[div(N, 2) + 2:end] = 0.
