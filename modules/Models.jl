@@ -217,7 +217,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
     # Field -> temporal spectrum -----------------------------------------------
     for i=1:grid.Nr
-        field.S[i, :] = Fourier.rfft1d(real(field.E[i, :]))   # time -> frequency
+        @inbounds @views field.S[i, :] = Fourier.rfft1d(real(field.E[i, :]))   # time -> frequency
     end
 
     # Nonlinear propagator -----------------------------------------------------
@@ -242,28 +242,30 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     end
 
     # Linear propagator --------------------------------------------------------
-    for j=1:grid.Nw
-        field.S[:, j] = Hankel.dht(grid.HT, field.S[:, j])
-    end
-
-    for j=1:grid.Nw
-        for i=1:grid.Nr
-            field.S[i, j] = field.S[i, j] * exp(1im * model.KZ[i, j] * dz)
-            field.S[i, j] = field.S[i, j] * model.guard.K[i, j]   # angular filter
-        end
-    end
-
-    for j=1:grid.Nw
-        field.S[:, j] = Hankel.idht(grid.HT, field.S[:, j])
-    end
+    Hankel.dht!(grid.HT, field.S)
+    @inbounds @. field.S = field.S * exp(1im * model.KZ * dz)
+    @inbounds @. field.S = field.S * model.guard.K   # angular filter
+    Hankel.idht!(grid.HT, field.S)
 
     # Temporal spectrum -> field -----------------------------------------------
+    # spectral filter:
     for i=1:grid.Nr
-        field.S[i, :] = @. field.S[i, :] * model.guard.W   # spectral filter
+        @inbounds @views @. field.S[i, :] = field.S[i, :] * model.guard.W
+    end
+
+    # frequency -> time:
+    @inbounds for i=1:grid.Nr
         Sa = Fourier.spectrum_real_to_analytic(field.S[i, :], grid.Nt)
         field.E[i, :] = Fourier.ifft1d(Sa)   # frequency -> time
-        field.E[i, :] = @. field.E[i, :] * model.guard.R[i] * model.guard.T   # spatial and temporal filters
     end
+
+    # spatial and temporal filters:
+    for i=1:grid.Nr
+        @inbounds @views @. field.E[i, :] = field.E[i, :] * model.guard.R[i] *
+                                                            model.guard.T
+    end
+
+    return nothing
 end
 
 

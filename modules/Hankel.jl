@@ -63,6 +63,17 @@ function HankelTransform(R::Float64, Nr::Int64, p::Int64=0)
 end
 
 
+function dht!(ht::HankelTransform, f::Array{Complex128, 2})
+    N1, N2 = size(f)
+    for j=1:N2
+        @inbounds @views @. ht.F1 = f[:, j] * ht.RdivJ
+        A_mul_B!(ht.F2, ht.T, ht.F1)
+        @inbounds @views @. f[:, j] = ht.F2 * ht.JdivV
+    end
+    return nothing
+end
+
+
 function dht!(ht::HankelTransform, f::Array{Complex128, 1})
     @inbounds @. ht.F1 = f * ht.RdivJ
     A_mul_B!(ht.F2, ht.T, ht.F1)
@@ -75,6 +86,17 @@ function dht(ht::HankelTransform, f1::Array{Complex128, 1})
     f2 = copy(f1)
     dht!(ht, f2)
     return f2
+end
+
+
+function idht!(ht::HankelTransform, f::Array{Complex128, 2})
+    N1, N2 = size(f)
+    for j=1:N2
+        @inbounds @views @. ht.F2 = f[:, j] * ht.VdivJ
+        A_mul_B!(ht.F1, ht.T, ht.F2)
+        @inbounds @views @. f[:, j] = ht.F1 * ht.JdivR
+    end
+    return nothing
 end
 
 

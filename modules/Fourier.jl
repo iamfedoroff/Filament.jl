@@ -44,13 +44,12 @@ end
 """Spectrum of real time signal -> spectrum of analytic time signal."""
 function spectrum_real_to_analytic(S::Array{Complex128, 1}, Nt::Int64)
     Sa = zeros(Complex128, Nt)
+    Sa[1] = S[1]
     if Nt % 2 == 0   # Nt is even
-        Sa[1] = S[1]
-        Sa[2:div(Nt, 2)] = 2. * S[2:div(Nt, 2)]
+        @inbounds @views @. Sa[2:div(Nt, 2)] = 2. * S[2:div(Nt, 2)]
         Sa[div(Nt, 2) + 1] = S[div(Nt, 2) + 1]
     else   # Nt is odd
-        Sa[1] = S[1]
-        Sa[2:div(Nt + 1, 2)] = 2. * S[2:div(Nt + 1, 2)]
+        @inbounds @views @. Sa[2:div(Nt + 1, 2)] = 2. * S[2:div(Nt + 1, 2)]
     end
     return Sa
 end
