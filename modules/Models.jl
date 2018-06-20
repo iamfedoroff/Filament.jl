@@ -32,6 +32,7 @@ struct Model
     phi_kerr :: Float64
     phi_plasma :: Float64
     guard :: Guards.GuardFilter
+    FT :: Fourier.FourierTransform
     keys :: Dict{String, Any}
 end
 
@@ -39,12 +40,17 @@ end
 function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
                medium::Media.Medium, plasma::Plasmas.Plasma,
                keys::Dict{String, Any})
+    # Guards -------------------------------------------------------------------
     rguard_width = keys["rguard_width"]
     tguard_width = keys["tguard_width"]
     kguard = keys["kguard"]
     wguard = keys["wguard"]
     guard = Guards.GuardFilter(unit, grid, medium,
                                rguard_width, tguard_width, kguard, wguard)
+
+    # Fourier transform --------------------------------------------------------
+    FFTWFLAG = keys["FFTWFLAG"]
+    FT = Fourier.FourierTransform(grid.Nt, FFTWFLAG)
 
     # Linear propagator --------------------------------------------------------
     KPARAXIAL = keys["KPARAXIAL"]
@@ -131,7 +137,7 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     end
 
     @. Hraman = Hraman * guard.T   # temporal filter
-    Hramanw = Fourier.rfft1d(Hraman)   # time -> frequency
+    Hramanw = Fourier.rfft1d(FT, Hraman)   # time -> frequency
 
     # Plasma nonlinearity ------------------------------------------------------
     Rp = Rp_func(unit, grid, field, medium, plasma)
@@ -141,7 +147,7 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     Ra = Ra_func(unit, grid, field, medium)
 
     return Model(KZ, QZ, Rk, Rr, Hramanw, Rp, Ra, phi_kerr, phi_plasma, guard,
-                 keys)
+                 FT, keys)
 end
 
 
@@ -173,7 +179,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
         for i=1:grid.Nr
             Sa = Fourier.spectrum_real_to_analytic(S[i, :], grid.Nt)
-            Ea = Fourier.ifft1d(Sa)   # frequency -> time
+            Ea = Fourier.ifft1d(model.FT, Sa)   # frequency -> time
             Et = real(Ea)
 
             # Kerr nonlinearity:
@@ -184,7 +190,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
                     Ftmp = @. 3. / 4. * abs2(Ea) * Et
                 end
                 Ftmp = @. Ftmp * model.guard.T   # temporal filter
-                Stmp = Fourier.rfft1d(Ftmp)   # time -> frequency
+                Stmp = Fourier.rfft1d(model.FT, Ftmp)   # time -> frequency
 
                 res[i, :] = @. res[i, :] + model.Rk * Stmp
             end
@@ -197,15 +203,14 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
                     Ftmp = @. 3. / 4. * abs2(Ea)
                 end
                 Ftmp = @. Ftmp * model.guard.T   # temporal filter
-                Stmp = Fourier.rfft1d(Ftmp)   # time -> frequency
+                Stmp = Fourier.rfft1d(model.FT, Ftmp)   # time -> frequency
                 Stmp = @. Stmp * model.Hramanw
-                Iconv = irfft(conj(Stmp), grid.Nt)   # frequency -> time
-                # Iconv = Fourier.irfft1d(Stmp)   # frequency -> time
+                Iconv = Fourier.irfft1d(model.FT, Stmp)   # frequency -> time
                 Iconv = Fourier.roll(Iconv, div(grid.Nt + 1, 2) + 1)
 
                 Ftmp = @. Iconv * Et
                 Ftmp = @. Ftmp * model.guard.T   # temporal filter
-                Stmp = Fourier.rfft1d(Ftmp)   # time -> frequency
+                Stmp = Fourier.rfft1d(model.FT, Ftmp)   # time -> frequency
 
                 res[i, :] = @. res[i, :] + model.Rr * Stmp
             end
@@ -215,7 +220,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
                 rhot = plasma.rho[i, :]
                 Ftmp = @. rhot * Et
                 Ftmp = @. Ftmp * model.guard.T   # temporal filter
-                Stmp = Fourier.rfft1d(Ftmp)   # time -> frequency
+                Stmp = Fourier.rfft1d(model.FT, Ftmp)   # time -> frequency
 
                 res[i, :] = @. res[i, :] + model.Rp * Stmp
             end
@@ -237,7 +242,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
                     end
                 end
                 Ftmp = @. Ftmp * model.guard.T   # temporal filter
-                Stmp = Fourier.rfft1d(Ftmp)   # time -> frequency
+                Stmp = Fourier.rfft1d(model.FT, Ftmp)   # time -> frequency
 
                 res[i, :] = @. res[i, :] + model.Ra * Stmp
             end
@@ -267,7 +272,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
     # Field -> temporal spectrum -----------------------------------------------
     for i=1:grid.Nr
-        @inbounds @views field.S[i, :] = Fourier.rfft1d(real(field.E[i, :]))   # time -> frequency
+        @inbounds @views field.S[i, :] = Fourier.rfft1d(model.FT, real(field.E[i, :]))   # time -> frequency
     end
 
     # Nonlinear propagator -----------------------------------------------------
@@ -306,7 +311,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     # frequency -> time:
     @inbounds for i=1:grid.Nr
         Sa = Fourier.spectrum_real_to_analytic(field.S[i, :], grid.Nt)
-        field.E[i, :] = Fourier.ifft1d(Sa)   # frequency -> time
+        @views field.E[i, :] = Fourier.ifft1d(model.FT, Sa)   # frequency -> time
     end
 
     # spatial and temporal filters:

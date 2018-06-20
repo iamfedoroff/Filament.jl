@@ -46,5 +46,7 @@ wguard = 1e16   # [1/s] the cut-off angular frequency
 dzAdaptLevel = pi / 100.   # phase criterium for the adaptive z step
 Istop = 1e2   # [Iu] maixmum intensity in the problem (stop if exceeded)
 
+FFTWFLAG = FFTW.ESTIMATE   # FFTW planner flag (ESTIMATE, MEASURE or PATIENT)
+
 # Plots ------------------------------------------------------------------------
 dz_plothdf = 0.1   # [zu] z step for writing the field into the HDF5 file
