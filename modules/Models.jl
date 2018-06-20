@@ -116,7 +116,7 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
         Rk = (1. - graman) * Rk
         Rr = graman * Rk
     else
-        Rr = zeros(grid.Nt)
+        Rr = 0.
     end
 
     # For assymetric grids, where abs(tmin) != tmax, we need tshift to put H(t)
@@ -188,7 +188,6 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
                 res[i, :] = @. res[i, :] + model.Rk * Stmp
             end
-
 
             # Stimulated Raman nonlinearity:
             if model.keys["RAMAN"] != 0
