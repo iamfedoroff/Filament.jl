@@ -35,7 +35,8 @@ function Plasma(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
         Ui = comp_dict["ionization_energy"]
         fname_tabfunc = comp_dict["tabular_function"]
         components[i] = PlasmaComponents.Component(unit, field, medium, nuc, mr,
-                                                  name, frac, Ui, fname_tabfunc)
+                                                   name, frac, Ui,
+                                                   fname_tabfunc)
     end
 
     rho = zeros(Float64, (grid.Nr, grid.Nt))
@@ -79,20 +80,19 @@ Calculates free charge concentration, its derivative, and ionization rate for
 all medium components.
 """
 function free_charge(plasma, grid, field)
-    plasma.rho .= 0.
-    plasma.Kdrho .= 0.
-    plasma.RI .= 0.
-    for i=1:plasma.Ncomp
-        comp = plasma.components[i]
-        for j=1:grid.Nr
-            Et = field.E[j, :]
+    @inbounds @. plasma.rho = 0.
+    @inbounds @. plasma.Kdrho = 0.
+    @inbounds @. plasma.RI = 0.
+    for comp in plasma.components
+        @inbounds for i=1:grid.Nr
+            Et = field.E[i, :]
             rhot, drhot, RIt = free_charge_component(plasma, grid, Et, comp)
-            plasma.rho[j, :] = plasma.rho[j, :] + rhot
-            plasma.Kdrho[j, :] = plasma.Kdrho[j, :] + comp.K * drhot
-            plasma.RI[j, :] = plasma.RI[j, :] + RIt
+            @views @. plasma.rho[i, :] = plasma.rho[i, :] + rhot
+            @views @. plasma.Kdrho[i, :] = plasma.Kdrho[i, :] + comp.K * drhot
+            @views @. plasma.RI[i, :] = plasma.RI[i, :] + RIt
         end
     end
-    field.rho = plasma.rho[:, end]
+    @inbounds @views @. field.rho = plasma.rho[:, end]
 end
 
 
@@ -101,22 +101,21 @@ Calculates free charge concentration, its derivative, and ionization rate for a
 specific medium component.
 """
 function free_charge_component(plasma, grid, Et, comp)
-    IONARG = plasma.keys["IONARG"]
-    AVALANCHE = plasma.keys["AVALANCHE"]
-
-    if IONARG != 0
-        It = @. abs2(Et)
-    else
-        It = @. real(Et)^2
-    end
-
+    It = zeros(Float64, grid.Nt)
     rho = zeros(Float64, grid.Nt)
     drho = zeros(Float64, grid.Nt)
     RI = zeros(Float64, grid.Nt)
-    for i=2:grid.Nt
+
+    if plasma.keys["IONARG"] != 0
+        @inbounds @. It = abs2(Et)
+    else
+        @inbounds @. It = real(Et)^2
+    end
+
+    @inbounds for i=2:grid.Nt
         Ival = 0.5 * (It[i] + It[i-1])
         W1 = TabularFunctions.tfvalue(comp.tf, Ival)
-        if AVALANCHE != 0
+        if plasma.keys["AVALANCHE"] != 0
             W2 = comp.Wava * Ival
         else
             W2 = 0.
