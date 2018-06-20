@@ -176,6 +176,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
     function func(S::Array{Complex128, 2})
         res = zeros(Complex128, (grid.Nr, grid.Nw))
+        Ftmp = zeros(Float64, grid.Nt)
 
         for i=1:grid.Nr
             Sa = Fourier.spectrum_real_to_analytic(S[i, :], grid.Nt)
@@ -185,78 +186,79 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
             # Kerr nonlinearity:
             if model.keys["KERR"] != 0
                 if model.keys["THG"] != 0
-                    Ftmp = @. Et^3
+                    @inbounds @. Ftmp = Et^3
                 else
-                    Ftmp = @. 3. / 4. * abs2(Ea) * Et
+                    @inbounds @. Ftmp = 3. / 4. * abs2(Ea) * Et
                 end
-                Ftmp = @. Ftmp * model.guard.T   # temporal filter
+                @inbounds @. Ftmp = Ftmp * model.guard.T   # temporal filter
                 Stmp = Fourier.rfft1d(model.FT, Ftmp)   # time -> frequency
 
-                res[i, :] = @. res[i, :] + model.Rk * Stmp
+                @inbounds @views @. res[i, :] = res[i, :] + model.Rk * Stmp
             end
 
             # Stimulated Raman nonlinearity:
             if model.keys["RAMAN"] != 0
                 if model.keys["RTHG"] != 0
-                    Ftmp = @. Et^2
+                    @inbounds @. Ftmp = Et^2
                 else
-                    Ftmp = @. 3. / 4. * abs2(Ea)
+                    @inbounds @. Ftmp = 3. / 4. * abs2(Ea)
                 end
-                Ftmp = @. Ftmp * model.guard.T   # temporal filter
+                @inbounds @. Ftmp = Ftmp * model.guard.T   # temporal filter
                 Stmp = Fourier.rfft1d(model.FT, Ftmp)   # time -> frequency
-                Stmp = @. Stmp * model.Hramanw
+                @inbounds @. Stmp = Stmp * model.Hramanw
                 Iconv = Fourier.irfft1d(model.FT, Stmp)   # frequency -> time
                 Iconv = Fourier.roll(Iconv, div(grid.Nt + 1, 2) + 1)
 
-                Ftmp = @. Iconv * Et
-                Ftmp = @. Ftmp * model.guard.T   # temporal filter
+                @inbounds @. Ftmp = Iconv * Et
+                @inbounds @. Ftmp = Ftmp * model.guard.T   # temporal filter
                 Stmp = Fourier.rfft1d(model.FT, Ftmp)   # time -> frequency
 
-                res[i, :] = @. res[i, :] + model.Rr * Stmp
+                @inbounds @views @. res[i, :] = res[i, :] + model.Rr * Stmp
             end
 
             # Plasma nonlinearity:
             if model.keys["PLASMA"] != 0
-                rhot = plasma.rho[i, :]
-                Ftmp = @. rhot * Et
-                Ftmp = @. Ftmp * model.guard.T   # temporal filter
+                @inbounds @views rhot = plasma.rho[i, :]
+                @inbounds @. Ftmp = rhot * Et
+                @inbounds @. Ftmp = Ftmp * model.guard.T   # temporal filter
                 Stmp = Fourier.rfft1d(model.FT, Ftmp)   # time -> frequency
 
-                res[i, :] = @. res[i, :] + model.Rp * Stmp
+                @inbounds @views @. res[i, :] = res[i, :] + model.Rp * Stmp
             end
 
             # Losses due to multiphoton ionization:
             if model.keys["ILOSSES"] != 0
-                Kdrhot = plasma.Kdrho[i, :]
+                @inbounds @views Kdrhot = plasma.Kdrho[i, :]
 
                 if model.keys["IONARG"] != 0
-                    It = @. abs2(Ea)
+                    @inbounds @. Ftmp = abs2(Ea)
                 else
-                    It = @. Et^2
+                    @inbounds @. Ftmp = Et^2
                 end
 
-                Ftmp = zeros(Float64, grid.Nt)
-                for j=1:grid.Nt
-                    if It[j] >= 1e-30
-                        Ftmp[j] = Kdrhot[j] / It[j] * Et[j]
+                @inbounds for j=1:grid.Nt
+                    if Ftmp[j] >= 1e-30
+                        Ftmp[j] = Kdrhot[j] / Ftmp[j] * Et[j]
+                    else
+                        Ftmp[j] = 0.
                     end
                 end
-                Ftmp = @. Ftmp * model.guard.T   # temporal filter
+                @inbounds @. Ftmp = Ftmp * model.guard.T   # temporal filter
                 Stmp = Fourier.rfft1d(model.FT, Ftmp)   # time -> frequency
 
-                res[i, :] = @. res[i, :] + model.Ra * Stmp
+                @inbounds @views @. res[i, :] = res[i, :] + model.Ra * Stmp
             end
         end
 
         # Nonparaxiality:
         if model.keys["QPARAXIAL"] != 0
-            res = @. 1im * model.QZ * res
+            @inbounds @. res = 1im * model.QZ * res
         else
             for j=1:grid.Nw
                 res[:, j] = Hankel.dht(grid.HT, res[:, j])
             end
-            res = @. 1im * model.QZ * res
-            res = @. res * model.guard.K   # angular filter
+            @inbounds @. res = 1im * model.QZ * res
+            @inbounds @. res = res * model.guard.K   # angular filter
             for j=1:grid.Nw
                 res[:, j] = Hankel.idht(grid.HT, res[:, j])
             end
@@ -280,20 +282,20 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
         # RK2:
         # k1 = dz * func(field.S)
         # k2 = dz * func(field.S + 2. / 3. * k1)
-        # field.S = field.S + (k1 + 3. * k2) / 4.
+        # @inbounds @. field.S = field.S + (k1 + 3. * k2) / 4.
 
         # RK3:
         k1 = dz * func(field.S)
         k2 = dz * func(field.S + 0.5 * k1)
         k3 = dz * func(field.S - k1 + 2. * k2)
-        field.S = field.S + (k1 + 4. * k2 + k3) / 6.
+        @inbounds @. field.S = field.S + (k1 + 4. * k2 + k3) / 6.
 
         # RK4:
         # k1 = dz * func(field.S)
         # k2 = dz * func(field.S + 0.5 * k1)
         # k3 = dz * func(field.S + 0.5 * k2)
         # k4 = dz * func(field.S + k3)
-        # field.S = field.S + (k1 + 2. * k2 + 2. * k3 + k4) / 6.
+        # @inbounds @. field.S = field.S + (k1 + 2. * k2 + 2. * k3 + k4) / 6.
     end
 
     # Linear propagator --------------------------------------------------------
