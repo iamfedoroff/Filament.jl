@@ -50,7 +50,8 @@ function main()
     # **************************************************************************
     # Read the medium file and prepare medium and plasma
     # **************************************************************************
-    medium = Media.Medium(Input.permittivity, Input.permeability, Input.n2)
+    medium = Media.Medium(Input.permittivity, Input.permeability, Input.n2,
+                          Input.raman_response, Input.graman)
 
     keys = Dict("IONARG" => Input.IONARG, "AVALANCHE" => Input.AVALANCHE)
     plasma = Plasmas.Plasma(unit, grid, field, medium, Input.rho0, Input.nuc,
@@ -86,7 +87,8 @@ function main()
     # **************************************************************************
     keys = Dict(
         "KPARAXIAL" => Input.KPARAXIAL, "QPARAXIAL" => Input.QPARAXIAL,
-        "KERR" => Input.KERR, "THG" => Input.THG, "PLASMA" => Input.PLASMA,
+        "KERR" => Input.KERR, "THG" => Input.THG, "RAMAN" => Input.RAMAN,
+        "RTHG" => Input.RTHG, "PLASMA" => Input.PLASMA,
         "ILOSSES" => Input.ILOSSES, "IONARG" => Input.IONARG,
         "rguard_width" => Input.rguard_width,
         "tguard_width" => Input.tguard_width, "kguard" => Input.kguard,

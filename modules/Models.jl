@@ -25,6 +25,8 @@ struct Model
     KZ :: Array{Complex128, 2}
     QZ :: Array{Complex128, 2}
     Rk :: Float64
+    Rr :: Float64
+    Hramanw :: Array{Complex128, 1}
     Rp :: Array{Complex128, 1}
     Ra :: Array{Complex128, 1}
     phi_kerr :: Float64
@@ -105,6 +107,32 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     Rk = Rk_func(unit, field, medium)
     phi_kerr = phi_kerr_func(unit, field, medium)
 
+    # Stimulated Raman nonlinearity --------------------------------------------
+    RAMAN = keys["RAMAN"]
+
+    graman = medium.graman
+
+    if RAMAN != 0
+        Rk = (1. - graman) * Rk
+        Rr = graman * Rk
+    else
+        Rr = zeros(grid.Nt)
+    end
+
+    # For assymetric grids, where abs(tmin) != tmax, we need tshift to put H(t)
+    # into the grid center (see "circular convolution"):
+    tshift = grid.tmin + 0.5 * (grid.tmax - grid.tmin)
+    Hraman = @. medium.raman_response((grid.t - tshift) * unit.t)
+    Hraman = Hraman * grid.dt * unit.t
+
+    if abs(1. - sum(Hraman)) > 1e-6
+        print("WARNING: The integral of Raman response function should be" *
+              " normalized to 1.\n")
+    end
+
+    @. Hraman = Hraman * guard.T   # temporal filter
+    Hramanw = Fourier.rfft1d(Hraman)   # time -> frequency
+
     # Plasma nonlinearity ------------------------------------------------------
     Rp = Rp_func(unit, grid, field, medium, plasma)
     phi_plasma = phi_kerr_func(unit, field, medium)
@@ -112,7 +140,8 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     # Losses due to multiphoton ionization -------------------------------------
     Ra = Ra_func(unit, grid, field, medium)
 
-    return Model(KZ, QZ, Rk, Rp, Ra, phi_kerr, phi_plasma, guard, keys)
+    return Model(KZ, QZ, Rk, Rr, Hramanw, Rp, Ra, phi_kerr, phi_plasma, guard,
+                 keys)
 end
 
 
@@ -158,6 +187,28 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
                 Stmp = Fourier.rfft1d(Ftmp)   # time -> frequency
 
                 res[i, :] = @. res[i, :] + model.Rk * Stmp
+            end
+
+
+            # Stimulated Raman nonlinearity:
+            if model.keys["RAMAN"] != 0
+                if model.keys["RTHG"] != 0
+                    Ftmp = @. Et^2
+                else
+                    Ftmp = @. 3. / 4. * abs2(Ea)
+                end
+                Ftmp = @. Ftmp * model.guard.T   # temporal filter
+                Stmp = Fourier.rfft1d(Ftmp)   # time -> frequency
+                Stmp = @. Stmp * model.Hramanw
+                Iconv = irfft(conj(Stmp), grid.Nt)   # frequency -> time
+                # Iconv = Fourier.irfft1d(Stmp)   # frequency -> time
+                Iconv = Fourier.roll(Iconv, div(grid.Nt + 1, 2) + 1)
+
+                Ftmp = @. Iconv * Et
+                Ftmp = @. Ftmp * model.guard.T   # temporal filter
+                Stmp = Fourier.rfft1d(Ftmp)   # time -> frequency
+
+                res[i, :] = @. res[i, :] + model.Rr * Stmp
             end
 
             # Plasma nonlinearity:

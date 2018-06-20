@@ -13,6 +13,8 @@ struct Medium
     permittivity :: Function
     permeability :: Function
     n2 :: Float64
+    raman_response :: Function
+    graman :: Float64
 end
 
 

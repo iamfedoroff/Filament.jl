@@ -55,4 +55,23 @@ function spectrum_real_to_analytic(S::Array{Complex128, 1}, Nt::Int64)
 end
 
 
+"""
+Roll array elements. Elements that roll beyond the last position are
+re-introduced at the first. With nroll = (Nt + 1) / 2 the function is equivalent
+to fftshift function from NumPy library for the Python.
+"""
+function roll(a::Array{Float64, 1}, nroll::Int64)
+    N = length(a)
+    aroll = zeros(N)
+    for i=1:N
+        ii = mod(i + nroll, N)
+        if ii == 0
+            ii = N
+        end
+        aroll[ii] = a[i]
+    end
+    return aroll
+end
+
+
 end

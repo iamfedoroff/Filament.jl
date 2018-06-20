@@ -22,6 +22,24 @@ end
 
 n2 = 1e-23   # [m**2/W] nonlinear index
 
+
+function raman_response(t)
+    # M. Mlejnek, E.M. Wright, J.V. Moloney "Dynamic spatial replenishment of
+    # femtosecond pulses propagating in air" Opt. Lett., 23, 382 (1998)
+    if t < 0.
+        H = 0.
+    else
+        Omega = 20.6e12
+        Gamma = 26e12
+        Lambda = sqrt(Omega^2 - Gamma^2 / 4.)
+        H = Omega^2 * exp(-0.5 * Gamma * t) * sin(Lambda * t) / Lambda
+    end
+    return H
+end
+
+
+graman = 0.5   # fraction of stimulated Raman contribution
+
 rho0 = 2.5e25   # [1/m**3] neutrals density [https://en.wikipedia.org/wiki/Number_density]
 nuc = 5e12   # [1/s] collision frequency [Sprangle, PRE, 69, 066415 (2004)]
 mr = 1.   # [me] reduced mass of electron and hole (effective mass)
