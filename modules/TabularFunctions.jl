@@ -1,7 +1,5 @@
 module TabularFunctions
 
-using Interpolations
-
 
 struct TabularFunction
     x :: Array{Float64, 1}
@@ -21,31 +19,26 @@ function TabularFunction(unit, fname::String)
     # least at the intensities that correspond to the multiphoton
     # ionization). Therefore in a loglog scale they become very close to a
     # straight line which is friendly for the linear interpolation.
-    x = log10.(x)
-    y = log10.(y)
+    @. x = log10(x)
+    @. y = log10(y)
 
     return TabularFunction(x, y)
 end
 
 
 function tfvalue(tf::TabularFunction, x::Float64)
-    if x == 0.
+    xc = log10(x)
+    if xc < tf.x[1]
         y = 0.
+    elseif xc >= tf.x[end]
+        y = 10.^tf.y[end]
     else
-        y = interp(log10(x), tf.x, tf.y)
+        i = indmin(abs.(tf.x - xc))
+        y = tf.y[i] + (tf.y[i + 1] - tf.y[i]) * (xc - tf.x[i]) /
+                      (tf.x[i + 1] - tf.x[i])
         y = 10.^y
     end
     return y
-end
-
-
-function interp(xi::Float64, x::Array{Float64, 1}, y::Array{Float64, 1})
-    # itp = interpolate(y, BSpline(Linear()), OnGrid())
-    # itp = scale(itp, x)
-    itp = interpolate((x,), y, Gridded(Linear()))
-    itp = extrapolate(itp, Flat())
-    yi = itp[xi]
-    return yi
 end
 
 
