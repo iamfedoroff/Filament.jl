@@ -47,6 +47,7 @@ dzAdaptLevel = pi / 100.   # phase criterium for the adaptive z step
 Istop = 1e2   # [Iu] maixmum intensity in the problem (stop if exceeded)
 
 FFTWFLAG = FFTW.ESTIMATE   # FFTW planner flag (ESTIMATE, MEASURE or PATIENT)
+RKORDER = 3   # Order of the Runge-Kutta method (2, 3 or 4)
 
 # Plots ------------------------------------------------------------------------
 dz_plothdf = 0.1   # [zu] z step for writing the field into the HDF5 file

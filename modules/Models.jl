@@ -11,6 +11,7 @@ import Media
 import Plasmas
 import Hankel
 import Fourier
+import RungeKuttas
 import Guards
 
 const C0 = sc.c   # speed of light in vacuum
@@ -32,6 +33,8 @@ struct Model
     phi_kerr :: Float64
     phi_plasma :: Float64
     guard :: Guards.GuardFilter
+    RK :: Union{RungeKuttas.RungeKutta2, RungeKuttas.RungeKutta3,
+                RungeKuttas.RungeKutta4}
     FT :: Fourier.FourierTransform
     keys :: Dict{String, Any}
 end
@@ -51,6 +54,10 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     # Fourier transform --------------------------------------------------------
     FFTWFLAG = keys["FFTWFLAG"]
     FT = Fourier.FourierTransform(grid.Nt, FFTWFLAG)
+
+    # Runge-Kutta --------------------------------------------------------------
+    RKORDER = keys["RKORDER"]
+    RK = RungeKuttas.RungeKutta(RKORDER, grid.Nr, grid.Nw)
 
     # Linear propagator --------------------------------------------------------
     KPARAXIAL = keys["KPARAXIAL"]
@@ -147,7 +154,7 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     Ra = Ra_func(unit, grid, field, medium)
 
     return Model(KZ, QZ, Rk, Rr, Hramanw, Rp, Ra, phi_kerr, phi_plasma, guard,
-                 FT, keys)
+                 RK, FT, keys)
 end
 
 
@@ -267,7 +274,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
         return res
     end
 
-
+    # Calculate plasma density -------------------------------------------------
     if (model.keys["PLASMA"] != 0) | (model.keys["ILOSSES"] != 0)
         Plasmas.free_charge(plasma, grid, field)
     end
@@ -278,24 +285,9 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     end
 
     # Nonlinear propagator -----------------------------------------------------
-    if model.keys["KERR"] != 0
-        # RK2:
-        # k1 = dz * func(field.S)
-        # k2 = dz * func(field.S + 2. / 3. * k1)
-        # @inbounds @. field.S = field.S + (k1 + 3. * k2) / 4.
-
-        # RK3:
-        k1 = dz * func(field.S)
-        k2 = dz * func(field.S + 0.5 * k1)
-        k3 = dz * func(field.S - k1 + 2. * k2)
-        @inbounds @. field.S = field.S + (k1 + 4. * k2 + k3) / 6.
-
-        # RK4:
-        # k1 = dz * func(field.S)
-        # k2 = dz * func(field.S + 0.5 * k1)
-        # k3 = dz * func(field.S + 0.5 * k2)
-        # k4 = dz * func(field.S + k3)
-        # @inbounds @. field.S = field.S + (k1 + 2. * k2 + 2. * k3 + k4) / 6.
+    if (model.keys["KERR"] != 0) | (model.keys["PLASMA"] != 0) |
+       (model.keys["ILOSSES"] != 0)
+        RungeKuttas.RungeKutta_calc!(model.RK, field.S, dz, func)
     end
 
     # Linear propagator --------------------------------------------------------
