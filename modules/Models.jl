@@ -298,8 +298,10 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
     # Temporal spectrum -> field -----------------------------------------------
     # spectral filter:
-    for i=1:grid.Nr
-        @inbounds @views @. field.S[i, :] = field.S[i, :] * model.guard.W
+    for j=1:grid.Nw
+        for i=1:grid.Nr
+            @inbounds field.S[i, j] = field.S[i, j] * model.guard.W[j]
+        end
     end
 
     # frequency -> time:
@@ -309,9 +311,11 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     end
 
     # spatial and temporal filters:
-    for i=1:grid.Nr
-        @inbounds @views @. field.E[i, :] = field.E[i, :] * model.guard.R[i] *
-                                                            model.guard.T
+    for j=1:grid.Nt
+        for i=1:grid.Nr
+            @inbounds field.E[i, j] = field.E[i, j] * model.guard.R[i] *
+                                                      model.guard.T[j]
+        end
     end
 
     return nothing
