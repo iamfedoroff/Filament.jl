@@ -1,20 +1,20 @@
 module RungeKuttas
 
 
-    mutable struct RungeKutta2
+    struct RungeKutta2
         k1 :: Array{Complex128, 2}
         k2 :: Array{Complex128, 2}
     end
 
 
-    mutable struct RungeKutta3
+    struct RungeKutta3
         k1 :: Array{Complex128, 2}
         k2 :: Array{Complex128, 2}
         k3 :: Array{Complex128, 2}
     end
 
 
-    mutable struct RungeKutta4
+    struct RungeKutta4
         k1 :: Array{Complex128, 2}
         k2 :: Array{Complex128, 2}
         k3 :: Array{Complex128, 2}
