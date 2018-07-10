@@ -23,36 +23,78 @@ function FourierTransform(Nt, FFTWFLAG)
 end
 
 
-function fft1d(FT::FourierTransform, E::Array{Complex128, 1})
-    S = zeros(Complex128, FT.Nt)
-    A_mul_B!(S, FT.PIFFT, E)   # time -> frequency
-    @inbounds @. S = S * FT.Nt
-    return S
+function fft1d!(FT::FourierTransform, Ec::Array{Complex128, 1},
+                Sc::Array{Complex128, 1})
+    A_mul_B!(Sc, FT.PIFFT, Ec)   # time -> frequency
+    @inbounds @. Sc = Sc * FT.Nt
+    return nothing
 end
 
 
-function ifft1d(FT::FourierTransform, S::Array{Complex128, 1})
-    E = zeros(Complex128, FT.Nt)
-    A_mul_B!(E, FT.PFFT, S)   # frequency -> time
-    @inbounds @. E = E / FT.Nt
-    return E
+function fft1d(FT::FourierTransform, Ec::Array{Complex128, 1})
+    Sc = zeros(Complex128, FT.Nt)
+    fft1d!(FT, Ec, Sc)   # time -> frequency
+    return Sc
 end
 
 
-function rfft1d(FT::FourierTransform, E::Array{Float64, 1})
-    S = zeros(Complex128, FT.Nw)
-    A_mul_B!(S, FT.PRFFT, E)   # time -> frequency
-    @inbounds @. S = conj(S)
-    return S
+function ifft1d!(FT::FourierTransform, Sc::Array{Complex128, 1},
+                 Ec::Array{Complex128, 1})
+    A_mul_B!(Ec, FT.PFFT, Sc)   # frequency -> time
+    @inbounds @. Ec = Ec / FT.Nt
+    return nothing
 end
 
 
-function irfft1d(FT::FourierTransform, S::Array{Complex128, 1})
-    E = zeros(Float64, FT.Nt)
-    Sconj = zeros(Complex128, FT.Nw)
-    @inbounds @. Sconj = conj(S)
-    A_mul_B!(E, FT.PIRFFT, Sconj)   # frequency -> time
-    return E
+function ifft1d(FT::FourierTransform, Sc::Array{Complex128, 1})
+    Ec = zeros(Complex128, FT.Nt)
+    ifft1d!(FT, Sc, Ec)   # frequency -> time
+    return Ec
+end
+
+
+function rfft1d!(FT::FourierTransform, Er::Array{Float64, 1},
+                 Sr::Array{Complex128, 1})
+    A_mul_B!(Sr, FT.PRFFT, Er)   # time -> frequency
+    @inbounds @. Sr = conj(Sr)
+    return nothing
+end
+
+
+function rfft1d(FT::FourierTransform, Er::Array{Float64, 1})
+    Sr = zeros(Complex128, FT.Nw)
+    rfft1d!(FT, Er, Sr)   # time -> frequency
+    return Sr
+end
+
+
+function rfft2d!(FT::FourierTransform, E::Array{Complex128, 2},
+                 S::Array{Complex128, 2})
+    Nr, Nt = size(E)
+    Et = zeros(Float64, FT.Nt)
+    St = zeros(Complex128, FT.Nw)
+    for i=1:Nr
+        @inbounds @views @. Et = real(E[i, :])
+        rfft1d!(FT, Et, St)   # time -> frequency
+        @inbounds @. S[i, :] = St
+    end
+    return nothing
+end
+
+
+function irfft1d!(FT::FourierTransform, Sr::Array{Complex128, 1},
+                  Er::Array{Float64, 1})
+    @inbounds @. Sr = conj(Sr)
+    A_mul_B!(Er, FT.PIRFFT, Sr)   # frequency -> time
+    return Er
+end
+
+
+function irfft1d(FT::FourierTransform, Sr::Array{Complex128, 1})
+    Er = zeros(Float64, FT.Nt)
+    Sr2 = copy(Sr)
+    irfft1d!(FT, Sr2, Er)   # frequency -> time
+    return Er
 end
 
 
@@ -73,8 +115,9 @@ end
 
 
 """Spectrum of real time signal -> spectrum of analytic time signal."""
-function spectrum_real_to_analytic(S::Array{Complex128, 1}, Nt::Int64)
-    Sa = zeros(Complex128, Nt)
+function spectrum_real_to_analytic!(S::Array{Complex128, 1},
+                                    Sa::Array{Complex128, 1})
+    Nt = length(Sa)
     Sa[1] = S[1]
     if iseven(Nt)   # Nt is even
         @inbounds @views @. Sa[2:div(Nt, 2)] = 2. * S[2:div(Nt, 2)]
@@ -82,7 +125,7 @@ function spectrum_real_to_analytic(S::Array{Complex128, 1}, Nt::Int64)
     else   # Nt is odd
         @inbounds @views @. Sa[2:div(Nt + 1, 2)] = 2. * S[2:div(Nt + 1, 2)]
     end
-    return Sa
+    return nothing
 end
 
 
