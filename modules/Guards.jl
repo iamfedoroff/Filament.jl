@@ -1,14 +1,19 @@
 module Guards
 
+import CuArrays
+
 import Units
 import Grids
 import Media
+
+const FloatGPU = Float32
 
 
 struct GuardFilter
     R :: Array{Float64, 1}
     T :: Array{Float64, 1}
     K :: Array{Float64, 2}
+    K_gpu :: CuArrays.CuArray{FloatGPU, 2}
     W :: Array{Float64, 1}
 end
 
@@ -34,10 +39,12 @@ function GuardFilter(unit::Units.Unit, grid::Grids.Grid, medium::Media.Medium,
         end
     end
 
+    Kguard_gpu = CuArrays.CuArray(convert(Array{FloatGPU, 2}, Kguard))
+
     # Spectral guard filter:
     Wguard = @. exp(-((grid.w * unit.w)^2 / wguard^2)^20)
 
-    return GuardFilter(Rguard, Tguard, Kguard, Wguard)
+    return GuardFilter(Rguard, Tguard, Kguard, Kguard_gpu, Wguard)
 end
 
 

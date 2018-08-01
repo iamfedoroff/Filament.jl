@@ -1,6 +1,7 @@
 module Models
 
 import CuArrays
+import CUDAnative
 using PyCall
 @pyimport scipy.constants as sc
 @pyimport matplotlib.pyplot as plt
@@ -23,9 +24,12 @@ const QE = sc.e   # elementary charge [C]
 const ME = sc.m_e   # electron mass [kg]
 const HBAR = sc.hbar   # the Planck constant (divided by 2*pi) [J*s]
 
+const FloatGPU = Float32
+const ComplexGPU = Complex64
+
 
 struct Model
-    KZ :: Array{Complex128, 2}
+    KZ_gpu :: CuArrays.CuArray{ComplexGPU, 2}
     QZ :: Array{Complex128, 2}
     Rk :: Float64
     Rr :: Float64
@@ -90,6 +94,8 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     end
 
     @. KZ = conj(KZ)
+
+    KZ_gpu = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, KZ))
 
     # Nonlinear propagator -----------------------------------------------------
     QPARAXIAL = keys["QPARAXIAL"]
@@ -161,8 +167,8 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     Ra = Ra_func(unit, grid, field, medium)
     @. Ra = conj(Ra)
 
-    return Model(KZ, QZ, Rk, Rr, Hramanw, Rp, Ra, phi_kerr, phi_plasma, guard,
-                 RK, FT, keys)
+    return Model(KZ_gpu, QZ, Rk, Rr, Hramanw, Rp, Ra, phi_kerr, phi_plasma,
+                 guard, RK, FT, keys)
 end
 
 
@@ -304,17 +310,14 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     end
 
     # Linear propagator --------------------------------------------------------
-    S_gpu = CuArrays.CuArray(convert(Array{Complex64, 2}, field.S))
+    dz_gpu = convert(FloatGPU, dz)
+    S_gpu = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, field.S))
+
     HankelGPU.dht!(grid.HTGPU, S_gpu)
-    field.S = convert(Array{Complex128, 2}, CuArrays.collect(S_gpu))
-
-    # Hankel.dht!(grid.HT, field.S)
-    @inbounds @. field.S = field.S * exp(-1im * model.KZ * dz)
-    @inbounds @. field.S = field.S * model.guard.K   # angular filter
-    # Hankel.idht!(grid.HT, field.S)
-
-    S_gpu = CuArrays.CuArray(convert(Array{Complex64, 2}, field.S))
+    S_gpu[:, :] = S_gpu .* exp_cuda(model.KZ_gpu * dz_gpu)
+    S_gpu[:, :] = S_gpu .* model.guard.K_gpu   # angular filter
     HankelGPU.idht!(grid.HTGPU, S_gpu)
+
     field.S = convert(Array{Complex128, 2}, CuArrays.collect(S_gpu))
 
     # Temporal spectrum -> field -----------------------------------------------
@@ -440,6 +443,22 @@ function phi_plasma(unit::Units.Unit, field::Fields.Field, medium::Media.Medium)
 
     phi = min(phi_real, phi_imag)
     return phi
+end
+
+
+"""
+Calculates "exp(-1im * x)" on GPU, where x is a 2D complex array.
+
+Unfortunately, "CUDAnative.exp.(x)" function does not work with complex
+arguments. To solve the issue, I use Euler's formula:
+    exp(-1im * x) = (cos(xr) - 1im * sin(xr)) * exp(xi),
+where xr = real(x) and xi = imag(x).
+"""
+function exp_cuda(x::CuArrays.CuArray{ComplexGPU, 2})
+    xr = real(x)
+    xi = imag(x)
+    return (CUDAnative.cos.(xr) .- 1im .* CUDAnative.sin.(xr)) .*
+           CUDAnative.exp.(xi)
 end
 
 
