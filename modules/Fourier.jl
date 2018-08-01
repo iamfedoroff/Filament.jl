@@ -9,16 +9,16 @@ struct FourierTransform
     PIRFFT :: Base.DFT.Plan
 end
 
-function FourierTransform(Nt, FFTWFLAG)
+function FourierTransform(Nt)
     if iseven(Nt)   # Nt is even
         Nw = div(Nt, 2) + 1
     else   # Nt is odd
         Nw = div(Nt + 1, 2)
     end
-    PFFT = plan_fft(zeros(Complex128, Nt); flags=FFTWFLAG)
-    PIFFT = plan_ifft(zeros(Complex128, Nt); flags=FFTWFLAG)
-    PRFFT = plan_rfft(zeros(Float64, Nt); flags=FFTWFLAG)
-    PIRFFT = plan_irfft(zeros(Complex128, Nw), Nt; flags=FFTWFLAG)
+    PFFT = plan_fft(zeros(Complex128, Nt))
+    PIFFT = plan_ifft(zeros(Complex128, Nt))
+    PRFFT = plan_rfft(zeros(Float64, Nt))
+    PIRFFT = plan_irfft(zeros(Complex128, Nw), Nt)
     return FourierTransform(Nt, Nw, PFFT, PIFFT, PRFFT, PIRFFT)
 end
 

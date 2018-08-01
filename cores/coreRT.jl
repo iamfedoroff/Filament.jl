@@ -92,8 +92,7 @@ function main()
         "ILOSSES" => Input.ILOSSES, "IONARG" => Input.IONARG,
         "rguard_width" => Input.rguard_width,
         "tguard_width" => Input.tguard_width, "kguard" => Input.kguard,
-        "wguard" => Input.wguard, "FFTWFLAG" => Input.FFTWFLAG,
-        "RKORDER" => Input.RKORDER)
+        "wguard" => Input.wguard, "RKORDER" => Input.RKORDER)
     model = Models.Model(unit, grid, field, medium, plasma, keys)
 
     # **************************************************************************

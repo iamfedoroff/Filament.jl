@@ -58,8 +58,7 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
                                rguard_width, tguard_width, kguard, wguard)
 
     # Fourier transform --------------------------------------------------------
-    FFTWFLAG = keys["FFTWFLAG"]
-    FT = Fourier.FourierTransform(grid.Nt, FFTWFLAG)
+    FT = Fourier.FourierTransform(grid.Nt)
 
     # Runge-Kutta --------------------------------------------------------------
     RKORDER = keys["RKORDER"]
