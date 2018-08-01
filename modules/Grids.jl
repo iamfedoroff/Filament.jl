@@ -6,6 +6,7 @@ using PyCall
 
 import Hankel
 import HankelGPU
+import Fourier
 
 const C0 = sc.c   # speed of light in vacuum
 
@@ -22,6 +23,7 @@ struct Grid
 
     HT :: Hankel.HankelTransform
     HTGPU :: HankelGPU.HankelTransform
+
     r :: Array{Float64, 1}
     dr :: Float64
     v :: Array{Float64, 1}
@@ -41,14 +43,16 @@ struct Grid
     wc :: Float64
     lam :: Array{Float64, 1}
     Nlam :: Int64
+
+    FT :: Fourier.FourierTransform
 end
 
 
 function Grid(rmax, Nr, tmin, tmax, Nt)
     geometry = "RT"
 
-    HT = Hankel.HankelTransform(rmax, Nr)
-    HTGPU = HankelGPU.HankelTransform(rmax, Nr)
+    HT = Hankel.HankelTransform(rmax, Nr)   # Hankel transform
+    HTGPU = HankelGPU.HankelTransform(rmax, Nr)   # Hankel transform for GPU
 
     r = HT.r   # radial coordinates
     dr = mean(diff(r))   # spatial step
@@ -83,9 +87,11 @@ function Grid(rmax, Nr, tmin, tmax, Nt)
     # dlam = lam[3] - lam[2]   # wavelength step
     # lamc = 0.5 / self.dlam   # Nyquist wavelength (need check!)
 
+    FT = Fourier.FourierTransform(Nt)   # Fourier transform
+
     return Grid(geometry, rmax, Nr, tmin, tmax, Nt,
                 HT, HTGPU, r, dr, v, k, dk, kc,
-                t, dt, f, Nf, df, fc, w, Nw, dw, wc, lam, Nlam)
+                t, dt, f, Nf, df, fc, w, Nw, dw, wc, lam, Nlam, FT)
 end
 
 
