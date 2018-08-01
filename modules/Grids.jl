@@ -5,6 +5,7 @@ using PyCall
 @pyimport scipy.constants as sc
 
 import Hankel
+import HankelGPU
 
 const C0 = sc.c   # speed of light in vacuum
 
@@ -20,6 +21,7 @@ struct Grid
     Nt :: Int64
 
     HT :: Hankel.HankelTransform
+    HTGPU :: HankelGPU.HankelTransform
     r :: Array{Float64, 1}
     dr :: Float64
     v :: Array{Float64, 1}
@@ -46,6 +48,7 @@ function Grid(rmax, Nr, tmin, tmax, Nt)
     geometry = "RT"
 
     HT = Hankel.HankelTransform(rmax, Nr)
+    HTGPU = HankelGPU.HankelTransform(rmax, Nr)
 
     r = HT.r   # radial coordinates
     dr = mean(diff(r))   # spatial step
@@ -81,7 +84,7 @@ function Grid(rmax, Nr, tmin, tmax, Nt)
     # lamc = 0.5 / self.dlam   # Nyquist wavelength (need check!)
 
     return Grid(geometry, rmax, Nr, tmin, tmax, Nt,
-                HT, r, dr, v, k, dk, kc,
+                HT, HTGPU, r, dr, v, k, dk, kc,
                 t, dt, f, Nf, df, fc, w, Nw, dw, wc, lam, Nlam)
 end
 

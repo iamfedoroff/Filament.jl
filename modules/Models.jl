@@ -1,5 +1,6 @@
 module Models
 
+import CuArrays
 using PyCall
 @pyimport scipy.constants as sc
 @pyimport matplotlib.pyplot as plt
@@ -10,6 +11,7 @@ import Fields
 import Media
 import Plasmas
 import Hankel
+import HankelGPU
 import Fourier
 import RungeKuttas
 import Guards
@@ -302,10 +304,18 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     end
 
     # Linear propagator --------------------------------------------------------
-    Hankel.dht!(grid.HT, field.S)
+    S_gpu = CuArrays.CuArray(convert(Array{Complex64, 2}, field.S))
+    HankelGPU.dht!(grid.HTGPU, S_gpu)
+    field.S = convert(Array{Complex128, 2}, CuArrays.collect(S_gpu))
+
+    # Hankel.dht!(grid.HT, field.S)
     @inbounds @. field.S = field.S * exp(-1im * model.KZ * dz)
     @inbounds @. field.S = field.S * model.guard.K   # angular filter
-    Hankel.idht!(grid.HT, field.S)
+    # Hankel.idht!(grid.HT, field.S)
+
+    S_gpu = CuArrays.CuArray(convert(Array{Complex64, 2}, field.S))
+    HankelGPU.idht!(grid.HTGPU, S_gpu)
+    field.S = convert(Array{Complex128, 2}, CuArrays.collect(S_gpu))
 
     # Temporal spectrum -> field -----------------------------------------------
     # spectral filter:
