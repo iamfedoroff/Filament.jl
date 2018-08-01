@@ -87,6 +87,8 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
         end
     end
 
+    @. KZ = conj(KZ)
+
     # Nonlinear propagator -----------------------------------------------------
     QPARAXIAL = keys["QPARAXIAL"]
 
@@ -115,6 +117,8 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
             end
         end
     end
+
+    @. QZ = conj(QZ)
 
     # Kerr nonlinearity --------------------------------------------------------
     Rk = Rk_func(unit, field, medium)
@@ -148,10 +152,12 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
 
     # Plasma nonlinearity ------------------------------------------------------
     Rp = Rp_func(unit, grid, field, medium, plasma)
+    @. Rp = conj(Rp)
     phi_plasma = phi_kerr_func(unit, field, medium)
 
     # Losses due to multiphoton ionization -------------------------------------
     Ra = Ra_func(unit, grid, field, medium)
+    @. Ra = conj(Ra)
 
     return Model(KZ, QZ, Rk, Rr, Hramanw, Rp, Ra, phi_kerr, phi_plasma, guard,
                  RK, FT, keys)
@@ -266,12 +272,12 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
         # Nonparaxiality:
         if model.keys["QPARAXIAL"] != 0
-            @inbounds @. res = 1im * model.QZ * res
+            @inbounds @. res = -1im * model.QZ * res
         else
             for j=1:grid.Nw
                 res[:, j] = Hankel.dht(grid.HT, res[:, j])
             end
-            @inbounds @. res = 1im * model.QZ * res
+            @inbounds @. res = -1im * model.QZ * res
             @inbounds @. res = res * model.guard.K   # angular filter
             for j=1:grid.Nw
                 res[:, j] = Hankel.idht(grid.HT, res[:, j])
@@ -297,7 +303,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
     # Linear propagator --------------------------------------------------------
     Hankel.dht!(grid.HT, field.S)
-    @inbounds @. field.S = field.S * exp(1im * model.KZ * dz)
+    @inbounds @. field.S = field.S * exp(-1im * model.KZ * dz)
     @inbounds @. field.S = field.S * model.guard.K   # angular filter
     Hankel.idht!(grid.HT, field.S)
 

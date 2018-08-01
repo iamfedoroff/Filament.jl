@@ -30,9 +30,9 @@ function initial_condition(r, t, ru, tu, Iu)
     w = 2. * pi * npfft.rfftfreq(Nt, t[2] - t[1])
     for i=1:Nr
         Et = real(E[i, :])
-        Ew = conj(rfft(Et))   # time -> frequency
-        Ew = @. Ew * exp(-1im * n0 * (w * wu) / C0 * (r[i] * ru)^2 / (2. * f))
-        Et = irfft(conj(Ew), Nt)   # frequency -> time
+        Ew = rfft(Et)
+        Ew = @. Ew * exp(1im * n0 * (w * wu) / C0 * (r[i] * ru)^2 / (2. * f))
+        Et = irfft(Ew, Nt)
         E[i, :] = Et
     end
 

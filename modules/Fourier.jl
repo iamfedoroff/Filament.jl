@@ -25,8 +25,7 @@ end
 
 function fft1d!(FT::FourierTransform, Ec::Array{Complex128, 1},
                 Sc::Array{Complex128, 1})
-    A_mul_B!(Sc, FT.PIFFT, Ec)   # time -> frequency
-    @inbounds @. Sc = Sc * FT.Nt
+    A_mul_B!(Sc, FT.PFFT, Ec)
     return nothing
 end
 
@@ -40,8 +39,7 @@ end
 
 function ifft1d!(FT::FourierTransform, Sc::Array{Complex128, 1},
                  Ec::Array{Complex128, 1})
-    A_mul_B!(Ec, FT.PFFT, Sc)   # frequency -> time
-    @inbounds @. Ec = Ec / FT.Nt
+    A_mul_B!(Ec, FT.PIFFT, Sc)
     return nothing
 end
 
@@ -56,7 +54,6 @@ end
 function rfft1d!(FT::FourierTransform, Er::Array{Float64, 1},
                  Sr::Array{Complex128, 1})
     A_mul_B!(Sr, FT.PRFFT, Er)   # time -> frequency
-    @inbounds @. Sr = conj(Sr)
     return nothing
 end
 
@@ -84,7 +81,6 @@ end
 
 function irfft1d!(FT::FourierTransform, Sr::Array{Complex128, 1},
                   Er::Array{Float64, 1})
-    @inbounds @. Sr = conj(Sr)
     A_mul_B!(Er, FT.PIRFFT, Sr)   # frequency -> time
     return Er
 end
@@ -101,7 +97,7 @@ end
 """Real time signal -> analytic time signal."""
 function signal_real_to_analytic(Er::Array{Float64, 1})
     N = length(Er)
-    S = ifft(Er) * N   # time -> frequency
+    S = fft(Er)
     if iseven(N)   # N is even
         S[2:div(N, 2)] = 2. * S[2:div(N, 2)]
         S[div(N, 2) + 2:end] = 0.
@@ -109,7 +105,7 @@ function signal_real_to_analytic(Er::Array{Float64, 1})
         S[2:div(N + 1, 2)] = 2. * S[2:div(N + 1, 2)]
         S[div(N + 1, 2) + 1:end] = 0.
     end
-    Ea = fft(S) / N   # frequency -> time
+    Ea = ifft(S)
     return Ea
 end
 
