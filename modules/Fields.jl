@@ -31,7 +31,7 @@ function Field(unit::Units.Unit, grid::Grids.Grid, lam0::Float64,
 
     E = initial_condition(grid.r, grid.t, unit.r, unit.t, unit.I)
     for i=1:grid.Nr
-        E[i, :] = Fourier.signal_real_to_analytic(real(E[i, :]))
+        E[i, :] = Fourier.signal_real_to_signal_analytic(grid.FT, real(E[i, :]))
     end
 
     S = zeros(Complex128, (grid.Nr, grid.Nw))

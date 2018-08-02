@@ -87,7 +87,7 @@ function Grid(rmax, Nr, tmin, tmax, Nt)
     # dlam = lam[3] - lam[2]   # wavelength step
     # lamc = 0.5 / self.dlam   # Nyquist wavelength (need check!)
 
-    FT = Fourier.FourierTransform(Nt)   # Fourier transform
+    FT = Fourier.FourierTransform(Nt, dt)   # Fourier transform
 
     return Grid(geometry, rmax, Nr, tmin, tmax, Nt,
                 HT, HTGPU, r, dr, v, k, dk, kc,

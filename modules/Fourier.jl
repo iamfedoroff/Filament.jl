@@ -1,25 +1,38 @@
 module Fourier
 
+using PyCall
+@pyimport numpy.fft as npfft
+
+
 struct FourierTransform
     Nt :: Int64
     Nw :: Int64
+    HS :: Array{Float64, 1}
+    S :: Array{Complex128, 1}
     PFFT :: Base.DFT.Plan
     PIFFT :: Base.DFT.Plan
     PRFFT :: Base.DFT.Plan
     PIRFFT :: Base.DFT.Plan
 end
 
-function FourierTransform(Nt)
+
+function FourierTransform(Nt, dt)
     if iseven(Nt)   # Nt is even
         Nw = div(Nt, 2) + 1
     else   # Nt is odd
         Nw = div(Nt + 1, 2)
     end
+
+    f = npfft.fftfreq(Nt, dt)
+    HS = 1. + sign.(f)   # Heaviside-like step function for Hilbert transform
+
+    S = zeros(Complex128, Nt)   # array to store intermediate spectra
+
     PFFT = plan_fft(zeros(Complex128, Nt))
     PIFFT = plan_ifft(zeros(Complex128, Nt))
     PRFFT = plan_rfft(zeros(Float64, Nt))
     PIRFFT = plan_irfft(zeros(Complex128, Nw), Nt)
-    return FourierTransform(Nt, Nw, PFFT, PIFFT, PRFFT, PIRFFT)
+    return FourierTransform(Nt, Nw, HS, S, PFFT, PIFFT, PRFFT, PIRFFT)
 end
 
 
@@ -95,33 +108,40 @@ end
 
 
 """Real time signal -> analytic time signal."""
-function signal_real_to_analytic(Er::Array{Float64, 1})
-    N = length(Er)
+function signal_real_to_signal_analytic(FT::FourierTransform,
+                                        Er::Array{Float64, 1})
+    # Need test for odd N and low frequencies
     S = fft(Er)
-    if iseven(N)   # N is even
-        S[2:div(N, 2)] = 2. * S[2:div(N, 2)]
-        S[div(N, 2) + 2:end] = 0.
-    else   # N is odd
-        S[2:div(N + 1, 2)] = 2. * S[2:div(N + 1, 2)]
-        S[div(N + 1, 2) + 1:end] = 0.
-    end
+    @. S = FT.HS * S
     Ea = ifft(S)
     return Ea
 end
 
 
-"""Spectrum of real time signal -> spectrum of analytic time signal."""
-function spectrum_real_to_analytic!(S::Array{Complex128, 1},
-                                    Sa::Array{Complex128, 1})
-    Nt = length(Sa)
-    Sa[1] = S[1]
-    if iseven(Nt)   # Nt is even
-        @inbounds @views @. Sa[2:div(Nt, 2)] = 2. * S[2:div(Nt, 2)]
-        Sa[div(Nt, 2) + 1] = S[div(Nt, 2) + 1]
-    else   # Nt is odd
-        @inbounds @views @. Sa[2:div(Nt + 1, 2)] = 2. * S[2:div(Nt + 1, 2)]
-    end
+"""Spectrum of real time signal -> analytic time signal."""
+function spectrum_real_to_signal_analytic!(FT::FourierTransform,
+                                           Sr::Array{Complex128, 1},
+                                           Ea::Array{Complex128, 1})
+    # Need test for odd N and low frequencies
+    # S = vcat(Sr, conj(Sr[end-1:-1:2]))
+    @inbounds @. FT.S[1:FT.Nw] = Sr
+    @inbounds @. FT.S = FT.HS * FT.S
+    ifft1d!(FT, FT.S, Ea)
     return nothing
+end
+
+
+function spectrum_real_to_signal_analytic_2d!(FT::FourierTransform,
+                                              S::Array{Complex128, 2},
+                                              E::Array{Complex128, 2})
+    Nr, Nt = size(E)
+    St = zeros(Complex128, FT.Nw)
+    Et = zeros(Complex128, FT.Nt)
+    for i=1:Nr
+        @inbounds @views @. St = S[i, :]
+        spectrum_real_to_signal_analytic!(FT, St, Et)
+        @inbounds @views @. E[i, :] = Et
+    end
 end
 
 

@@ -202,8 +202,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
         for i=1:grid.Nr
             @inbounds @views @. St = S[i, :]
-            Fourier.spectrum_real_to_analytic!(St, Sa)
-            Fourier.ifft1d!(grid.FT, Sa, Ea)   # frequency -> time
+            Fourier.spectrum_real_to_signal_analytic!(grid.FT, St, Ea)
             @inbounds @. Et = real(Ea)
 
             # Kerr nonlinearity:
@@ -323,14 +322,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
         end
     end
 
-    # frequency -> time:
-    Sa = zeros(Complex128, grid.Nt)
-    Ea = zeros(Complex128, grid.Nt)
-    @inbounds for i=1:grid.Nr
-        Fourier.spectrum_real_to_analytic!(field.S[i, :], Sa)
-        Fourier.ifft1d!(grid.FT, Sa, Ea)   # frequency -> time
-        @inbounds @views @. field.E[i, :] = Ea
-    end
+    Fourier.spectrum_real_to_signal_analytic_2d!(grid.FT, field.S, field.E)
 
     # spatial and temporal filters:
     for j=1:grid.Nt
