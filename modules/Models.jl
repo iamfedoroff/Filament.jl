@@ -14,6 +14,7 @@ import Plasmas
 import Hankel
 import HankelGPU
 import Fourier
+import FourierGPU
 import RungeKuttas
 import Guards
 
@@ -289,12 +290,18 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
         return res
     end
 
+
     # Calculate plasma density -------------------------------------------------
     if (model.keys["PLASMA"] != 0) | (model.keys["ILOSSES"] != 0)
         Plasmas.free_charge(plasma, grid, field)
     end
 
+    # dz_gpu = convert(FloatGPU, dz)
+    # E_gpu = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, field.E))
+    # S_gpu = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, field.S))
+
     # Field -> temporal spectrum -----------------------------------------------
+    # FourierGPU.rfft2d!(grid.FTGPU, E_gpu, S_gpu)
     Fourier.rfft2d!(grid.FT, field.E, field.S)
 
     # Nonlinear propagator -----------------------------------------------------
@@ -305,6 +312,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
     # Linear propagator --------------------------------------------------------
     dz_gpu = convert(FloatGPU, dz)
+    E_gpu = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, field.E))
     S_gpu = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, field.S))
 
     HankelGPU.dht!(grid.HTGPU, S_gpu)
@@ -312,25 +320,25 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     S_gpu[:, :] = S_gpu .* model.guard.K_gpu   # angular filter
     HankelGPU.idht!(grid.HTGPU, S_gpu)
 
-    field.S = convert(Array{Complex128, 2}, CuArrays.collect(S_gpu))
-
     # Temporal spectrum -> field -----------------------------------------------
     # spectral filter:
-    for j=1:grid.Nw
-        for i=1:grid.Nr
-            @inbounds field.S[i, j] = field.S[i, j] * model.guard.W[j]
-        end
+    for i=1:grid.Nr
+        @inbounds S_gpu[i, :] = S_gpu[i, :] .* model.guard.W_gpu
     end
 
-    Fourier.spectrum_real_to_signal_analytic_2d!(grid.FT, field.S, field.E)
+    FourierGPU.spectrum_real_to_signal_analytic_2d!(grid.FTGPU, S_gpu, E_gpu)
 
-    # spatial and temporal filters:
+    # spatial filter:
     for j=1:grid.Nt
-        for i=1:grid.Nr
-            @inbounds field.E[i, j] = field.E[i, j] * model.guard.R[i] *
-                                                      model.guard.T[j]
-        end
+        @inbounds E_gpu[:, j] = E_gpu[:, j] .* model.guard.R_gpu
     end
+
+    # temporal filter:
+    for i=1:grid.Nr
+        @inbounds E_gpu[i, :] = E_gpu[i, :] .* model.guard.T_gpu
+    end
+
+    field.E = convert(Array{Complex128, 2}, CuArrays.collect(E_gpu))
 
     return nothing
 end
