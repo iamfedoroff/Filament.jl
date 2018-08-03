@@ -316,8 +316,8 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     S_gpu = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, field.S))
 
     HankelGPU.dht!(grid.HTGPU, S_gpu)
-    S_gpu[:, :] = S_gpu .* exp_cuda(model.KZ_gpu * dz_gpu)
-    S_gpu[:, :] = S_gpu .* model.guard.K_gpu   # angular filter
+    @inbounds @. S_gpu = S_gpu * exp_cuda(model.KZ_gpu * dz_gpu)
+    @inbounds @. S_gpu = S_gpu * model.guard.K_gpu   # angular filter
     HankelGPU.idht!(grid.HTGPU, S_gpu)
 
     # Temporal spectrum -> field -----------------------------------------------
@@ -442,18 +442,17 @@ end
 
 
 """
-Calculates "exp(-1im * x)" on GPU, where x is a 2D complex array.
+Calculates "exp(-1im * x)" on GPU.
 
 Unfortunately, "CUDAnative.exp.(x)" function does not work with complex
 arguments. To solve the issue, I use Euler's formula:
     exp(-1im * x) = (cos(xr) - 1im * sin(xr)) * exp(xi),
 where xr = real(x) and xi = imag(x).
 """
-function exp_cuda(x::CuArrays.CuArray{ComplexGPU, 2})
+function exp_cuda(x::ComplexGPU)
     xr = real(x)
     xi = imag(x)
-    return (CUDAnative.cos.(xr) .- 1im .* CUDAnative.sin.(xr)) .*
-           CUDAnative.exp.(xi)
+    return (CUDAnative.cos(xr) - 1im * CUDAnative.sin(xr)) * CUDAnative.exp(xi)
 end
 
 
