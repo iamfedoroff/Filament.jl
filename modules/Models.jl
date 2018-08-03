@@ -200,6 +200,8 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
         Ftmp = zeros(Float64, grid.Nt)
         Stmp = zeros(Complex128, grid.Nw)
         Iconv = zeros(Float64, grid.Nt)
+        rhot = zeros(Float64, grid.Nt)
+        Kdrhot = zeros(Float64, grid.Nt)
 
         for i=1:grid.Nr
             @inbounds @views @. St = S[i, :]
@@ -241,7 +243,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
             # Plasma nonlinearity:
             if model.keys["PLASMA"] != 0
-                @inbounds @views rhot = plasma.rho[i, :]
+                @inbounds @views @. rhot = plasma.rho[i, :]
                 @inbounds @. Ftmp = rhot * Et
                 @inbounds @. Ftmp = Ftmp * model.guard.T   # temporal filter
                 Fourier.rfft1d!(grid.FT, Ftmp, Stmp)   # time -> frequency
@@ -251,7 +253,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
             # Losses due to multiphoton ionization:
             if model.keys["ILOSSES"] != 0
-                @inbounds @views Kdrhot = plasma.Kdrho[i, :]
+                @inbounds @views @. Kdrhot = plasma.Kdrho[i, :]
 
                 if model.keys["IONARG"] != 0
                     @inbounds @. Ftmp = abs2(Ea)
