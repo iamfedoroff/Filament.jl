@@ -13,7 +13,8 @@ struct FourierTransform
     Nt :: Int64
     Nw :: Int64
     HS_gpu :: CuArrays.CuArray{FloatGPU, 1}
-    S_gpu :: CuArrays.CuArray{ComplexGPU, 1}
+    Sc_gpu :: CuArrays.CuArray{ComplexGPU, 1}
+    Sr :: Array{Complex128, 1}
     PFFT :: Base.DFT.Plan
     PIFFT :: Base.DFT.Plan
     PRFFT :: Base.DFT.Plan
@@ -32,7 +33,9 @@ function FourierTransform(Nt, dt)
     HS = 1. + sign.(f)   # Heaviside-like step function for Hilbert transform
     HS_gpu = CuArrays.CuArray(convert(Array{FloatGPU, 1}, HS))
 
-    S_gpu = CuArrays.CuArray(zeros(ComplexGPU, Nt))   # array to store intermediate spectra
+    # arrays to store intermediate results:
+    Sc_gpu = CuArrays.CuArray(zeros(ComplexGPU, Nt))
+    Sr = zeros(Complex128, Nw)
 
     CuArrays.allowscalar(false)   # disable slow fallback methods
 
@@ -45,7 +48,8 @@ function FourierTransform(Nt, dt)
     # S_gpu = CuArrays.CuArray(zeros(ComplexGPU, Nw))
     # A_mul_B!(S_gpu, PRFFT, E_gpu)
 
-    return FourierTransform(Nt, Nw, HS_gpu, S_gpu, PFFT, PIFFT, PRFFT, PIRFFT)
+    return FourierTransform(Nt, Nw, HS_gpu, Sc_gpu, Sr,
+                            PFFT, PIFFT, PRFFT, PIRFFT)
 end
 
 
@@ -137,9 +141,9 @@ function spectrum_real_to_signal_analytic!(FT::FourierTransform,
                                            Ea_gpu::CuArrays.CuArray{ComplexGPU, 1})
     # Need test for odd N and low frequencies
     # S = vcat(Sr, conj(Sr[end-1:-1:2]))
-    @inbounds FT.S_gpu[1:FT.Nw] = Sr_gpu
-    @inbounds @. FT.S_gpu = FT.HS_gpu * FT.S_gpu
-    ifft1d!(FT, FT.S_gpu, Ea_gpu)
+    @inbounds FT.Sc_gpu[1:FT.Nw] = Sr_gpu
+    @inbounds @. FT.Sc_gpu = FT.HS_gpu * FT.Sc_gpu
+    ifft1d!(FT, FT.Sc_gpu, Ea_gpu)
     return nothing
 end
 
@@ -158,22 +162,12 @@ function spectrum_real_to_signal_analytic_2d!(FT::FourierTransform,
 end
 
 
-"""
-Roll array elements. Elements that roll beyond the last position are
-re-introduced at the first. With nroll = (Nt + 1) / 2 the function is equivalent
-to fftshift function from NumPy library for the Python.
-"""
-function roll(a::Array{Float64, 1}, nroll::Int64)
-    N = length(a)
-    aroll = zeros(N)
-    for i=1:N
-        ii = mod(i + nroll, N)
-        if ii == 0
-            ii = N
-        end
-        aroll[ii] = a[i]
-    end
-    return aroll
+function convolution!(FT::FourierTransform, Hw::Array{Complex128, 1},
+                      x::Array{Float64, 1}, res::Array{Float64, 1})
+    rfft1d!(FT, x, FT.Sr)
+    @inbounds @. FT.Sr = Hw * FT.Sr
+    irfft1d!(FT, FT.Sr, res)
+    return nothing
 end
 
 

@@ -8,7 +8,8 @@ struct FourierTransform
     Nt :: Int64
     Nw :: Int64
     HS :: Array{Float64, 1}
-    S :: Array{Complex128, 1}
+    Sc :: Array{Complex128, 1}
+    Sr :: Array{Complex128, 1}
     PFFT :: Base.DFT.Plan
     PIFFT :: Base.DFT.Plan
     PRFFT :: Base.DFT.Plan
@@ -26,13 +27,15 @@ function FourierTransform(Nt, dt)
     f = npfft.fftfreq(Nt, dt)
     HS = 1. + sign.(f)   # Heaviside-like step function for Hilbert transform
 
-    S = zeros(Complex128, Nt)   # array to store intermediate spectra
+    # arrays to store intermediate results:
+    Sc = zeros(Complex128, Nt)
+    Sr = zeros(Complex128, Nw)
 
     PFFT = plan_fft(zeros(Complex128, Nt))
     PIFFT = plan_ifft(zeros(Complex128, Nt))
     PRFFT = plan_rfft(zeros(Float64, Nt))
     PIRFFT = plan_irfft(zeros(Complex128, Nw), Nt)
-    return FourierTransform(Nt, Nw, HS, S, PFFT, PIFFT, PRFFT, PIRFFT)
+    return FourierTransform(Nt, Nw, HS, Sc, Sr, PFFT, PIFFT, PRFFT, PIRFFT)
 end
 
 
@@ -124,9 +127,9 @@ function spectrum_real_to_signal_analytic!(FT::FourierTransform,
                                            Ea::Array{Complex128, 1})
     # Need test for odd N and low frequencies
     # S = vcat(Sr, conj(Sr[end-1:-1:2]))
-    @inbounds @. FT.S[1:FT.Nw] = Sr
-    @inbounds @. FT.S = FT.HS * FT.S
-    ifft1d!(FT, FT.S, Ea)
+    @inbounds @. FT.Sc[1:FT.Nw] = Sr
+    @inbounds @. FT.Sc = FT.HS * FT.Sc
+    ifft1d!(FT, FT.Sc, Ea)
     return nothing
 end
 
@@ -145,22 +148,12 @@ function spectrum_real_to_signal_analytic_2d!(FT::FourierTransform,
 end
 
 
-"""
-Roll array elements. Elements that roll beyond the last position are
-re-introduced at the first. With nroll = (Nt + 1) / 2 the function is equivalent
-to fftshift function from NumPy library for the Python.
-"""
-function roll(a::Array{Float64, 1}, nroll::Int64)
-    N = length(a)
-    aroll = zeros(N)
-    for i=1:N
-        ii = mod(i + nroll, N)
-        if ii == 0
-            ii = N
-        end
-        aroll[ii] = a[i]
-    end
-    return aroll
+function convolution!(FT::FourierTransform, Hw::Array{Complex128, 1},
+                      x::Array{Float64, 1}, res::Array{Float64, 1})
+    rfft1d!(FT, x, FT.Sr)
+    @inbounds @. FT.Sr = Hw * FT.Sr
+    irfft1d!(FT, FT.Sr, res)
+    return nothing
 end
 
 

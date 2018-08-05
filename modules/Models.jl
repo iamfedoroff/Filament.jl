@@ -152,6 +152,7 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     end
 
     @. Hraman = Hraman * guard.T   # temporal filter
+    Hraman = ifftshift(Hraman)
     Hramanw = Fourier.rfft1d(grid.FT, Hraman)   # time -> frequency
 
     # Plasma nonlinearity ------------------------------------------------------
@@ -229,11 +230,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
                     @inbounds @. Ftmp = 3. / 4. * abs2(Ea)
                 end
                 @inbounds @. Ftmp = Ftmp * model.guard.T   # temporal filter
-                Fourier.rfft1d!(grid.FT, Ftmp, Stmp)   # time -> frequency
-                @inbounds @. Stmp = Stmp * model.Hramanw
-                Fourier.irfft1d!(grid.FT, Stmp, Iconv)   # frequency -> time
-                Iconv = Fourier.roll(Iconv, div(grid.Nt + 1, 2) + 1)
-
+                Fourier.convolution!(grid.FT, model.Hramanw, Ftmp, Iconv)
                 @inbounds @. Ftmp = Iconv * Et
                 @inbounds @. Ftmp = Ftmp * model.guard.T   # temporal filter
                 Fourier.rfft1d!(grid.FT, Ftmp, Stmp)   # time -> frequency
