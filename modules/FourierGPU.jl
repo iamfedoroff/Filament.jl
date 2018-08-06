@@ -14,7 +14,7 @@ struct FourierTransform
     Nw :: Int64
     HS_gpu :: CuArrays.CuArray{FloatGPU, 1}
     Sc_gpu :: CuArrays.CuArray{ComplexGPU, 1}
-    Sr :: Array{Complex128, 1}
+    Sr_gpu :: CuArrays.CuArray{ComplexGPU, 1}
     PFFT :: Base.DFT.Plan
     PIFFT :: Base.DFT.Plan
     PRFFT :: Base.DFT.Plan
@@ -35,7 +35,7 @@ function FourierTransform(Nt, dt)
 
     # arrays to store intermediate results:
     Sc_gpu = CuArrays.CuArray(zeros(ComplexGPU, Nt))
-    Sr = zeros(Complex128, Nw)
+    Sr_gpu = CuArrays.CuArray(zeros(ComplexGPU, Nw))
 
     CuArrays.allowscalar(false)   # disable slow fallback methods
 
@@ -48,7 +48,7 @@ function FourierTransform(Nt, dt)
     # S_gpu = CuArrays.CuArray(zeros(ComplexGPU, Nw))
     # A_mul_B!(S_gpu, PRFFT, E_gpu)
 
-    return FourierTransform(Nt, Nw, HS_gpu, Sc_gpu, Sr,
+    return FourierTransform(Nt, Nw, HS_gpu, Sc_gpu, Sr_gpu,
                             PFFT, PIFFT, PRFFT, PIRFFT)
 end
 
@@ -88,10 +88,10 @@ function rfft1d!(FT::FourierTransform, Er_gpu::CuArrays.CuArray{FloatGPU, 1},
 end
 
 
-function rfft1d(FT::FourierTransform, Er::Array{Float64, 1})
-    Sr = zeros(Complex128, FT.Nw)
-    rfft1d!(FT, Er, Sr)   # time -> frequency
-    return Sr
+function rfft1d(FT::FourierTransform, Er_gpu::CuArrays.CuArray{FloatGPU, 1})
+    Sr_gpu = CuArrays.CuArray(zeros(ComplexGPU, FT.Nw))
+    rfft1d!(FT, Er_gpu, Sr_gpu)   # time -> frequency
+    return Sr_gpu
 end
 
 
@@ -109,17 +109,16 @@ function rfft2d!(FT::FourierTransform, E_gpu::CuArrays.CuArray{ComplexGPU, 2},
 end
 
 
-function irfft1d!(FT::FourierTransform, Sr::Array{Complex128, 1},
-                  Er::Array{Float64, 1})
-    A_mul_B!(Er, FT.PIRFFT, Sr)   # frequency -> time
-    return Er
+function irfft1d!(FT::FourierTransform, Sr_gpu::CuArrays.CuArray{ComplexGPU, 1},
+                  Er_gpu::CuArrays.CuArray{FloatGPU, 1})
+    A_mul_B!(Er_gpu, FT.PIRFFT, Sr_gpu)   # frequency -> time
+    return nothing
 end
 
 
 function irfft1d(FT::FourierTransform, Sr::Array{Complex128, 1})
     Er = zeros(Float64, FT.Nt)
-    Sr2 = copy(Sr)
-    irfft1d!(FT, Sr2, Er)   # frequency -> time
+    irfft1d!(FT, Sr, Er)   # frequency -> time
     return Er
 end
 
@@ -162,11 +161,13 @@ function spectrum_real_to_signal_analytic_2d!(FT::FourierTransform,
 end
 
 
-function convolution!(FT::FourierTransform, Hw::Array{Complex128, 1},
-                      x::Array{Float64, 1}, res::Array{Float64, 1})
-    rfft1d!(FT, x, FT.Sr)
-    @inbounds @. FT.Sr = Hw * FT.Sr
-    irfft1d!(FT, FT.Sr, res)
+function convolution!(FT::FourierTransform,
+                      Hw_gpu::CuArrays.CuArray{ComplexGPU, 1},
+                      x_gpu::CuArrays.CuArray{FloatGPU, 1},
+                      res_gpu::CuArrays.CuArray{FloatGPU, 1})
+    rfft1d!(FT, x_gpu, FT.Sr_gpu)
+    @inbounds @. FT.Sr_gpu = Hw_gpu * FT.Sr_gpu
+    irfft1d!(FT, FT.Sr_gpu, res_gpu)
     return nothing
 end
 
