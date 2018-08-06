@@ -98,14 +98,13 @@ end
 function irfft1d!(FT::FourierTransform, Sr::Array{Complex128, 1},
                   Er::Array{Float64, 1})
     A_mul_B!(Er, FT.PIRFFT, Sr)   # frequency -> time
-    return Er
+    return nothing
 end
 
 
 function irfft1d(FT::FourierTransform, Sr::Array{Complex128, 1})
     Er = zeros(Float64, FT.Nt)
-    Sr2 = copy(Sr)
-    irfft1d!(FT, Sr2, Er)   # frequency -> time
+    irfft1d!(FT, Sr, Er)   # frequency -> time
     return Er
 end
 
