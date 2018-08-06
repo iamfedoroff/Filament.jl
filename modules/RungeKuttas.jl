@@ -46,7 +46,8 @@ module RungeKuttas
     end
 
 
-    function RungeKutta_calc!(RK::RungeKutta2, f, h, func)
+    function RungeKutta_calc!(RK::RungeKutta2, f::Array{Complex128, 2},
+                              h::Float64, func::Function)
         dum = func(f)
         @inbounds @. RK.k1 = h * dum
 
@@ -59,7 +60,8 @@ module RungeKuttas
     end
 
 
-    function RungeKutta_calc!(RK::RungeKutta3, f, h, func)
+    function RungeKutta_calc!(RK::RungeKutta3, f::Array{Complex128, 2},
+                              h::Float64, func::Function)
         dum = func(f)
         @inbounds @. RK.k1 = h * dum
 
@@ -76,7 +78,8 @@ module RungeKuttas
     end
 
 
-    function RungeKutta_calc!(RK::RungeKutta4, f, h, func)
+    function RungeKutta_calc!(RK::RungeKutta4, f::Array{Complex128, 2},
+                              h::Float64, func::Function)
         dum = func(f)
         @inbounds @. RK.k1 = h * dum
 
