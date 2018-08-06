@@ -201,28 +201,24 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
     function func_gpu(S_gpu::CuArrays.CuArray{ComplexGPU, 2})
         res_gpu = CuArrays.CuArray(zeros(ComplexGPU, (grid.Nr, grid.Nw)))
-        Ea_gpu = CuArrays.CuArray(zeros(ComplexGPU, grid.Nt))
-        Sa_gpu = CuArrays.CuArray(zeros(ComplexGPU, grid.Nt))
-        Et_gpu = CuArrays.CuArray(zeros(FloatGPU, grid.Nt))
-        St_gpu = CuArrays.CuArray(zeros(ComplexGPU, grid.Nw))
+        Ec_gpu = CuArrays.CuArray(zeros(ComplexGPU, grid.Nt))
+        Er_gpu = CuArrays.CuArray(zeros(FloatGPU, grid.Nt))
         Ftmp_gpu = CuArrays.CuArray(zeros(FloatGPU, grid.Nt))
         Stmp_gpu = CuArrays.CuArray(zeros(ComplexGPU, grid.Nw))
         Iconv_gpu = CuArrays.CuArray(zeros(FloatGPU, grid.Nt))
-        rhot_gpu = CuArrays.CuArray(zeros(FloatGPU, grid.Nt))
-        Kdrhot_gpu = CuArrays.CuArray(zeros(FloatGPU, grid.Nt))
         Ftmp_inv_gpu = CuArrays.CuArray(zeros(FloatGPU, grid.Nt))
 
         for i=1:grid.Nr
-            @inbounds @. St_gpu = S_gpu[i, :]
-            FourierGPU.spectrum_real_to_signal_analytic!(grid.FTGPU, St_gpu, Ea_gpu)
-            @inbounds @. Et_gpu = real(Ea_gpu)
+            @inbounds St_gpu = S_gpu[i, :]
+            FourierGPU.spectrum_real_to_signal_analytic!(grid.FTGPU, St_gpu, Ec_gpu)
+            @inbounds @. Er_gpu = real(Ec_gpu)
 
             # Kerr nonlinearity:
             if model.keys["KERR"] != 0
                 if model.keys["THG"] != 0
-                    @inbounds @. Ftmp_gpu = Et_gpu^3
+                    @inbounds @. Ftmp_gpu = Er_gpu^3
                 else
-                    @inbounds @. Ftmp_gpu = 3. / 4. * abs2(Ea_gpu) * Et_gpu
+                    @inbounds @. Ftmp_gpu = 3. / 4. * abs2(Ec_gpu) * Er_gpu
                 end
                 @inbounds @. Ftmp_gpu = Ftmp_gpu * model.guard.T_gpu   # temporal filter
                 FourierGPU.rfft1d!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
@@ -233,13 +229,13 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
             # Stimulated Raman nonlinearity:
             if model.keys["RAMAN"] != 0
                 if model.keys["RTHG"] != 0
-                    @inbounds @. Ftmp_gpu = Et_gpu^2
+                    @inbounds @. Ftmp_gpu = Er_gpu^2
                 else
-                    @inbounds @. Ftmp_gpu = 3. / 4. * abs2(Ea_gpu)
+                    @inbounds @. Ftmp_gpu = 3. / 4. * abs2(Ec_gpu)
                 end
                 @inbounds @. Ftmp_gpu = Ftmp_gpu * model.guard.T_gpu   # temporal filter
                 FourierGPU.convolution!(grid.FTGPU, model.Hramanw_gpu, Ftmp_gpu, Iconv_gpu)
-                @inbounds @. Ftmp_gpu = Iconv_gpu * Et_gpu
+                @inbounds @. Ftmp_gpu = Iconv_gpu * Er_gpu
                 @inbounds @. Ftmp_gpu = Ftmp_gpu * model.guard.T_gpu   # temporal filter
                 FourierGPU.rfft1d!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
 
@@ -248,8 +244,8 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
             # Plasma nonlinearity:
             if model.keys["PLASMA"] != 0
-                @inbounds @. rhot_gpu = rho_gpu[i, :]
-                @inbounds @. Ftmp_gpu = rhot_gpu * Et_gpu
+                @inbounds rhot_gpu = rho_gpu[i, :]
+                @inbounds @. Ftmp_gpu = rhot_gpu * Er_gpu
                 @inbounds @. Ftmp_gpu = Ftmp_gpu * model.guard.T_gpu   # temporal filter
                 FourierGPU.rfft1d!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
 
@@ -258,16 +254,16 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
             # Losses due to multiphoton ionization:
             if model.keys["ILOSSES"] != 0
-                @inbounds @. Kdrhot_gpu = Kdrho_gpu[i, :]
+                @inbounds Kdrhot_gpu = Kdrho_gpu[i, :]
 
                 if model.keys["IONARG"] != 0
-                    @inbounds @. Ftmp_gpu = abs2(Ea_gpu)
+                    @inbounds @. Ftmp_gpu = abs2(Ec_gpu)
                 else
-                    @inbounds @. Ftmp_gpu = Et_gpu^2
+                    @inbounds @. Ftmp_gpu = Er_gpu^2
                 end
 
                 safe_inverse!(Ftmp_gpu, Ftmp_inv_gpu)
-                @inbounds @. Ftmp_gpu = Kdrhot_gpu * Ftmp_inv_gpu * Et_gpu
+                @inbounds @. Ftmp_gpu = Kdrhot_gpu * Ftmp_inv_gpu * Er_gpu
                 @inbounds @. Ftmp_gpu = Ftmp_gpu * model.guard.T_gpu   # temporal filter
                 FourierGPU.rfft1d!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
 
