@@ -16,6 +16,8 @@ module RungeKuttasGPU
         k1_gpu :: CuArrays.CuArray{ComplexGPU, 2}
         k2_gpu :: CuArrays.CuArray{ComplexGPU, 2}
         k3_gpu :: CuArrays.CuArray{ComplexGPU, 2}
+        res_gpu :: CuArrays.CuArray{ComplexGPU, 2}
+        dum_gpu :: CuArrays.CuArray{ComplexGPU, 2}
     end
 
 
@@ -36,7 +38,9 @@ module RungeKuttasGPU
             k1_gpu = CuArrays.CuArray(zeros(ComplexGPU, (Nr, Nw)))
             k2_gpu = CuArrays.CuArray(zeros(ComplexGPU, (Nr, Nw)))
             k3_gpu = CuArrays.CuArray(zeros(ComplexGPU, (Nr, Nw)))
-            RK = RungeKutta3(k1_gpu, k2_gpu, k3_gpu)
+            res_gpu = CuArrays.CuArray(zeros(ComplexGPU, (Nr, Nw)))
+            dum_gpu = CuArrays.CuArray(zeros(ComplexGPU, (Nr, Nw)))
+            RK = RungeKutta3(k1_gpu, k2_gpu, k3_gpu, res_gpu, dum_gpu)
         elseif order == 4
             k1 = zeros(Complex128, (Nr, Nw))
             k2 = zeros(Complex128, (Nr, Nw))
@@ -67,17 +71,17 @@ module RungeKuttasGPU
 
     function RungeKutta_calc!(RK::RungeKutta3,
                               f_gpu::CuArrays.CuArray{ComplexGPU, 2},
-                              h::FloatGPU, func::Function)
-        dum_gpu = func(f_gpu)
-        @inbounds @. RK.k1_gpu = h * dum_gpu
+                              h::FloatGPU, func!::Function)
+        func!(f_gpu, RK.res_gpu)
+        @inbounds @. RK.k1_gpu = h * RK.res_gpu
 
-        @inbounds @. dum_gpu = f_gpu + 0.5 * RK.k1_gpu
-        dum_gpu = func(dum_gpu)
-        @inbounds @. RK.k2_gpu = h * dum_gpu
+        @inbounds @. RK.dum_gpu = f_gpu + 0.5 * RK.k1_gpu
+        func!(RK.dum_gpu, RK.res_gpu)
+        @inbounds @. RK.k2_gpu = h * RK.res_gpu
 
-        @inbounds @. dum_gpu = f_gpu - RK.k1_gpu + 2. * RK.k2_gpu
-        dum_gpu = func(dum_gpu)
-        @inbounds @. RK.k3_gpu = h * dum_gpu
+        @inbounds @. RK.dum_gpu = f_gpu - RK.k1_gpu + 2. * RK.k2_gpu
+        func!(RK.dum_gpu, RK.res_gpu)
+        @inbounds @. RK.k3_gpu = h * RK.res_gpu
 
         @inbounds @. f_gpu = f_gpu + (RK.k1_gpu + 4. * RK.k2_gpu + RK.k3_gpu) / 6.
         return nothing

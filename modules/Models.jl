@@ -199,8 +199,8 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
                plasma::Plasmas.Plasma, model::Models.Model)
 
 
-    function func_gpu(S_gpu::CuArrays.CuArray{ComplexGPU, 2})
-        res_gpu = CuArrays.CuArray(zeros(ComplexGPU, (grid.Nr, grid.Nw)))
+    function func_gpu!(S_gpu::CuArrays.CuArray{ComplexGPU, 2},
+                       res_gpu::CuArrays.CuArray{ComplexGPU, 2})
         Ec_gpu = CuArrays.CuArray(zeros(ComplexGPU, grid.Nt))
         Er_gpu = CuArrays.CuArray(zeros(FloatGPU, grid.Nt))
         Ftmp_gpu = CuArrays.CuArray(zeros(FloatGPU, grid.Nt))
@@ -223,7 +223,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
                 @inbounds @. Ftmp_gpu = Ftmp_gpu * model.guard.T_gpu   # temporal filter
                 FourierGPU.rfft1d!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
 
-                @inbounds res_gpu[i, :] = res_gpu[i, :] .+ model.Rk_gpu .* Stmp_gpu
+                @inbounds res_gpu[i, :] = model.Rk_gpu .* Stmp_gpu
             end
 
             # Stimulated Raman nonlinearity:
@@ -287,7 +287,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
             end
         end
 
-        return res_gpu
+        return nothing
     end
 
 
@@ -309,7 +309,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
         rho_gpu = CuArrays.CuArray(convert(Array{FloatGPU, 2}, plasma.rho))
         Kdrho_gpu = CuArrays.CuArray(convert(Array{FloatGPU, 2}, plasma.Kdrho))
 
-        RungeKuttasGPU.RungeKutta_calc!(model.RKGPU, S_gpu, dz_gpu, func_gpu)
+        RungeKuttasGPU.RungeKutta_calc!(model.RKGPU, S_gpu, dz_gpu, func_gpu!)
     end
 
     # Linear propagator --------------------------------------------------------
