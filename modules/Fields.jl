@@ -1,11 +1,15 @@
 module Fields
 
+import CuArrays
+
 using PyCall
 @pyimport scipy.constants as sc
 
 import Units
 import Grids
 import Fourier
+
+const ComplexGPU = Complex64
 
 const C0 = sc.c   # speed of light in vacuum
 const HBAR = sc.hbar   # the Planck constant (divided by 2*pi) [J*s]
@@ -19,7 +23,7 @@ mutable struct Field
     grid :: Grids.Grid
 
     E :: Array{Complex128, 2}
-    S :: Array{Complex128, 2}
+    S_gpu :: CuArrays.CuArray{ComplexGPU, 2}
     rho :: Array{Float64, 1}
 end
 
@@ -34,11 +38,11 @@ function Field(unit::Units.Unit, grid::Grids.Grid, lam0::Float64,
         E[i, :] = Fourier.signal_real_to_signal_analytic(grid.FT, real(E[i, :]))
     end
 
-    S = zeros(Complex128, (grid.Nr, grid.Nw))
+    S_gpu = CuArrays.CuArray(zeros(ComplexGPU, (grid.Nr, grid.Nw)))
 
     rho = zeros(grid.Nr)
 
-    return Field(lam0, f0, w0, grid, E, S, rho)
+    return Field(lam0, f0, w0, grid, E, S_gpu, rho)
 end
 
 

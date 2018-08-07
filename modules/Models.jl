@@ -298,10 +298,9 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
     dz_gpu = convert(FloatGPU, dz)
     E_gpu = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, field.E))
-    S_gpu = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, field.S))
 
     # Field -> temporal spectrum -----------------------------------------------
-    FourierGPU.rfft2d!(grid.FTGPU, E_gpu, S_gpu)
+    FourierGPU.rfft2d!(grid.FTGPU, E_gpu, field.S_gpu)
 
     # Nonlinear propagator -----------------------------------------------------
     if (model.keys["KERR"] != 0) | (model.keys["PLASMA"] != 0) |
@@ -309,22 +308,22 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
         rho_gpu = CuArrays.CuArray(convert(Array{FloatGPU, 2}, plasma.rho))
         Kdrho_gpu = CuArrays.CuArray(convert(Array{FloatGPU, 2}, plasma.Kdrho))
 
-        RungeKuttasGPU.RungeKutta_calc!(model.RKGPU, S_gpu, dz_gpu, func_gpu!)
+        RungeKuttasGPU.RungeKutta_calc!(model.RKGPU, field.S_gpu, dz_gpu, func_gpu!)
     end
 
     # Linear propagator --------------------------------------------------------
-    HankelGPU.dht!(grid.HTGPU, S_gpu)
-    @inbounds @. S_gpu = S_gpu * exp_cuda(model.KZ_gpu * dz_gpu)
-    @inbounds @. S_gpu = S_gpu * model.guard.K_gpu   # angular filter
-    HankelGPU.idht!(grid.HTGPU, S_gpu)
+    HankelGPU.dht!(grid.HTGPU, field.S_gpu)
+    @inbounds @. field.S_gpu = field.S_gpu * exp_cuda(model.KZ_gpu * dz_gpu)
+    @inbounds @. field.S_gpu = field.S_gpu * model.guard.K_gpu   # angular filter
+    HankelGPU.idht!(grid.HTGPU, field.S_gpu)
 
     # Temporal spectrum -> field -----------------------------------------------
     # spectral filter:
     for i=1:grid.Nr
-        @inbounds S_gpu[i, :] = S_gpu[i, :] .* model.guard.W_gpu
+        @inbounds field.S_gpu[i, :] = field.S_gpu[i, :] .* model.guard.W_gpu
     end
 
-    FourierGPU.spectrum_real_to_signal_analytic_2d!(grid.FTGPU, S_gpu, E_gpu)
+    FourierGPU.spectrum_real_to_signal_analytic_2d!(grid.FTGPU, field.S_gpu, E_gpu)
 
     # spatial filter:
     for j=1:grid.Nt
