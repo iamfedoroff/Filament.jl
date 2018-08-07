@@ -297,10 +297,10 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     end
 
     dz_gpu = convert(FloatGPU, dz)
-    E_gpu = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, field.E))
+    Er_gpu = real(field.E_gpu)
 
     # Field -> temporal spectrum -----------------------------------------------
-    FourierGPU.rfft2d!(grid.FTGPU, E_gpu, field.S_gpu)
+    FourierGPU.rfft2d!(grid.FTGPU, Er_gpu, field.S_gpu)
 
     # Nonlinear propagator -----------------------------------------------------
     if (model.keys["KERR"] != 0) | (model.keys["PLASMA"] != 0) |
@@ -323,19 +323,20 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
         @inbounds field.S_gpu[i, :] = field.S_gpu[i, :] .* model.guard.W_gpu
     end
 
-    FourierGPU.spectrum_real_to_signal_analytic_2d!(grid.FTGPU, field.S_gpu, E_gpu)
+    FourierGPU.spectrum_real_to_signal_analytic_2d!(
+        grid.FTGPU, field.S_gpu, field.E_gpu)
 
     # spatial filter:
     for j=1:grid.Nt
-        @inbounds E_gpu[:, j] = E_gpu[:, j] .* model.guard.R_gpu
+        @inbounds field.E_gpu[:, j] = field.E_gpu[:, j] .* model.guard.R_gpu
     end
 
     # temporal filter:
     for i=1:grid.Nr
-        @inbounds E_gpu[i, :] = E_gpu[i, :] .* model.guard.T_gpu
+        @inbounds field.E_gpu[i, :] = field.E_gpu[i, :] .* model.guard.T_gpu
     end
 
-    field.E = convert(Array{Complex128, 2}, CuArrays.collect(E_gpu))
+    field.E = convert(Array{Complex128, 2}, CuArrays.collect(field.E_gpu))
 
     return nothing
 end

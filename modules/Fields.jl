@@ -23,6 +23,7 @@ mutable struct Field
     grid :: Grids.Grid
 
     E :: Array{Complex128, 2}
+    E_gpu :: CuArrays.CuArray{ComplexGPU, 2}
     S_gpu :: CuArrays.CuArray{ComplexGPU, 2}
     rho :: Array{Float64, 1}
 end
@@ -38,11 +39,12 @@ function Field(unit::Units.Unit, grid::Grids.Grid, lam0::Float64,
         E[i, :] = Fourier.signal_real_to_signal_analytic(grid.FT, real(E[i, :]))
     end
 
+    E_gpu = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, E))
     S_gpu = CuArrays.CuArray(zeros(ComplexGPU, (grid.Nr, grid.Nw)))
 
     rho = zeros(grid.Nr)
 
-    return Field(lam0, f0, w0, grid, E, S_gpu, rho)
+    return Field(lam0, f0, w0, grid, E, E_gpu, S_gpu, rho)
 end
 
 

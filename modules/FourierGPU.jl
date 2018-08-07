@@ -14,7 +14,6 @@ struct FourierTransform
     Nw :: Int64
     HS_gpu :: CuArrays.CuArray{FloatGPU, 1}
     Ec_gpu :: CuArrays.CuArray{ComplexGPU, 1}
-    Er_gpu :: CuArrays.CuArray{FloatGPU, 1}
     Sc_gpu :: CuArrays.CuArray{ComplexGPU, 1}
     Sr_gpu :: CuArrays.CuArray{ComplexGPU, 1}
     PFFT :: Base.DFT.Plan
@@ -37,7 +36,6 @@ function FourierTransform(Nt, dt)
 
     # arrays to store intermediate results:
     Ec_gpu = CuArrays.CuArray(zeros(ComplexGPU, Nt))
-    Er_gpu = CuArrays.CuArray(zeros(FloatGPU, Nt))
     Sc_gpu = CuArrays.CuArray(zeros(ComplexGPU, Nt))
     Sr_gpu = CuArrays.CuArray(zeros(ComplexGPU, Nw))
 
@@ -53,7 +51,7 @@ function FourierTransform(Nt, dt)
     # A_mul_B!(Sr_gpu, PRFFT, Er_gpu)
     # A_mul_B!(Er_gpu, PIRFFT, Sr_gpu)
 
-    return FourierTransform(Nt, Nw, HS_gpu, Ec_gpu, Er_gpu, Sc_gpu, Sr_gpu,
+    return FourierTransform(Nt, Nw, HS_gpu, Ec_gpu, Sc_gpu, Sr_gpu,
                             PFFT, PIFFT, PRFFT, PIRFFT)
 end
 
@@ -100,12 +98,12 @@ function rfft1d(FT::FourierTransform, Er_gpu::CuArrays.CuArray{FloatGPU, 1})
 end
 
 
-function rfft2d!(FT::FourierTransform, E_gpu::CuArrays.CuArray{ComplexGPU, 2},
+function rfft2d!(FT::FourierTransform, E_gpu::CuArrays.CuArray{FloatGPU, 2},
                  S_gpu::CuArrays.CuArray{ComplexGPU, 2})
     Nr = size(E_gpu, 1)
     for i=1:Nr
-        @inbounds @. FT.Er_gpu = real(E_gpu[i, :])
-        rfft1d!(FT, FT.Er_gpu, FT.Sr_gpu)   # time -> frequency
+        Er_gpu = E_gpu[i, :]
+        rfft1d!(FT, Er_gpu, FT.Sr_gpu)   # time -> frequency
         @inbounds S_gpu[i, :] = FT.Sr_gpu
     end
     return nothing
