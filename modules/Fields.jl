@@ -39,8 +39,8 @@ function Field(unit::Units.Unit, grid::Grids.Grid, lam0::Float64,
         E[i, :] = Fourier.signal_real_to_signal_analytic(grid.FT, real(E[i, :]))
     end
 
-    E_gpu = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, E))
-    S_gpu = CuArrays.CuArray(zeros(ComplexGPU, (grid.Nr, grid.Nw)))
+    E_gpu = CuArrays.cu(convert(Array{ComplexGPU, 2}, E))
+    S_gpu = CuArrays.cuzeros(ComplexGPU, (grid.Nr, grid.Nw))
 
     rho = zeros(grid.Nr)
 

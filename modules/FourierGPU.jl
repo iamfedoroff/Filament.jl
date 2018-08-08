@@ -32,19 +32,19 @@ function FourierTransform(Nt, dt)
 
     f = npfft.fftfreq(Nt, dt)
     HS = 1. + sign.(f)   # Heaviside-like step function for Hilbert transform
-    HS_gpu = CuArrays.CuArray(convert(Array{FloatGPU, 1}, HS))
+    HS_gpu = CuArrays.cu(convert(Array{FloatGPU, 1}, HS))
 
     # arrays to store intermediate results:
-    Ec_gpu = CuArrays.CuArray(zeros(ComplexGPU, Nt))
-    Sc_gpu = CuArrays.CuArray(zeros(ComplexGPU, Nt))
-    Sr_gpu = CuArrays.CuArray(zeros(ComplexGPU, Nw))
+    Ec_gpu = CuArrays.cuzeros(ComplexGPU, Nt)
+    Sc_gpu = CuArrays.cuzeros(ComplexGPU, Nt)
+    Sr_gpu = CuArrays.cuzeros(ComplexGPU, Nw)
 
     CuArrays.allowscalar(false)   # disable slow fallback methods
 
-    PFFT = plan_fft(CuArrays.CuArray(zeros(ComplexGPU, Nt)))
-    PIFFT = plan_ifft(CuArrays.CuArray(zeros(ComplexGPU, Nt)))
-    PRFFT = plan_rfft(CuArrays.CuArray(zeros(FloatGPU, Nt)))
-    PIRFFT = plan_irfft(CuArrays.CuArray(zeros(ComplexGPU, Nw)), Nt)
+    PFFT = plan_fft(CuArrays.cuzeros(ComplexGPU, Nt))
+    PIFFT = plan_ifft(CuArrays.cuzeros(ComplexGPU, Nt))
+    PRFFT = plan_rfft(CuArrays.cuzeros(FloatGPU, Nt))
+    PIRFFT = plan_irfft(CuArrays.cuzeros(ComplexGPU, Nw), Nt)
 
     # A_mul_B!(Sc_gpu, PFFT, Ec_gpu)
     # A_mul_B!(Ec_gpu, PIFFT, Sc_gpu)
@@ -64,7 +64,7 @@ end
 
 
 function fft1d(FT::FourierTransform, Ec_gpu::CuArrays.CuArray{ComplexGPU, 1})
-    Sc_gpu = CuArrays.CuArray(zeros(ComplexGPU, FT.Nt))
+    Sc_gpu = CuArrays.cuzeros(ComplexGPU, FT.Nt)
     fft1d!(FT, Ec_gpu, Sc_gpu)   # time -> frequency
     return Sc_gpu
 end
@@ -78,7 +78,7 @@ end
 
 
 function ifft1d(FT::FourierTransform, Sc_gpu::CuArrays.CuArray{ComplexGPU, 1})
-    Ec_gpu = CuArrays.CuArray(zeros(ComplexGPU, FT.Nt))
+    Ec_gpu = CuArrays.cuzeros(ComplexGPU, FT.Nt)
     ifft1d!(FT, Sc_gpu, Ec_gpu)   # frequency -> time
     return Ec_gpu
 end
@@ -92,7 +92,7 @@ end
 
 
 function rfft1d(FT::FourierTransform, Er_gpu::CuArrays.CuArray{FloatGPU, 1})
-    Sr_gpu = CuArrays.CuArray(zeros(ComplexGPU, FT.Nw))
+    Sr_gpu = CuArrays.cuzeros(ComplexGPU, FT.Nw)
     rfft1d!(FT, Er_gpu, Sr_gpu)   # time -> frequency
     return Sr_gpu
 end
@@ -118,7 +118,7 @@ end
 
 
 function irfft1d(FT::FourierTransform, Sr_gpu::CuArrays.CuArray{ComplexGPU, 1})
-    Er_gpu = CuArrays.CuArray(zeros(Float64, FT.Nt))
+    Er_gpu = CuArrays.cuzeros(Float64, FT.Nt)
     irfft1d!(FT, Sr_gpu, Er_gpu)   # frequency -> time
     return Er_gpu
 end

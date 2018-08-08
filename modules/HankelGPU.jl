@@ -63,13 +63,13 @@ function HankelTransform(R::Float64, Nr::Int64, p::Int64=0)
     # GPU:
     CuArrays.allowscalar(false)   # disable slow fallback methods
 
-    T_gpu = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, T))
-    RdivJ_gpu = CuArrays.CuArray(convert(Array{FloatGPU, 1}, RdivJ))
-    JdivV_gpu = CuArrays.CuArray(convert(Array{FloatGPU, 1}, JdivV))
-    VdivJ_gpu = CuArrays.CuArray(convert(Array{FloatGPU, 1}, VdivJ))
-    JdivR_gpu = CuArrays.CuArray(convert(Array{FloatGPU, 1}, JdivR))
-    F1_gpu = CuArrays.CuArray(zeros(ComplexGPU, Nr))
-    F2_gpu = CuArrays.CuArray(zeros(ComplexGPU, Nr))
+    T_gpu = CuArrays.cu(convert(Array{ComplexGPU, 2}, T))
+    RdivJ_gpu = CuArrays.cu(convert(Array{FloatGPU, 1}, RdivJ))
+    JdivV_gpu = CuArrays.cu(convert(Array{FloatGPU, 1}, JdivV))
+    VdivJ_gpu = CuArrays.cu(convert(Array{FloatGPU, 1}, VdivJ))
+    JdivR_gpu = CuArrays.cu(convert(Array{FloatGPU, 1}, JdivR))
+    F1_gpu = CuArrays.cuzeros(ComplexGPU, Nr)
+    F2_gpu = CuArrays.cuzeros(ComplexGPU, Nr)
 
     # For some reason, the following line speeds up all further calculations.
     # Probably it triggers some GPU initialization.

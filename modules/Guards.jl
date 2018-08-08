@@ -46,10 +46,10 @@ function GuardFilter(unit::Units.Unit, grid::Grids.Grid, medium::Media.Medium,
     Wguard = @. exp(-((grid.w * unit.w)^2 / wguard^2)^20)
 
     # GPU:
-    Rguard_gpu = CuArrays.CuArray(convert(Array{FloatGPU, 1}, Rguard))
-    Tguard_gpu = CuArrays.CuArray(convert(Array{FloatGPU, 1}, Tguard))
-    Kguard_gpu = CuArrays.CuArray(convert(Array{FloatGPU, 2}, Kguard))
-    Wguard_gpu = CuArrays.CuArray(convert(Array{FloatGPU, 1}, Wguard))
+    Rguard_gpu = CuArrays.cu(convert(Array{FloatGPU, 1}, Rguard))
+    Tguard_gpu = CuArrays.cu(convert(Array{FloatGPU, 1}, Tguard))
+    Kguard_gpu = CuArrays.cu(convert(Array{FloatGPU, 2}, Kguard))
+    Wguard_gpu = CuArrays.cu(convert(Array{FloatGPU, 1}, Wguard))
 
     return GuardFilter(Rguard, Tguard, Kguard, Wguard,
                        Rguard_gpu, Tguard_gpu, Kguard_gpu, Wguard_gpu)

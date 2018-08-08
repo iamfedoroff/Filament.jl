@@ -35,11 +35,11 @@ module RungeKuttasGPU
             k2 = zeros(Complex128, (Nr, Nw))
             RK = RungeKutta2(k1, k2)
         elseif order == 3
-            k1_gpu = CuArrays.CuArray(zeros(ComplexGPU, (Nr, Nw)))
-            k2_gpu = CuArrays.CuArray(zeros(ComplexGPU, (Nr, Nw)))
-            k3_gpu = CuArrays.CuArray(zeros(ComplexGPU, (Nr, Nw)))
-            res_gpu = CuArrays.CuArray(zeros(ComplexGPU, (Nr, Nw)))
-            dum_gpu = CuArrays.CuArray(zeros(ComplexGPU, (Nr, Nw)))
+            k1_gpu = CuArrays.cuzeros(ComplexGPU, (Nr, Nw))
+            k2_gpu = CuArrays.cuzeros(ComplexGPU, (Nr, Nw))
+            k3_gpu = CuArrays.cuzeros(ComplexGPU, (Nr, Nw))
+            res_gpu = CuArrays.cuzeros(ComplexGPU, (Nr, Nw))
+            dum_gpu = CuArrays.cuzeros(ComplexGPU, (Nr, Nw))
             RK = RungeKutta3(k1_gpu, k2_gpu, k3_gpu, res_gpu, dum_gpu)
         elseif order == 4
             k1 = zeros(Complex128, (Nr, Nw))

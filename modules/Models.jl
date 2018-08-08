@@ -163,13 +163,13 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     @. Ra = conj(Ra)
 
     # GPU:
-    KZ_gpu = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, KZ))
-    QZ_gpu = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, QZ))
+    KZ_gpu = CuArrays.cu(convert(Array{ComplexGPU, 2}, KZ))
+    QZ_gpu = CuArrays.cu(convert(Array{ComplexGPU, 2}, QZ))
     Rk_gpu = convert(FloatGPU, Rk)
     Rr_gpu = convert(FloatGPU, Rr)
-    Hramanw_gpu = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, Hramanw))
-    Rp_gpu = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, Rp))
-    Ra_gpu = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, Ra))
+    Hramanw_gpu = CuArrays.cu(convert(Array{ComplexGPU, 1}, Hramanw))
+    Rp_gpu = CuArrays.cu(convert(Array{ComplexGPU, 1}, Rp))
+    Ra_gpu = CuArrays.cu(convert(Array{ComplexGPU, 1}, Ra))
 
     return Model(KZ_gpu, QZ_gpu, Rk_gpu, Rr_gpu, Hramanw_gpu, Rp_gpu, Ra_gpu,
                  phi_kerr, phi_plasma, guard, RKGPU, keys)
@@ -201,12 +201,12 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
     function func_gpu!(S_gpu::CuArrays.CuArray{ComplexGPU, 2},
                        res_gpu::CuArrays.CuArray{ComplexGPU, 2})
-        Ec_gpu = CuArrays.CuArray(zeros(ComplexGPU, grid.Nt))
-        Er_gpu = CuArrays.CuArray(zeros(FloatGPU, grid.Nt))
-        Ftmp_gpu = CuArrays.CuArray(zeros(FloatGPU, grid.Nt))
-        Stmp_gpu = CuArrays.CuArray(zeros(ComplexGPU, grid.Nw))
-        Iconv_gpu = CuArrays.CuArray(zeros(FloatGPU, grid.Nt))
-        Ftmp_inv_gpu = CuArrays.CuArray(zeros(FloatGPU, grid.Nt))
+        Ec_gpu = CuArrays.cuzeros(ComplexGPU, grid.Nt)
+        Er_gpu = CuArrays.cuzeros(FloatGPU, grid.Nt)
+        Ftmp_gpu = CuArrays.cuzeros(FloatGPU, grid.Nt)
+        Stmp_gpu = CuArrays.cuzeros(ComplexGPU, grid.Nw)
+        Iconv_gpu = CuArrays.cuzeros(FloatGPU, grid.Nt)
+        Ftmp_inv_gpu = CuArrays.cuzeros(FloatGPU, grid.Nt)
 
         for i=1:grid.Nr
             @inbounds St_gpu = S_gpu[i, :]
@@ -305,8 +305,8 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     # Nonlinear propagator -----------------------------------------------------
     if (model.keys["KERR"] != 0) | (model.keys["PLASMA"] != 0) |
        (model.keys["ILOSSES"] != 0)
-        rho_gpu = CuArrays.CuArray(convert(Array{FloatGPU, 2}, plasma.rho))
-        Kdrho_gpu = CuArrays.CuArray(convert(Array{FloatGPU, 2}, plasma.Kdrho))
+        rho_gpu = CuArrays.cu(convert(Array{FloatGPU, 2}, plasma.rho))
+        Kdrho_gpu = CuArrays.cu(convert(Array{FloatGPU, 2}, plasma.Kdrho))
 
         RungeKuttasGPU.RungeKutta_calc!(model.RKGPU, field.S_gpu, dz_gpu, func_gpu!)
     end
