@@ -39,12 +39,10 @@ function FourierTransform(Nt, dt)
 
     dev = CUDAnative.CuDevice(0)
     MAX_THREADS = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
-
     threadsNt = min(Nt, MAX_THREADS)
     threadsNw = min(Nw, MAX_THREADS)
     blocksNt = Int(ceil(Nt / threadsNt))
     blocksNw = Int(ceil(Nw / threadsNw))
-
 
     f = npfft.fftfreq(Nt, dt)
     HS = 1. + sign.(f)   # Heaviside-like step function for Hilbert transform
@@ -62,11 +60,6 @@ function FourierTransform(Nt, dt)
     PIFFT = plan_ifft(CuArrays.cuzeros(ComplexGPU, Nt))
     PRFFT = plan_rfft(CuArrays.cuzeros(FloatGPU, Nt))
     PIRFFT = plan_irfft(CuArrays.cuzeros(ComplexGPU, Nw), Nt)
-
-    # A_mul_B!(Sc_gpu, PFFT, Ec_gpu)
-    # A_mul_B!(Ec_gpu, PIFFT, Sc_gpu)
-    # A_mul_B!(Sr_gpu, PRFFT, Er_gpu)
-    # A_mul_B!(Er_gpu, PIRFFT, Sr_gpu)
 
     return FourierTransform(Nt, Nw, threadsNt, threadsNw, blocksNt, blocksNw,
                             HS_gpu, Ec_gpu, Er_gpu, Sc_gpu, Sr_gpu,
