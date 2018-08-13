@@ -12,6 +12,8 @@ module HankelGPU
 
 import SpecialFunctions
 import CuArrays
+import CUDAnative
+import CUDAdrv
 using PyCall
 @pyimport scipy.special as spec
 
@@ -30,6 +32,8 @@ struct HankelTransform
     JdivR_gpu :: CuArrays.CuArray{FloatGPU, 1}
     F1_gpu :: CuArrays.CuArray{ComplexGPU, 1}
     F2_gpu :: CuArrays.CuArray{ComplexGPU, 1}
+    threads :: Int64
+    blocks :: Int64
 end
 
 
@@ -71,21 +75,22 @@ function HankelTransform(R::Float64, Nr::Int64, p::Int64=0)
     F1_gpu = CuArrays.cuzeros(ComplexGPU, Nr)
     F2_gpu = CuArrays.cuzeros(ComplexGPU, Nr)
 
-    # For some reason, the following line speeds up all further calculations.
-    # Probably it triggers some GPU initialization.
-    @. F1_gpu = F2_gpu * RdivJ_gpu
+    dev = CUDAnative.CuDevice(0)
+    MAX_THREADS = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
+    threads = min(Nr, MAX_THREADS)
+    blocks = Int(ceil(Nr / threads))
 
     return HankelTransform(R, Nr, r, v, T_gpu, RdivJ_gpu, JdivV_gpu, VdivJ_gpu,
-                           JdivR_gpu, F1_gpu, F2_gpu)
+                           JdivR_gpu, F1_gpu, F2_gpu, threads, blocks)
 end
 
 
 function dht!(ht::HankelTransform, f_gpu::CuArrays.CuArray{ComplexGPU, 2})
-    N1, N2 = size(f_gpu)
+    N2 = size(f_gpu, 2)
     @inbounds for j=1:N2
-        f1d_gpu = f_gpu[:, j]   # this gives less allocations than preallocating f1d_gpu
-        dht!(ht, f1d_gpu)
-        f_gpu[:, j] = f1d_gpu
+        @CUDAnative.cuda (ht.blocks, ht.threads) kernel1(ht.F1_gpu, j, f_gpu)
+        dht!(ht, ht.F1_gpu)
+        @CUDAnative.cuda (ht.blocks, ht.threads) kernel2(f_gpu, j, ht.F1_gpu)
     end
     return nothing
 end
@@ -107,11 +112,11 @@ end
 
 
 function idht!(ht::HankelTransform, f_gpu::CuArrays.CuArray{ComplexGPU, 2})
-    N1, N2 = size(f_gpu)
+    N2 = size(f_gpu, 2)
     @inbounds for j=1:N2
-        f1d_gpu = f_gpu[:, j]   # this gives less allocations than preallocating f1d_gpu
-        idht!(ht, f1d_gpu)
-        f_gpu[:, j] = f1d_gpu
+        @CUDAnative.cuda (ht.blocks, ht.threads) kernel1(ht.F1_gpu, j, f_gpu)
+        idht!(ht, ht.F1_gpu)
+        @CUDAnative.cuda (ht.blocks, ht.threads) kernel2(f_gpu, j, ht.F1_gpu)
     end
     return nothing
 end
@@ -129,6 +134,24 @@ function idht(ht::HankelTransform, f2_gpu::CuArrays.CuArray{ComplexGPU, 1})
     f1_gpu = copy(f2_gpu)
     idht!(ht, f1_gpu)
     return f1_gpu
+end
+
+
+function kernel1(b, j, a)
+    i = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
+    if i <= length(b)
+        b[i] = a[i, j]
+    end
+    return nothing
+end
+
+
+function kernel2(b, j, a)
+    i = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
+    if i <= length(a)
+        b[i, j] = a[i]
+    end
+    return nothing
 end
 
 
