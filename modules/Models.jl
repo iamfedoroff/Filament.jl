@@ -207,11 +207,15 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
         Stmp_gpu = CuArrays.cuzeros(ComplexGPU, grid.Nw)
         Iconv_gpu = CuArrays.cuzeros(FloatGPU, grid.Nt)
         Ftmp_inv_gpu = CuArrays.cuzeros(FloatGPU, grid.Nt)
+        resi_gpu = CuArrays.cuzeros(ComplexGPU, grid.Nw)
+        zeros_gpu = CuArrays.cuzeros(ComplexGPU, grid.Nw)
 
         for i=1:grid.Nr
             @inbounds St_gpu = S_gpu[i, :]
             FourierGPU.spectrum_real_to_signal_analytic!(grid.FTGPU, St_gpu, Ec_gpu)
             @inbounds @. Er_gpu = real(Ec_gpu)
+
+            @inbounds @. resi_gpu = zeros_gpu
 
             # Kerr nonlinearity:
             if model.keys["KERR"] != 0
@@ -223,7 +227,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
                 Guards.apply_temporal_filter!(model.guard, Ftmp_gpu)
                 FourierGPU.rfft1d!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
 
-                @inbounds res_gpu[i, :] = model.Rk_gpu .* Stmp_gpu
+                @inbounds @. resi_gpu = resi_gpu + model.Rk_gpu * Stmp_gpu
             end
 
             # Stimulated Raman nonlinearity:
@@ -239,7 +243,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
                 Guards.apply_temporal_filter!(model.guard, Ftmp_gpu)
                 FourierGPU.rfft1d!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
 
-                @inbounds res_gpu[i, :] = res_gpu[i, :] .+ model.Rr_gpu .* Stmp_gpu
+                @inbounds @. resi_gpu = resi_gpu + model.Rr_gpu * Stmp_gpu
             end
 
             # Plasma nonlinearity:
@@ -249,7 +253,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
                 Guards.apply_temporal_filter!(model.guard, Ftmp_gpu)
                 FourierGPU.rfft1d!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
 
-                @inbounds res_gpu[i, :] = res_gpu[i, :] .+ model.Rp_gpu .* Stmp_gpu
+                @inbounds @. resi_gpu = resi_gpu + model.Rp_gpu * Stmp_gpu
             end
 
             # Losses due to multiphoton ionization:
@@ -267,8 +271,10 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
                 Guards.apply_temporal_filter!(model.guard, Ftmp_gpu)
                 FourierGPU.rfft1d!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
 
-                @inbounds res_gpu[i, :] = res_gpu[i, :] .+ model.Ra_gpu .* Stmp_gpu
+                @inbounds @. resi_gpu = resi_gpu + model.Ra_gpu * Stmp_gpu
             end
+
+            res_gpu[i, :] = resi_gpu
         end
 
         # Nonparaxiality:
