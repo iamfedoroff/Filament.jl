@@ -173,11 +173,10 @@ end
 
 function convolution!(FT::FourierTransform,
                       Hw_gpu::CuArrays.CuArray{ComplexGPU, 1},
-                      x_gpu::CuArrays.CuArray{FloatGPU, 1},
-                      res_gpu::CuArrays.CuArray{FloatGPU, 1})
+                      x_gpu::CuArrays.CuArray{FloatGPU, 1})
     rfft1d!(FT, x_gpu, FT.Sr_gpu)
     @inbounds @. FT.Sr_gpu = Hw_gpu * FT.Sr_gpu
-    irfft1d!(FT, FT.Sr_gpu, res_gpu)
+    irfft1d!(FT, FT.Sr_gpu, x_gpu)
     return nothing
 end
 

@@ -205,7 +205,6 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
         Er_gpu = CuArrays.cuzeros(FloatGPU, grid.Nt)
         Ftmp_gpu = CuArrays.cuzeros(FloatGPU, grid.Nt)
         Stmp_gpu = CuArrays.cuzeros(ComplexGPU, grid.Nw)
-        Iconv_gpu = CuArrays.cuzeros(FloatGPU, grid.Nt)
         Ftmp_inv_gpu = CuArrays.cuzeros(FloatGPU, grid.Nt)
         resi_gpu = CuArrays.cuzeros(ComplexGPU, grid.Nw)
         zeros_gpu = CuArrays.cuzeros(ComplexGPU, grid.Nw)
@@ -238,8 +237,8 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
                     @inbounds @. Ftmp_gpu = 3. / 4. * abs2(Ec_gpu)
                 end
                 Guards.apply_temporal_filter!(model.guard, Ftmp_gpu)
-                FourierGPU.convolution!(grid.FTGPU, model.Hramanw_gpu, Ftmp_gpu, Iconv_gpu)
-                @inbounds @. Ftmp_gpu = Iconv_gpu * Er_gpu
+                FourierGPU.convolution!(grid.FTGPU, model.Hramanw_gpu, Ftmp_gpu)
+                @inbounds @. Ftmp_gpu = Ftmp_gpu * Er_gpu
                 Guards.apply_temporal_filter!(model.guard, Ftmp_gpu)
                 FourierGPU.rfft1d!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
 
