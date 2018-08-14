@@ -205,7 +205,6 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
         Er_gpu = CuArrays.cuzeros(FloatGPU, grid.Nt)
         Ftmp_gpu = CuArrays.cuzeros(FloatGPU, grid.Nt)
         Stmp_gpu = CuArrays.cuzeros(ComplexGPU, grid.Nw)
-        Ftmp_inv_gpu = CuArrays.cuzeros(FloatGPU, grid.Nt)
         resi_gpu = CuArrays.cuzeros(ComplexGPU, grid.Nw)
         zeros_gpu = CuArrays.cuzeros(ComplexGPU, grid.Nw)
 
@@ -265,8 +264,8 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
                     @inbounds @. Ftmp_gpu = Er_gpu^2
                 end
 
-                safe_inverse!(Ftmp_gpu, Ftmp_inv_gpu)
-                @inbounds @. Ftmp_gpu = Kdrhot_gpu * Ftmp_inv_gpu * Er_gpu
+                safe_inverse!(Ftmp_gpu)
+                @inbounds @. Ftmp_gpu = Kdrhot_gpu * Ftmp_gpu * Er_gpu
                 Guards.apply_temporal_filter!(model.guard, Ftmp_gpu)
                 FourierGPU.rfft1d!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
 
@@ -448,34 +447,29 @@ function exp_cuda(x::ComplexGPU)
 end
 
 
-function safe_inverse!(a_gpu::CuArrays.CuArray{FloatGPU, 1},
-                       out_gpu::CuArrays.CuArray{FloatGPU, 1})
+function safe_inverse!(a_gpu::CuArrays.CuArray{FloatGPU, 1})
 
 
-    function kernel_safe_inverse!(a::CUDAnative.CuDeviceArray{Float32,1},
-                                  out::CUDAnative.CuDeviceArray{Float32,1})
-        # Need to do the n-1 dance, since index of the first array elemnt in CUDA
-        # is 0, while in Julia it is 1:
+    function kernel(a::CUDAnative.CuDeviceArray{Float32,1})
         i = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
-
-        if a[i] >= 1e-30
-            out[i] =  1. / a[i]
-        else
-            out[i] = 0.
+        if i <= length(a)
+            if a[i] >= FloatGPU(1e-30)
+                a[i] = FloatGPU(1.) / a[i]
+            else
+                a[i] = FloatGPU(0.)
+            end
         end
         return nothing
     end
 
 
     dev = CUDAnative.CuDevice(0)
-
     N = length(a_gpu)
     MAX_THREADS = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
     threads = min(N, MAX_THREADS)
     blocks = Int(ceil(N / threads))
 
-    @CUDAnative.cuda (blocks, threads) kernel_safe_inverse!(a_gpu, out_gpu)
-
+    @CUDAnative.cuda (blocks, threads) kernel(a_gpu)
     return nothing
 end
 
