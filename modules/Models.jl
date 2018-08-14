@@ -220,7 +220,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
                 else
                     @inbounds @. Ftmp_gpu = 3. / 4. * abs2(Ec_gpu) * Er_gpu
                 end
-                @inbounds @. Ftmp_gpu = Ftmp_gpu * model.guard.T_gpu   # temporal filter
+                Guards.apply_temporal_filter!(model.guard, Ftmp_gpu)
                 FourierGPU.rfft1d!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
 
                 @inbounds res_gpu[i, :] = model.Rk_gpu .* Stmp_gpu
@@ -233,10 +233,10 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
                 else
                     @inbounds @. Ftmp_gpu = 3. / 4. * abs2(Ec_gpu)
                 end
-                @inbounds @. Ftmp_gpu = Ftmp_gpu * model.guard.T_gpu   # temporal filter
+                Guards.apply_temporal_filter!(model.guard, Ftmp_gpu)
                 FourierGPU.convolution!(grid.FTGPU, model.Hramanw_gpu, Ftmp_gpu, Iconv_gpu)
                 @inbounds @. Ftmp_gpu = Iconv_gpu * Er_gpu
-                @inbounds @. Ftmp_gpu = Ftmp_gpu * model.guard.T_gpu   # temporal filter
+                Guards.apply_temporal_filter!(model.guard, Ftmp_gpu)
                 FourierGPU.rfft1d!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
 
                 @inbounds res_gpu[i, :] = res_gpu[i, :] .+ model.Rr_gpu .* Stmp_gpu
@@ -246,7 +246,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
             if model.keys["PLASMA"] != 0
                 @inbounds rhot_gpu = rho_gpu[i, :]
                 @inbounds @. Ftmp_gpu = rhot_gpu * Er_gpu
-                @inbounds @. Ftmp_gpu = Ftmp_gpu * model.guard.T_gpu   # temporal filter
+                Guards.apply_temporal_filter!(model.guard, Ftmp_gpu)
                 FourierGPU.rfft1d!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
 
                 @inbounds res_gpu[i, :] = res_gpu[i, :] .+ model.Rp_gpu .* Stmp_gpu
@@ -264,7 +264,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
                 safe_inverse!(Ftmp_gpu, Ftmp_inv_gpu)
                 @inbounds @. Ftmp_gpu = Kdrhot_gpu * Ftmp_inv_gpu * Er_gpu
-                @inbounds @. Ftmp_gpu = Ftmp_gpu * model.guard.T_gpu   # temporal filter
+                Guards.apply_temporal_filter!(model.guard, Ftmp_gpu)
                 FourierGPU.rfft1d!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
 
                 @inbounds res_gpu[i, :] = res_gpu[i, :] .+ model.Ra_gpu .* Stmp_gpu
@@ -296,6 +296,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
         Plasmas.free_charge(plasma, grid, field)
     end
 
+    # Copy field to GPU:
     dz_gpu = convert(FloatGPU, dz)
     Er_gpu = real(field.E_gpu)
 
@@ -314,28 +315,16 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     # Linear propagator --------------------------------------------------------
     HankelGPU.dht!(grid.HTGPU, field.S_gpu)
     @inbounds @. field.S_gpu = field.S_gpu * exp_cuda(model.KZ_gpu * dz_gpu)
-    @inbounds @. field.S_gpu = field.S_gpu * model.guard.K_gpu   # angular filter
+    Guards.apply_angular_filter!(model.guard, field.S_gpu)
     HankelGPU.idht!(grid.HTGPU, field.S_gpu)
 
     # Temporal spectrum -> field -----------------------------------------------
-    # spectral filter:
-    for i=1:grid.Nr
-        @inbounds field.S_gpu[i, :] = field.S_gpu[i, :] .* model.guard.W_gpu
-    end
+    Guards.apply_spectral_filter!(model.guard, field.S_gpu)
+    FourierGPU.spectrum_real_to_signal_analytic_2d!(grid.FTGPU, field.S_gpu, field.E_gpu)
+    Guards.apply_spatial_filter!(model.guard, field.E_gpu)
+    Guards.apply_temporal_filter!(model.guard, field.E_gpu)
 
-    FourierGPU.spectrum_real_to_signal_analytic_2d!(
-        grid.FTGPU, field.S_gpu, field.E_gpu)
-
-    # spatial filter:
-    for j=1:grid.Nt
-        @inbounds field.E_gpu[:, j] = field.E_gpu[:, j] .* model.guard.R_gpu
-    end
-
-    # temporal filter:
-    for i=1:grid.Nr
-        @inbounds field.E_gpu[i, :] = field.E_gpu[i, :] .* model.guard.T_gpu
-    end
-
+    # Collect field from GPU:
     field.E = convert(Array{Complex128, 2}, CuArrays.collect(field.E_gpu))
 
     return nothing
