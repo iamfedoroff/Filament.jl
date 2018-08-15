@@ -109,11 +109,11 @@ function rfft1d(FT::FourierTransform, Er_gpu::CuArrays.CuArray{FloatGPU, 1})
 end
 
 
-function rfft2d!(FT::FourierTransform, E_gpu::CuArrays.CuArray{FloatGPU, 2},
+function rfft2d!(FT::FourierTransform, E_gpu::CuArrays.CuArray{ComplexGPU, 2},
                  S_gpu::CuArrays.CuArray{ComplexGPU, 2})
     Nr = size(E_gpu, 1)
     for i=1:Nr
-        @CUDAnative.cuda (FT.blocksNt, FT.threadsNt) kernel1(FT.Er_gpu, i, E_gpu)
+        @CUDAnative.cuda (FT.blocksNt, FT.threadsNt) kernel1r(FT.Er_gpu, i, E_gpu)
         rfft1d!(FT, FT.Er_gpu, FT.Sr_gpu)   # time -> frequency
         @CUDAnative.cuda (FT.blocksNw, FT.threadsNw) kernel2(S_gpu, i, FT.Sr_gpu)
     end
@@ -192,6 +192,15 @@ function convolution!(FT::FourierTransform,
     rfft1d!(FT, x_gpu, FT.Sr_gpu)
     @inbounds @. FT.Sr_gpu = Hw_gpu * FT.Sr_gpu
     irfft1d!(FT, FT.Sr_gpu, x_gpu)
+    return nothing
+end
+
+
+function kernel1r(b, i, a)
+    j = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
+    if j <= length(b)
+        b[j] = real(a[i, j])
+    end
     return nothing
 end
 

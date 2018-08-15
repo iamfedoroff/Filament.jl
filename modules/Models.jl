@@ -165,8 +165,8 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     # GPU:
     KZ_gpu = CuArrays.cu(convert(Array{ComplexGPU, 2}, KZ))
     QZ_gpu = CuArrays.cu(convert(Array{ComplexGPU, 2}, QZ))
-    Rk_gpu = convert(FloatGPU, Rk)
-    Rr_gpu = convert(FloatGPU, Rr)
+    Rk_gpu = FloatGPU(Rk)
+    Rr_gpu = FloatGPU(Rr)
     Hramanw_gpu = CuArrays.cu(convert(Array{ComplexGPU, 1}, Hramanw))
     Rp_gpu = CuArrays.cu(convert(Array{ComplexGPU, 1}, Rp))
     Ra_gpu = CuArrays.cu(convert(Array{ComplexGPU, 1}, Ra))
@@ -303,12 +303,10 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
         Plasmas.free_charge(plasma, grid, field)
     end
 
-    # Copy field to GPU:
-    dz_gpu = convert(FloatGPU, dz)
-    Er_gpu = real(field.E_gpu)
+    dz_gpu = FloatGPU(dz)
 
     # Field -> temporal spectrum -----------------------------------------------
-    FourierGPU.rfft2d!(grid.FTGPU, Er_gpu, field.S_gpu)
+    FourierGPU.rfft2d!(grid.FTGPU, field.E_gpu, field.S_gpu)
 
     # Nonlinear propagator -----------------------------------------------------
     if (model.keys["KERR"] != 0) | (model.keys["PLASMA"] != 0) |
