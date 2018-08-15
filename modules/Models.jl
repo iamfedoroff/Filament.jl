@@ -203,14 +203,17 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
                        res_gpu::CuArrays.CuArray{ComplexGPU, 2})
         Ec_gpu = CuArrays.cuzeros(ComplexGPU, grid.Nt)
         Er_gpu = CuArrays.cuzeros(FloatGPU, grid.Nt)
+        Sr_gpu = CuArrays.cuzeros(ComplexGPU, grid.Nw)
         Ftmp_gpu = CuArrays.cuzeros(FloatGPU, grid.Nt)
         Stmp_gpu = CuArrays.cuzeros(ComplexGPU, grid.Nw)
         resi_gpu = CuArrays.cuzeros(ComplexGPU, grid.Nw)
+        rhoi_gpu = CuArrays.cuzeros(FloatGPU, grid.Nt)
+        Kdrhoi_gpu = CuArrays.cuzeros(FloatGPU, grid.Nt)
         zeros_gpu = CuArrays.cuzeros(ComplexGPU, grid.Nw)
 
         for i=1:grid.Nr
-            @inbounds St_gpu = S_gpu[i, :]
-            FourierGPU.spectrum_real_to_signal_analytic!(grid.FTGPU, St_gpu, Ec_gpu)
+            equal1!(Sr_gpu, i, S_gpu)   # Sr_gpu = S_gpu[i, :]
+            FourierGPU.spectrum_real_to_signal_analytic!(grid.FTGPU, Sr_gpu, Ec_gpu)
             @inbounds @. Er_gpu = real(Ec_gpu)
 
             @inbounds @. resi_gpu = zeros_gpu
@@ -246,8 +249,8 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
             # Plasma nonlinearity:
             if model.keys["PLASMA"] != 0
-                @inbounds rhot_gpu = rho_gpu[i, :]
-                @inbounds @. Ftmp_gpu = rhot_gpu * Er_gpu
+                equal1!(rhoi_gpu, i, rho_gpu)   # rhoi_gpu = rho_gpu[i, :]
+                @inbounds @. Ftmp_gpu = rhoi_gpu * Er_gpu
                 Guards.apply_temporal_filter!(model.guard, Ftmp_gpu)
                 FourierGPU.rfft1d!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
 
@@ -256,7 +259,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
             # Losses due to multiphoton ionization:
             if model.keys["ILOSSES"] != 0
-                @inbounds Kdrhot_gpu = Kdrho_gpu[i, :]
+                equal1!(Kdrhoi_gpu, i, Kdrho_gpu)   # Kdrhoi_gpu = Kdrho_gpu[i, :]
 
                 if model.keys["IONARG"] != 0
                     @inbounds @. Ftmp_gpu = abs2(Ec_gpu)
@@ -265,14 +268,14 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
                 end
 
                 safe_inverse!(Ftmp_gpu)
-                @inbounds @. Ftmp_gpu = Kdrhot_gpu * Ftmp_gpu * Er_gpu
+                @inbounds @. Ftmp_gpu = Kdrhoi_gpu * Ftmp_gpu * Er_gpu
                 Guards.apply_temporal_filter!(model.guard, Ftmp_gpu)
                 FourierGPU.rfft1d!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
 
                 @inbounds @. resi_gpu = resi_gpu + model.Ra_gpu * Stmp_gpu
             end
 
-            res_gpu[i, :] = resi_gpu
+            equal2!(res_gpu, i, resi_gpu)   # res_gpu[i, :] = resi_gpu
         end
 
         # Nonparaxiality:
@@ -449,7 +452,6 @@ end
 
 function safe_inverse!(a_gpu::CuArrays.CuArray{FloatGPU, 1})
 
-
     function kernel(a::CUDAnative.CuDeviceArray{Float32,1})
         i = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
         if i <= length(a)
@@ -462,7 +464,6 @@ function safe_inverse!(a_gpu::CuArrays.CuArray{FloatGPU, 1})
         return nothing
     end
 
-
     dev = CUDAnative.CuDevice(0)
     N = length(a_gpu)
     MAX_THREADS = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
@@ -471,6 +472,52 @@ function safe_inverse!(a_gpu::CuArrays.CuArray{FloatGPU, 1})
 
     @CUDAnative.cuda (blocks, threads) kernel(a_gpu)
     return nothing
+end
+
+
+# function equal1!(b_gpu::CuArrays.CuArray{ComplexGPU, 1},
+#                  i::Int64,
+#                  a_gpu::CuArrays.CuArray{ComplexGPU, 2})
+function equal1!(b_gpu, i::Int64, a_gpu)
+
+    function kernel(b, i, a)
+        j = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
+        if j <= length(b)
+            b[j] = a[i, j]
+        end
+        return nothing
+    end
+
+    dev = CUDAnative.CuDevice(0)
+    N = length(b_gpu)
+    MAX_THREADS = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
+    threads = min(N, MAX_THREADS)
+    blocks = Int(ceil(N / threads))
+
+    @CUDAnative.cuda (blocks, threads) kernel(b_gpu, i, a_gpu)
+    return nothing
+end
+
+
+function equal2!(b_gpu::CuArrays.CuArray{ComplexGPU, 2},
+                 i::Int64,
+                 a_gpu::CuArrays.CuArray{ComplexGPU, 1})
+
+    function kernel(b, i, a)
+        j = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
+        if j <= length(a)
+            b[i, j] = a[j]
+        end
+        return nothing
+    end
+
+    dev = CUDAnative.CuDevice(0)
+    N = length(b_gpu)
+    MAX_THREADS = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
+    threads = min(N, MAX_THREADS)
+    blocks = Int(ceil(N / threads))
+
+    @CUDAnative.cuda (blocks, threads) kernel(b_gpu, i, a_gpu)
 end
 
 
