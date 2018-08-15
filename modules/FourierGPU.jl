@@ -150,10 +150,25 @@ end
 function spectrum_real_to_signal_analytic!(FT::FourierTransform,
                                            Sr_gpu::CuArrays.CuArray{ComplexGPU, 1},
                                            Ec_gpu::CuArrays.CuArray{ComplexGPU, 1})
+
+    function kernel(Sc, Sr)
+        i = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
+        if i <= length(Sc)
+            if i <= length(Sr)
+                if i == 1
+                    Sc[i] = Sr[i]
+                else
+                    Sc[i] = FloatGPU(2.) * Sr[i]
+                end
+            else
+                Sc[i] = FloatGPU(0.)
+            end
+        end
+        return nothing
+    end
+
     # Need test for odd N and low frequencies
-    # S = vcat(Sr, conj(Sr[end-1:-1:2]))
-    @inbounds FT.Sc_gpu[1:FT.Nw] = Sr_gpu
-    @inbounds @. FT.Sc_gpu = FT.HS_gpu * FT.Sc_gpu
+    @CUDAnative.cuda (FT.blocksNt, FT.threadsNt) kernel(FT.Sc_gpu, Sr_gpu)
     ifft1d!(FT, FT.Sc_gpu, Ec_gpu)
     return nothing
 end
