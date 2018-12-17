@@ -148,31 +148,31 @@ end
 
 function apply_spatial_filter!(guard::GuardFilter,
                                E_gpu::CuArrays.CuArray{ComplexGPU, 2})
-    @CUDAnative.cuda (guard.blocksNr, guard.threadsNr) kernel1(E_gpu, guard.R_gpu)
+    @CUDAnative.cuda blocks=guard.blocksNr threads=guard.threadsNr kernel1(E_gpu, guard.R_gpu)
 end
 
 
 function apply_temporal_filter!(guard::GuardFilter,
                                 E_gpu::CuArrays.CuArray{FloatGPU, 1})
-    @CUDAnative.cuda (guard.blocksNt, guard.threadsNt) kernel0(E_gpu, guard.T_gpu)
+    @CUDAnative.cuda blocks=guard.blocksNt threads=guard.threadsNt kernel0(E_gpu, guard.T_gpu)
 end
 
 
 function apply_temporal_filter!(guard::GuardFilter,
                                 E_gpu::CuArrays.CuArray{ComplexGPU, 2})
-    @CUDAnative.cuda (guard.blocksNt, guard.threadsNt) kernel2(E_gpu, guard.T_gpu)
+    @CUDAnative.cuda blocks=guard.blocksNt threads=guard.threadsNt kernel2(E_gpu, guard.T_gpu)
 end
 
 
 function apply_spectral_filter!(guard::GuardFilter,
                                 S_gpu::CuArrays.CuArray{ComplexGPU, 2})
-    @CUDAnative.cuda (guard.blocksNw, guard.threadsNw) kernel2(S_gpu, guard.W_gpu)
+    @CUDAnative.cuda blocks=guard.blocksNw threads=guard.threadsNw kernel2(S_gpu, guard.W_gpu)
 end
 
 
 function apply_angular_filter!(guard::GuardFilter,
                                S_gpu::CuArrays.CuArray{ComplexGPU, 2})
-    @CUDAnative.cuda (guard.blocksNw, guard.threadsNw) kernel3(S_gpu, guard.K_gpu)
+    @CUDAnative.cuda blocks=guard.blocksNw threads=guard.threadsNw kernel3(S_gpu, guard.K_gpu)
 end
 
 

@@ -42,13 +42,12 @@ struct Model
     guard :: Guards.GuardFilter
     RKGPU :: Union{RungeKuttasGPU.RungeKutta2, RungeKuttasGPU.RungeKutta3,
                    RungeKuttasGPU.RungeKutta4}
-    keys :: Dict{String, Any}
+    keys :: Dict
 end
 
 
 function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
-               medium::Media.Medium, plasma::Plasmas.Plasma,
-               keys::Dict{String, Any})
+               medium::Media.Medium, plasma::Plasmas.Plasma, keys::Dict)
     # Guards -------------------------------------------------------------------
     rguard_width = keys["rguard_width"]
     tguard_width = keys["tguard_width"]
@@ -150,6 +149,9 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     end
 
     @. Hraman = Hraman * guard.T   # temporal filter
+    # ifftshift code is taken from AbstractFFTs.jl source:
+    # https://github.com/JuliaMath/AbstractFFTs.jl/blob/master/src/definitions.jl
+    ifftshift(x) = circshift(x, div.([size(x)...],-2))
     Hraman = ifftshift(Hraman)
     Hramanw = Fourier.rfft1d(grid.FT, Hraman)   # time -> frequency
 
@@ -468,7 +470,7 @@ function safe_inverse!(a_gpu::CuArrays.CuArray{FloatGPU, 1})
     threads = min(N, MAX_THREADS)
     blocks = Int(ceil(N / threads))
 
-    @CUDAnative.cuda (blocks, threads) kernel(a_gpu)
+    @CUDAnative.cuda blocks=blocks threads=threads kernel(a_gpu)
     return nothing
 end
 
@@ -492,7 +494,7 @@ function equal1!(b_gpu, i::Int64, a_gpu)
     threads = min(N, MAX_THREADS)
     blocks = Int(ceil(N / threads))
 
-    @CUDAnative.cuda (blocks, threads) kernel(b_gpu, i, a_gpu)
+    @CUDAnative.cuda blocks=blocks threads=threads kernel(b_gpu, i, a_gpu)
     return nothing
 end
 
@@ -515,7 +517,7 @@ function equal2!(b_gpu::CuArrays.CuArray{ComplexGPU, 2},
     threads = min(N, MAX_THREADS)
     blocks = Int(ceil(N / threads))
 
-    @CUDAnative.cuda (blocks, threads) kernel(b_gpu, i, a_gpu)
+    @CUDAnative.cuda blocks=blocks threads=threads kernel(b_gpu, i, a_gpu)
 end
 
 

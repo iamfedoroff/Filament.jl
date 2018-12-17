@@ -1,14 +1,18 @@
 module FourierGPU
 
+import FFTW
+import LinearAlgebra
 import CuArrays
 import CUDAnative
 import CUDAdrv
 
 using PyCall
-@pyimport numpy.fft as npfft
+# @pyimport numpy.fft as npfft
+
+const npfft = PyCall.PyNULL()
 
 const FloatGPU = Float32
-const ComplexGPU = Complex64
+const ComplexGPU = ComplexF32
 
 
 struct FourierTransform
@@ -23,10 +27,10 @@ struct FourierTransform
     Er_gpu :: CuArrays.CuArray{FloatGPU, 1}
     Sc_gpu :: CuArrays.CuArray{ComplexGPU, 1}
     Sr_gpu :: CuArrays.CuArray{ComplexGPU, 1}
-    PFFT :: Base.DFT.Plan
-    PIFFT :: Base.DFT.Plan
-    PRFFT :: Base.DFT.Plan
-    PIRFFT :: Base.DFT.Plan
+    PFFT :: FFTW.Plan
+    PIFFT :: FFTW.Plan
+    PRFFT :: FFTW.Plan
+    PIRFFT :: FFTW.Plan
 end
 
 
@@ -44,7 +48,9 @@ function FourierTransform(Nt, dt)
     blocksNt = Int(ceil(Nt / threadsNt))
     blocksNw = Int(ceil(Nw / threadsNw))
 
-    f = npfft.fftfreq(Nt, dt)
+    copy!(npfft, PyCall.pyimport_conda("numpy.fft", "numpy"))
+    f = npfft[:fftfreq](Nt, dt)   # temporal frequency
+    # f = npfft.fftfreq(Nt, dt)
     HS = 1. + sign.(f)   # Heaviside-like step function for Hilbert transform
     HS_gpu = CuArrays.cu(convert(Array{FloatGPU, 1}, HS))
 
@@ -56,10 +62,10 @@ function FourierTransform(Nt, dt)
 
     CuArrays.allowscalar(false)   # disable slow fallback methods
 
-    PFFT = plan_fft(CuArrays.cuzeros(ComplexGPU, Nt))
-    PIFFT = plan_ifft(CuArrays.cuzeros(ComplexGPU, Nt))
-    PRFFT = plan_rfft(CuArrays.cuzeros(FloatGPU, Nt))
-    PIRFFT = plan_irfft(CuArrays.cuzeros(ComplexGPU, Nw), Nt)
+    PFFT = FFTW.plan_fft(CuArrays.cuzeros(ComplexGPU, Nt))
+    PIFFT = FFTW.plan_ifft(CuArrays.cuzeros(ComplexGPU, Nt))
+    PRFFT = FFTW.plan_rfft(CuArrays.cuzeros(FloatGPU, Nt))
+    PIRFFT = FFTW.plan_irfft(CuArrays.cuzeros(ComplexGPU, Nw), Nt)
 
     return FourierTransform(Nt, Nw, threadsNt, threadsNw, blocksNt, blocksNw,
                             HS_gpu, Ec_gpu, Er_gpu, Sc_gpu, Sr_gpu,
@@ -69,7 +75,7 @@ end
 
 function fft1d!(FT::FourierTransform, Ec_gpu::CuArrays.CuArray{ComplexGPU, 1},
                 Sc_gpu::CuArrays.CuArray{ComplexGPU, 1})
-    A_mul_B!(Sc_gpu, FT.PFFT, Ec_gpu)
+    LinearAlgebra.mul!(Sc_gpu, FT.PFFT, Ec_gpu)
     return nothing
 end
 
@@ -83,7 +89,7 @@ end
 
 function ifft1d!(FT::FourierTransform, Sc_gpu::CuArrays.CuArray{ComplexGPU, 1},
                  Ec_gpu::CuArrays.CuArray{ComplexGPU, 1})
-    A_mul_B!(Ec_gpu, FT.PIFFT, Sc_gpu)
+    LinearAlgebra.mul!(Ec_gpu, FT.PIFFT, Sc_gpu)
     return nothing
 end
 
@@ -97,7 +103,7 @@ end
 
 function rfft1d!(FT::FourierTransform, Er_gpu::CuArrays.CuArray{FloatGPU, 1},
                  Sr_gpu::CuArrays.CuArray{ComplexGPU, 1})
-    A_mul_B!(Sr_gpu, FT.PRFFT, Er_gpu)   # time -> frequency
+    LinearAlgebra.mul!(Sr_gpu, FT.PRFFT, Er_gpu)   # time -> frequency
     return nothing
 end
 
@@ -113,9 +119,9 @@ function rfft2d!(FT::FourierTransform, E_gpu::CuArrays.CuArray{ComplexGPU, 2},
                  S_gpu::CuArrays.CuArray{ComplexGPU, 2})
     Nr = size(E_gpu, 1)
     for i=1:Nr
-        @CUDAnative.cuda (FT.blocksNt, FT.threadsNt) kernel1r(FT.Er_gpu, i, E_gpu)
+        @CUDAnative.cuda blocks=FT.blocksNt threads=FT.threadsNt kernel1r(FT.Er_gpu, i, E_gpu)
         rfft1d!(FT, FT.Er_gpu, FT.Sr_gpu)   # time -> frequency
-        @CUDAnative.cuda (FT.blocksNw, FT.threadsNw) kernel2(S_gpu, i, FT.Sr_gpu)
+        @CUDAnative.cuda blocks=FT.blocksNw threads=FT.threadsNw kernel2(S_gpu, i, FT.Sr_gpu)
     end
     return nothing
 end
@@ -123,7 +129,7 @@ end
 
 function irfft1d!(FT::FourierTransform, Sr_gpu::CuArrays.CuArray{ComplexGPU, 1},
                   Er_gpu::CuArrays.CuArray{FloatGPU, 1})
-    A_mul_B!(Er_gpu, FT.PIRFFT, Sr_gpu)   # frequency -> time
+    LinearAlgebra.mul!(Er_gpu, FT.PIRFFT, Sr_gpu)   # frequency -> time
     return nothing
 end
 
@@ -168,7 +174,7 @@ function spectrum_real_to_signal_analytic!(FT::FourierTransform,
     end
 
     # Need test for odd N and low frequencies
-    @CUDAnative.cuda (FT.blocksNt, FT.threadsNt) kernel(FT.Sc_gpu, Sr_gpu)
+    @CUDAnative.cuda blocks=FT.blocksNt threads=FT.threadsNt kernel(FT.Sc_gpu, Sr_gpu)
     ifft1d!(FT, FT.Sc_gpu, Ec_gpu)
     return nothing
 end
@@ -179,9 +185,9 @@ function spectrum_real_to_signal_analytic_2d!(FT::FourierTransform,
                                              E_gpu::CuArrays.CuArray{ComplexGPU, 2})
     Nr = size(E_gpu, 1)
     for i=1:Nr
-        @CUDAnative.cuda (FT.blocksNw, FT.threadsNw) kernel1(FT.Sr_gpu, i, S_gpu)
+        @CUDAnative.cuda blocks=FT.blocksNw threads=FT.threadsNw kernel1(FT.Sr_gpu, i, S_gpu)
         spectrum_real_to_signal_analytic!(FT, FT.Sr_gpu, FT.Ec_gpu)
-        @CUDAnative.cuda (FT.blocksNt, FT.threadsNt) kernel2(E_gpu, i, FT.Ec_gpu)
+        @CUDAnative.cuda blocks=FT.blocksNt threads=FT.threadsNt kernel2(E_gpu, i, FT.Ec_gpu)
     end
 end
 

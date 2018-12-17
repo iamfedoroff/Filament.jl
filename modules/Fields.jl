@@ -1,5 +1,6 @@
 module Fields
 
+import FFTW
 import CuArrays
 
 using PyCall
@@ -206,7 +207,7 @@ function integral_power_spectrum(field::Field)
     S = zeros(field.grid.Nw)
     for i=1:field.grid.Nr
         Et = real(field.E[i, :])
-        Ew = rfft(Et)
+        Ew = FFTW.rfft(Et)
         Ew = 2. * Ew * field.grid.dt
 
         dr = step(i, r)

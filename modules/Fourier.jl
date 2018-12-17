@@ -1,19 +1,24 @@
 module Fourier
 
+import FFTW
+import LinearAlgebra
+
 using PyCall
-@pyimport numpy.fft as npfft
+# @pyimport numpy.fft as npfft
+
+const npfft = PyCall.PyNULL()
 
 
 struct FourierTransform
     Nt :: Int64
     Nw :: Int64
     HS :: Array{Float64, 1}
-    Sc :: Array{Complex128, 1}
-    Sr :: Array{Complex128, 1}
-    PFFT :: Base.DFT.Plan
-    PIFFT :: Base.DFT.Plan
-    PRFFT :: Base.DFT.Plan
-    PIRFFT :: Base.DFT.Plan
+    Sc :: Array{ComplexF64, 1}
+    Sr :: Array{ComplexF64, 1}
+    PFFT :: FFTW.Plan
+    PIFFT :: FFTW.Plan
+    PRFFT :: FFTW.Plan
+    PIRFFT :: FFTW.Plan
 end
 
 
@@ -24,68 +29,70 @@ function FourierTransform(Nt, dt)
         Nw = div(Nt + 1, 2)
     end
 
-    f = npfft.fftfreq(Nt, dt)
+    copy!(npfft, PyCall.pyimport_conda("numpy.fft", "numpy"))
+    f = npfft[:fftfreq](Nt, dt)   # temporal frequency
+    # f = npfft.fftfreq(Nt, dt)
     HS = 1. + sign.(f)   # Heaviside-like step function for Hilbert transform
 
     # arrays to store intermediate results:
-    Sc = zeros(Complex128, Nt)
-    Sr = zeros(Complex128, Nw)
+    Sc = zeros(ComplexF64, Nt)
+    Sr = zeros(ComplexF64, Nw)
 
-    PFFT = plan_fft(zeros(Complex128, Nt))
-    PIFFT = plan_ifft(zeros(Complex128, Nt))
-    PRFFT = plan_rfft(zeros(Float64, Nt))
-    PIRFFT = plan_irfft(zeros(Complex128, Nw), Nt)
+    PFFT = FFTW.plan_fft(zeros(ComplexF64, Nt))
+    PIFFT = FFTW.plan_ifft(zeros(ComplexF64, Nt))
+    PRFFT = FFTW.plan_rfft(zeros(Float64, Nt))
+    PIRFFT = FFTW.plan_irfft(zeros(ComplexF64, Nw), Nt)
     return FourierTransform(Nt, Nw, HS, Sc, Sr, PFFT, PIFFT, PRFFT, PIRFFT)
 end
 
 
-function fft1d!(FT::FourierTransform, Ec::Array{Complex128, 1},
-                Sc::Array{Complex128, 1})
-    A_mul_B!(Sc, FT.PFFT, Ec)
+function fft1d!(FT::FourierTransform, Ec::Array{ComplexF64, 1},
+                Sc::Array{ComplexF64, 1})
+    LinearAlgebra.mul!(Sc, FT.PFFT, Ec)
     return nothing
 end
 
 
-function fft1d(FT::FourierTransform, Ec::Array{Complex128, 1})
-    Sc = zeros(Complex128, FT.Nt)
+function fft1d(FT::FourierTransform, Ec::Array{ComplexF64, 1})
+    Sc = zeros(ComplexF64, FT.Nt)
     fft1d!(FT, Ec, Sc)   # time -> frequency
     return Sc
 end
 
 
-function ifft1d!(FT::FourierTransform, Sc::Array{Complex128, 1},
-                 Ec::Array{Complex128, 1})
-    A_mul_B!(Ec, FT.PIFFT, Sc)
+function ifft1d!(FT::FourierTransform, Sc::Array{ComplexF64, 1},
+                 Ec::Array{ComplexF64, 1})
+    LinearAlgebra.mul!(Ec, FT.PIFFT, Sc)
     return nothing
 end
 
 
-function ifft1d(FT::FourierTransform, Sc::Array{Complex128, 1})
-    Ec = zeros(Complex128, FT.Nt)
+function ifft1d(FT::FourierTransform, Sc::Array{ComplexF64, 1})
+    Ec = zeros(ComplexF64, FT.Nt)
     ifft1d!(FT, Sc, Ec)   # frequency -> time
     return Ec
 end
 
 
 function rfft1d!(FT::FourierTransform, Er::Array{Float64, 1},
-                 Sr::Array{Complex128, 1})
-    A_mul_B!(Sr, FT.PRFFT, Er)   # time -> frequency
+                 Sr::Array{ComplexF64, 1})
+    LinearAlgebra.mul!(Sr, FT.PRFFT, Er)   # time -> frequency
     return nothing
 end
 
 
 function rfft1d(FT::FourierTransform, Er::Array{Float64, 1})
-    Sr = zeros(Complex128, FT.Nw)
+    Sr = zeros(ComplexF64, FT.Nw)
     rfft1d!(FT, Er, Sr)   # time -> frequency
     return Sr
 end
 
 
-function rfft2d!(FT::FourierTransform, E::Array{Complex128, 2},
-                 S::Array{Complex128, 2})
+function rfft2d!(FT::FourierTransform, E::Array{ComplexF64, 2},
+                 S::Array{ComplexF64, 2})
     Nr, Nt = size(E)
     Et = zeros(Float64, FT.Nt)
-    St = zeros(Complex128, FT.Nw)
+    St = zeros(ComplexF64, FT.Nw)
     for i=1:Nr
         @inbounds @views @. Et = real(E[i, :])
         rfft1d!(FT, Et, St)   # time -> frequency
@@ -95,14 +102,14 @@ function rfft2d!(FT::FourierTransform, E::Array{Complex128, 2},
 end
 
 
-function irfft1d!(FT::FourierTransform, Sr::Array{Complex128, 1},
+function irfft1d!(FT::FourierTransform, Sr::Array{ComplexF64, 1},
                   Er::Array{Float64, 1})
-    A_mul_B!(Er, FT.PIRFFT, Sr)   # frequency -> time
+    LinearAlgebra.mul!(Er, FT.PIRFFT, Sr)   # frequency -> time
     return nothing
 end
 
 
-function irfft1d(FT::FourierTransform, Sr::Array{Complex128, 1})
+function irfft1d(FT::FourierTransform, Sr::Array{ComplexF64, 1})
     Er = zeros(Float64, FT.Nt)
     irfft1d!(FT, Sr, Er)   # frequency -> time
     return Er
@@ -113,17 +120,17 @@ end
 function signal_real_to_signal_analytic(FT::FourierTransform,
                                         Er::Array{Float64, 1})
     # Need test for odd N and low frequencies
-    S = fft(Er)
+    S = FFTW.fft(Er)
     @. S = FT.HS * S
-    Ea = ifft(S)
+    Ea = FFTW.ifft(S)
     return Ea
 end
 
 
 """Spectrum of real time signal -> analytic time signal."""
 function spectrum_real_to_signal_analytic!(FT::FourierTransform,
-                                           Sr::Array{Complex128, 1},
-                                           Ea::Array{Complex128, 1})
+                                           Sr::Array{ComplexF64, 1},
+                                           Ea::Array{ComplexF64, 1})
     # Need test for odd N and low frequencies
     # S = vcat(Sr, conj(Sr[end-1:-1:2]))
     @inbounds @. FT.Sc[1:FT.Nw] = Sr
@@ -134,11 +141,11 @@ end
 
 
 function spectrum_real_to_signal_analytic_2d!(FT::FourierTransform,
-                                              S::Array{Complex128, 2},
-                                              E::Array{Complex128, 2})
+                                              S::Array{ComplexF64, 2},
+                                              E::Array{ComplexF64, 2})
     Nr, Nt = size(E)
-    St = zeros(Complex128, FT.Nw)
-    Et = zeros(Complex128, FT.Nt)
+    St = zeros(ComplexF64, FT.Nw)
+    Et = zeros(ComplexF64, FT.Nt)
     for i=1:Nr
         @inbounds @views @. St = S[i, :]
         spectrum_real_to_signal_analytic!(FT, St, Et)
@@ -147,7 +154,7 @@ function spectrum_real_to_signal_analytic_2d!(FT::FourierTransform,
 end
 
 
-function convolution!(FT::FourierTransform, Hw::Array{Complex128, 1},
+function convolution!(FT::FourierTransform, Hw::Array{ComplexF64, 1},
                       x::Array{Float64, 1}, res::Array{Float64, 1})
     rfft1d!(FT, x, FT.Sr)
     @inbounds @. FT.Sr = Hw * FT.Sr

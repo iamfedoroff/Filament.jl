@@ -11,8 +11,13 @@ Additional info:
 module Hankel
 
 import SpecialFunctions
+import LinearAlgebra
+
 using PyCall
-@pyimport scipy.special as spec
+# @pyimport scipy.special as spec
+
+const spec = PyCall.PyNULL()
+
 
 struct HankelTransform
     R :: Float64
@@ -24,13 +29,15 @@ struct HankelTransform
     JdivV :: Array{Float64, 1}
     VdivJ :: Array{Float64, 1}
     JdivR :: Array{Float64, 1}
-    F1 :: Array{Complex128, 1}
-    F2 :: Array{Complex128, 1}
+    F1 :: Array{ComplexF64, 1}
+    F2 :: Array{ComplexF64, 1}
 end
 
 
 function HankelTransform(R::Float64, Nr::Int64, p::Int64=0)
-    jn_zeros = pycall(spec.jn_zeros, Array{Float64, 1}, p, Nr + 1)
+    copy!(spec, PyCall.pyimport_conda("scipy.special", "scipy"))
+    jn_zeros = spec[:jn_zeros](p, Nr + 1)
+    # jn_zeros = pycall(spec.jn_zeros, Array{Float64, 1}, p, Nr + 1)
     a = jn_zeros[1:end-1]
     aNp1 = jn_zeros[end]
 
@@ -56,59 +63,59 @@ function HankelTransform(R::Float64, Nr::Int64, p::Int64=0)
     VdivJ = @. V / J
     JdivR = @. J / R
 
-    F1 = zeros(Complex128, length(J))
-    F2 = zeros(Complex128, length(J))
+    F1 = zeros(ComplexF64, length(J))
+    F2 = zeros(ComplexF64, length(J))
 
     return HankelTransform(R, Nr, r, v, T, RdivJ, JdivV, VdivJ, JdivR, F1, F2)
 end
 
 
-function dht!(ht::HankelTransform, f::Array{Complex128, 2})
+function dht!(ht::HankelTransform, f::Array{ComplexF64, 2})
     N1, N2 = size(f)
     for j=1:N2
         @inbounds @views @. ht.F1 = f[:, j] * ht.RdivJ
-        A_mul_B!(ht.F2, ht.T, ht.F1)
+        LinearAlgebra.mul!(ht.F2, ht.T, ht.F1)
         @inbounds @views @. f[:, j] = ht.F2 * ht.JdivV
     end
     return nothing
 end
 
 
-function dht!(ht::HankelTransform, f::Array{Complex128, 1})
+function dht!(ht::HankelTransform, f::Array{ComplexF64, 1})
     @inbounds @. ht.F1 = f * ht.RdivJ
-    A_mul_B!(ht.F2, ht.T, ht.F1)
+    LinearAlgebra.mul!(ht.F2, ht.T, ht.F1)
     @inbounds @. f = ht.F2 * ht.JdivV
     return nothing
 end
 
 
-function dht(ht::HankelTransform, f1::Array{Complex128, 1})
+function dht(ht::HankelTransform, f1::Array{ComplexF64, 1})
     f2 = copy(f1)
     dht!(ht, f2)
     return f2
 end
 
 
-function idht!(ht::HankelTransform, f::Array{Complex128, 2})
+function idht!(ht::HankelTransform, f::Array{ComplexF64, 2})
     N1, N2 = size(f)
     for j=1:N2
         @inbounds @views @. ht.F2 = f[:, j] * ht.VdivJ
-        A_mul_B!(ht.F1, ht.T, ht.F2)
+        LinearAlgebra.mul!(ht.F1, ht.T, ht.F2)
         @inbounds @views @. f[:, j] = ht.F1 * ht.JdivR
     end
     return nothing
 end
 
 
-function idht!(ht::HankelTransform, f::Array{Complex128, 1})
+function idht!(ht::HankelTransform, f::Array{ComplexF64, 1})
     @inbounds @. ht.F2 = f * ht.VdivJ
-    A_mul_B!(ht.F1, ht.T, ht.F2)
+    LinearAlgebra.mul!(ht.F1, ht.T, ht.F2)
     @inbounds @. f = ht.F1 * ht.JdivR
     return nothing
 end
 
 
-function idht(ht::HankelTransform, f2::Array{Complex128, 1})
+function idht(ht::HankelTransform, f2::Array{ComplexF64, 1})
     f1 = copy(f2)
     idht!(ht, f1)
     return f1

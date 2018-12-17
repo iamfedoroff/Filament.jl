@@ -6,13 +6,15 @@ import Grids
 import Fields
 import Media
 import Plasmas
-import Models
 import Infos
 import WritePlots
+import Models
 
 
 module Input
     # Modules and variables available in input files:
+    import FFTW
+
     using PyCall
     @pyimport numpy.fft as npfft
     @pyimport scipy.constants as sc
@@ -30,7 +32,7 @@ module Input
     include(abspath(file_medium))
 end
 
-import Input
+import .Input
 
 
 function main()
@@ -45,7 +47,6 @@ function main()
     # **************************************************************************
     z = Input.z / unit.z   # convert initial z to dimensionless units
     field = Fields.Field(unit, grid, Input.lam0, Input.initial_condition)
-
 
     # **************************************************************************
     # Read the medium file and prepare medium and plasma

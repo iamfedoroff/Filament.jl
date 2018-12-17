@@ -11,14 +11,18 @@ Additional info:
 module HankelGPU
 
 import SpecialFunctions
+import LinearAlgebra
 import CuArrays
 import CUDAnative
 import CUDAdrv
+
 using PyCall
-@pyimport scipy.special as spec
+# @pyimport scipy.special as spec
+
+const spec = PyCall.PyNULL()
 
 const FloatGPU = Float32
-const ComplexGPU = Complex64
+const ComplexGPU = ComplexF32
 
 struct HankelTransform
     R :: Float64
@@ -38,7 +42,9 @@ end
 
 
 function HankelTransform(R::Float64, Nr::Int64, p::Int64=0)
-    jn_zeros = pycall(spec.jn_zeros, Array{Float64, 1}, p, Nr + 1)
+    copy!(spec, PyCall.pyimport_conda("scipy.special", "scipy"))
+    jn_zeros = spec[:jn_zeros](p, Nr + 1)
+    # jn_zeros = pycall(spec.jn_zeros, Array{Float64, 1}, p, Nr + 1)
     a = jn_zeros[1:end-1]
     aNp1 = jn_zeros[end]
 
@@ -88,9 +94,9 @@ end
 function dht!(ht::HankelTransform, f_gpu::CuArrays.CuArray{ComplexGPU, 2})
     N2 = size(f_gpu, 2)
     @inbounds for j=1:N2
-        @CUDAnative.cuda (ht.blocks, ht.threads) kernel1(ht.F1_gpu, j, f_gpu)
+        @CUDAnative.cuda blocks=ht.blocks threads=ht.threads kernel1(ht.F1_gpu, j, f_gpu)
         dht!(ht, ht.F1_gpu)
-        @CUDAnative.cuda (ht.blocks, ht.threads) kernel2(f_gpu, j, ht.F1_gpu)
+        @CUDAnative.cuda blocks=ht.blocks threads=ht.threads kernel2(f_gpu, j, ht.F1_gpu)
     end
     return nothing
 end
@@ -98,7 +104,7 @@ end
 
 function dht!(ht::HankelTransform, f_gpu::CuArrays.CuArray{ComplexGPU, 1})
     @inbounds @. ht.F1_gpu = f_gpu * ht.RdivJ_gpu
-    A_mul_B!(ht.F2_gpu, ht.T_gpu, ht.F1_gpu)
+    LinearAlgebra.mul!(ht.F2_gpu, ht.T_gpu, ht.F1_gpu)
     @inbounds @. f_gpu = ht.F2_gpu * ht.JdivV_gpu
     return nothing
 end
@@ -114,9 +120,9 @@ end
 function idht!(ht::HankelTransform, f_gpu::CuArrays.CuArray{ComplexGPU, 2})
     N2 = size(f_gpu, 2)
     @inbounds for j=1:N2
-        @CUDAnative.cuda (ht.blocks, ht.threads) kernel1(ht.F1_gpu, j, f_gpu)
+        @CUDAnative.cuda blocks=ht.blocks threads=ht.threads kernel1(ht.F1_gpu, j, f_gpu)
         idht!(ht, ht.F1_gpu)
-        @CUDAnative.cuda (ht.blocks, ht.threads) kernel2(f_gpu, j, ht.F1_gpu)
+        @CUDAnative.cuda blocks=ht.blocks threads=ht.threads kernel2(f_gpu, j, ht.F1_gpu)
     end
     return nothing
 end
@@ -124,7 +130,7 @@ end
 
 function idht!(ht::HankelTransform, f_gpu::CuArrays.CuArray{ComplexGPU, 1})
     @inbounds @. ht.F2_gpu = f_gpu * ht.VdivJ_gpu
-    A_mul_B!(ht.F1_gpu, ht.T_gpu, ht.F2_gpu)
+    LinearAlgebra.mul!(ht.F1_gpu, ht.T_gpu, ht.F2_gpu)
     @inbounds @. f_gpu = ht.F1_gpu * ht.JdivR_gpu
     return nothing
 end

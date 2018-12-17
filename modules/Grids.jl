@@ -1,13 +1,15 @@
 module Grids
 
 using PyCall
-@pyimport numpy.fft as npfft
+# @pyimport numpy.fft as npfft
 @pyimport scipy.constants as sc
 
 import Hankel
 import HankelGPU
 import Fourier
 import FourierGPU
+
+const npfft = PyCall.PyNULL()
 
 const C0 = sc.c   # speed of light in vacuum
 
@@ -67,7 +69,9 @@ function Grid(rmax, Nr, tmin, tmax, Nt)
     t = linspace(tmin, tmax, Nt)   # temporal coordinates
     dt = t[2] - t[1]   # temporal step
 
-    f = npfft.rfftfreq(Nt, dt)   # temporal frequency
+    copy!(npfft, PyCall.pyimport_conda("numpy.fft", "numpy"))
+    f = npfft[:rfftfreq](Nt, dt)   # temporal frequency
+    # f = npfft.rfftfreq(Nt, dt)   # temporal frequency
     Nf = length(f)   # length of temporal frequency array
     df = f[2] - f[1]   # temporal frequency step
     fc = 0.5 / dt   # temporal Nyquist frequency
