@@ -1,9 +1,9 @@
 module Media
 
+import ForwardDiff
+
 using PyCall
 @pyimport scipy.constants as sc
-
-import ForwardDiff
 
 const C0 = sc.c   # speed of light in vacuum
 const EPS0 = sc.epsilon_0   # the electric constant (vacuum permittivity) [F/m]

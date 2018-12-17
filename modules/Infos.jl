@@ -1,9 +1,10 @@
 module Infos
 
+import Formatting
+import Dates
+
 using PyCall
 @pyimport scipy.constants as sc
-
-import Formatting
 
 import Fields
 import Media
@@ -22,18 +23,19 @@ function Info(fname, file_input, file_initial_condition, file_medium,
     fmt(x) = Formatting.fmt("18.12e", x)
 
     revision = "unavailable"
+    cwdir = pwd()
     try
-        cwdir = pwd()
         cd(@__DIR__)
-        hg_num = readstring(@cmd("hg id -n"))
-        hg_id = readstring(@cmd("hg id"))
+        hg_num = read(@cmd("hg id -n"), String)
+        hg_id = read(@cmd("hg id"), String)
         revision = string(strip(hg_num), ":", strip(hg_id))
-        cd(cwdir)
+    catch
     end
+    cd(cwdir)
 
-    file_input_content = readstring(file_input)
-    file_initial_condition_content = readstring(file_initial_condition)
-    file_medium_content = readstring(file_medium)
+    file_input_content = read(file_input, String)
+    file_initial_condition_content = read(file_initial_condition, String)
+    file_medium_content = read(file_medium, String)
 
     a0 = Fields.beam_radius(field) * unit.r
     t0 = Fields.pulse_duration(field) * unit.t
@@ -52,7 +54,7 @@ function Info(fname, file_input, file_initial_condition, file_medium,
 ********************************************************************************
                                    jlFilament
 ********************************************************************************
-datetime: $(now())
+datetime: $(Dates.now())
 revision: $revision
 
 ********************************************************************************

@@ -3,12 +3,12 @@ module RungeKuttasGPU
     import CuArrays
 
     const FloatGPU = Float32
-    const ComplexGPU = Complex64
+    const ComplexGPU = ComplexF32
 
 
     struct RungeKutta2
-        k1 :: Array{Complex128, 2}
-        k2 :: Array{Complex128, 2}
+        k1 :: Array{ComplexF64, 2}
+        k2 :: Array{ComplexF64, 2}
     end
 
 
@@ -22,17 +22,17 @@ module RungeKuttasGPU
 
 
     struct RungeKutta4
-        k1 :: Array{Complex128, 2}
-        k2 :: Array{Complex128, 2}
-        k3 :: Array{Complex128, 2}
-        k4 :: Array{Complex128, 2}
+        k1 :: Array{ComplexF64, 2}
+        k2 :: Array{ComplexF64, 2}
+        k3 :: Array{ComplexF64, 2}
+        k4 :: Array{ComplexF64, 2}
     end
 
 
     function RungeKutta(order, Nr, Nw)
         if order == 2
-            k1 = zeros(Complex128, (Nr, Nw))
-            k2 = zeros(Complex128, (Nr, Nw))
+            k1 = zeros(ComplexF64, (Nr, Nw))
+            k2 = zeros(ComplexF64, (Nr, Nw))
             RK = RungeKutta2(k1, k2)
         elseif order == 3
             k1_gpu = CuArrays.cuzeros(ComplexGPU, (Nr, Nw))
@@ -42,10 +42,10 @@ module RungeKuttasGPU
             dum_gpu = CuArrays.cuzeros(ComplexGPU, (Nr, Nw))
             RK = RungeKutta3(k1_gpu, k2_gpu, k3_gpu, res_gpu, dum_gpu)
         elseif order == 4
-            k1 = zeros(Complex128, (Nr, Nw))
-            k2 = zeros(Complex128, (Nr, Nw))
-            k3 = zeros(Complex128, (Nr, Nw))
-            k4 = zeros(Complex128, (Nr, Nw))
+            k1 = zeros(ComplexF64, (Nr, Nw))
+            k2 = zeros(ComplexF64, (Nr, Nw))
+            k3 = zeros(ComplexF64, (Nr, Nw))
+            k4 = zeros(ComplexF64, (Nr, Nw))
             RK = RungeKutta4(k1, k2, k3, k4)
         else
             print("Wrong Runge-Kutta order\n")
@@ -55,7 +55,7 @@ module RungeKuttasGPU
     end
 
 
-    function RungeKutta_calc!(RK::RungeKutta2, f::Array{Complex128, 2},
+    function RungeKutta_calc!(RK::RungeKutta2, f::Array{ComplexF64, 2},
                               h::Float64, func::Function)
         dum = func(f)
         @inbounds @. RK.k1 = h * dum
@@ -88,7 +88,7 @@ module RungeKuttasGPU
     end
 
 
-    function RungeKutta_calc!(RK::RungeKutta4, f::Array{Complex128, 2},
+    function RungeKutta_calc!(RK::RungeKutta4, f::Array{ComplexF64, 2},
                               h::Float64, func::Function)
         dum = func(f)
         @inbounds @. RK.k1 = h * dum

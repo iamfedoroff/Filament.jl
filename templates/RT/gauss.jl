@@ -13,7 +13,7 @@ function initial_condition(r, t, ru, tu, Iu)
 
     Nr = length(r)
     Nt = length(t)
-    E = zeros(Complex128, (Nr, Nt))
+    E = zeros(ComplexF64, (Nr, Nt))
     for j=1:Nt
         for i=1:Nr
             E[i, j] = sqrt(I0 / Iu) *

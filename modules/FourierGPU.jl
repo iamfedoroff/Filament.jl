@@ -51,7 +51,7 @@ function FourierTransform(Nt, dt)
     copy!(npfft, PyCall.pyimport_conda("numpy.fft", "numpy"))
     f = npfft[:fftfreq](Nt, dt)   # temporal frequency
     # f = npfft.fftfreq(Nt, dt)
-    HS = 1. + sign.(f)   # Heaviside-like step function for Hilbert transform
+    HS = @. 1. + sign(f)   # Heaviside-like step function for Hilbert transform
     HS_gpu = CuArrays.cu(convert(Array{FloatGPU, 1}, HS))
 
     # arrays to store intermediate results:

@@ -10,7 +10,7 @@ import Units
 import Grids
 import Fourier
 
-const ComplexGPU = Complex64
+const ComplexGPU = ComplexF32
 
 const C0 = sc.c   # speed of light in vacuum
 const HBAR = sc.hbar   # the Planck constant (divided by 2*pi) [J*s]
@@ -23,7 +23,7 @@ mutable struct Field
 
     grid :: Grids.Grid
 
-    E :: Array{Complex128, 2}
+    E :: Array{ComplexF64, 2}
     E_gpu :: CuArrays.CuArray{ComplexGPU, 2}
     S_gpu :: CuArrays.CuArray{ComplexGPU, 2}
     rho :: Array{Float64, 1}
@@ -232,7 +232,8 @@ function step(i::Int64, x::Array{Float64, 1})
 end
 
 
-function radius(x::Array{Float64, 1}, y::Array{Float64, 1}, level::Float64=1./e)
+function radius(x::Array{Float64, 1}, y::Array{Float64, 1},
+                level::Float64=1. / exp(1.))
     Nx = length(x)
     ylevel = maximum(y) * level
 

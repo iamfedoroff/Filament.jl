@@ -61,7 +61,7 @@ Calculates free charge concentration, its derivative, and ionization rate for a
 given medium component.
 """
 function free_charge(comp::Component, grid::Grids.Grid,
-                     Et::Array{Complex128, 1})
+                     Et::Array{ComplexF64, 1})
     IONARG = comp.keys["IONARG"]
     AVALANCHE = comp.keys["AVALANCHE"]
 

@@ -59,14 +59,14 @@ function Grid(rmax, Nr, tmin, tmax, Nt)
     HTGPU = HankelGPU.HankelTransform(rmax, Nr)   # Hankel transform for GPU
 
     r = HT.r   # radial coordinates
-    dr = mean(diff(r))   # spatial step
+    dr = sum(diff(r)) / length(diff(r))   # spatial step
 
     v = HT.v   # spatial frequency
     k = 2. * pi * v   # spatial angular frequency
-    dk = mean(diff(k))   # spatial frequency step
+    dk = sum(diff(k)) / length(diff(k))   # spatial frequency step
     kc = 2. * pi * 0.5 / dr   # spatial Nyquist frequency
 
-    t = linspace(tmin, tmax, Nt)   # temporal coordinates
+    t = range(tmin, stop=tmax, length=Nt)   # temporal coordinates
     dt = t[2] - t[1]   # temporal step
 
     copy!(npfft, PyCall.pyimport_conda("numpy.fft", "numpy"))

@@ -1,4 +1,5 @@
 import Formatting
+import Dates
 
 push!(LOAD_PATH, joinpath(@__DIR__, "..", "modules"))
 import Units
@@ -26,11 +27,14 @@ module Input
     cd(dirname(file_input))
 
     # Read initial condition file:
-    include(abspath(file_initial_condition))
+    file_initial_condition = abspath(file_initial_condition)
+    include(file_initial_condition)
 
     # Read medium file:
-    include(abspath(file_medium))
+    file_medium = abspath(file_medium)
+    include(file_medium)
 end
+
 
 import .Input
 
@@ -99,7 +103,7 @@ function main()
     # **************************************************************************
     # Main loop
     # **************************************************************************
-    stime = now()
+    stime = Dates.now()
 
     znext_plothdf = z + Input.dz_plothdf
 
@@ -146,7 +150,7 @@ function main()
 
     end
 
-    etime = now()
+    etime = Dates.now()
     ttime = Dates.canonicalize(Dates.CompoundPeriod(etime - stime))
     message = "Start time: $(stime)\n" *
               "End time:   $(etime)\n" *

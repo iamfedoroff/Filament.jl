@@ -1,5 +1,7 @@
 module TabularFunctions
 
+import DelimitedFiles
+
 
 struct TabularFunction
     x :: Array{Float64, 1}
@@ -9,7 +11,7 @@ end
 
 
 function TabularFunction(unit, fname::String)
-    data = transpose(readdlm(fname))
+    data = transpose(DelimitedFiles.readdlm(fname))
     x = data[1, :]
     y = data[2, :]
 
@@ -34,13 +36,13 @@ function tfvalue(tf::TabularFunction, x::Float64)
     if xc < tf.x[1]
         y = 0.
     elseif xc >= tf.x[end]
-        y = 10.^tf.y[end]
+        y = 10^tf.y[end]
     else
         @inbounds @. tf.dum = abs(tf.x - xc)
-        i = indmin(tf.dum)
+        i = argmin(tf.dum)
         y = tf.y[i] + (tf.y[i + 1] - tf.y[i]) * (xc - tf.x[i]) /
                       (tf.x[i + 1] - tf.x[i])
-        y = 10.^y
+        y = 10^y
     end
     return y
 end

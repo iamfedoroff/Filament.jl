@@ -23,7 +23,7 @@ function Plasma(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
                 keys)
 
     Ncomp = length(components_dict)
-    components = Array{PlasmaComponents.Component}(Ncomp)
+    components = Array{PlasmaComponents.Component}(undef, Ncomp)
     for i=1:Ncomp
         comp_dict = components_dict[i]
         name = comp_dict["name"]
@@ -76,7 +76,7 @@ Calculates free charge concentration, its derivative, and ionization rate for
 all medium components.
 """
 function free_charge(plasma, grid, field)
-    Et = zeros(Complex128, grid.Nt)
+    Et = zeros(ComplexF64, grid.Nt)
 
     @inbounds @. plasma.rho = 0.
     @inbounds @. plasma.Kdrho = 0.

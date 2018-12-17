@@ -9,7 +9,7 @@ import Grids
 import Media
 
 const FloatGPU = Float32
-const ComplexGPU = Complex64
+const ComplexGPU = ComplexF32
 
 
 struct GuardFilter
@@ -40,7 +40,7 @@ function GuardFilter(unit::Units.Unit, grid::Grids.Grid, medium::Media.Medium,
     Tguard = guard_window(grid.t, tguard_width, mode="both")
 
     # Angular guard filter:
-    k = Media.k_func.(medium, grid.w * unit.w)
+    k = Media.k_func.(Ref(medium), grid.w * unit.w)
     kmax = k * sind(kguard)
     Kguard = zeros((grid.Nr, grid.Nw))
     for j=2:grid.Nw   # from 2 because kmax[1]=0 since w[1]=0
@@ -87,13 +87,13 @@ Lossy guard window at the ends of grid coordinate.
           "both" - lossy guard on both ends of the grid
 """
 function guard_window(x::Array{Float64, 1}, guard_width::Float64; mode="both")
-    assert(guard_width >= 0.)
-    assert(mode in ["left", "right", "both"])
+    @assert guard_width >= 0.
+    @assert mode in ["left", "right", "both"]
 
     if mode in ["left", "right"]
-        assert(guard_width <= x[end] - x[1])
+        @assert guard_width <= x[end] - x[1]
     else
-        assert(guard_width <= 0.5 * (x[end] - x[1]))
+        @assert guard_width <= 0.5 * (x[end] - x[1])
     end
 
     Nx = length(x)
@@ -139,7 +139,7 @@ function guard_window(x::Array{Float64, 1}, guard_width::Float64; mode="both")
         elseif mode == "right"
             guard = guard_right
         elseif mode == "both"
-            guard = guard_left + guard_right - 1.
+            guard = @. guard_left + guard_right - 1.
         end
     end
     return guard

@@ -3,9 +3,9 @@ module Models
 import CuArrays
 import CUDAnative
 import CUDAdrv
+
 using PyCall
 @pyimport scipy.constants as sc
-@pyimport matplotlib.pyplot as plt
 
 import Units
 import Grids
@@ -26,7 +26,7 @@ const ME = sc.m_e   # electron mass [kg]
 const HBAR = sc.hbar   # the Planck constant (divided by 2*pi) [J*s]
 
 const FloatGPU = Float32
-const ComplexGPU = Complex64
+const ComplexGPU = ComplexF32
 
 
 struct Model
@@ -63,8 +63,8 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     # Linear propagator --------------------------------------------------------
     KPARAXIAL = keys["KPARAXIAL"]
 
-    beta = Media.beta_func.(medium, grid.w * unit.w)
-    KZ = zeros(Complex128, (grid.Nr, grid.Nw))
+    beta = Media.beta_func.(Ref(medium), grid.w * unit.w)
+    KZ = zeros(ComplexF64, (grid.Nr, grid.Nw))
     if KPARAXIAL != 0
         for j=1:grid.Nw
             if beta[j] != 0.
@@ -99,7 +99,7 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
 
     Qfactor = @. MU0 * mu * (grid.w * unit.w)^2 / 2. * unit.z / Eu
 
-    QZ = zeros(Complex128, (grid.Nr, grid.Nw))
+    QZ = zeros(ComplexF64, (grid.Nr, grid.Nw))
     if QPARAXIAL != 0
         for j=1:grid.Nw
             if beta[j] != 0.
@@ -332,7 +332,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     Guards.apply_temporal_filter!(model.guard, field.E_gpu)
 
     # Collect field from GPU:
-    field.E = convert(Array{Complex128, 2}, CuArrays.collect(field.E_gpu))
+    field.E = convert(Array{ComplexF64, 2}, CuArrays.collect(field.E_gpu))
 
     return nothing
 end
@@ -353,7 +353,7 @@ function Rp_func(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     Eu = Units.E(unit, n0)
     nuc = plasma.nuc
     MR = plasma.mr * ME   # reduced mass of electron and hole (effective mass)
-    R = zeros(Complex128, grid.Nw)
+    R = zeros(ComplexF64, grid.Nw)
     for i=1:grid.Nw
         if grid.w[i] != 0.
             R[i] = 1im / (grid.w[i] * unit.w) *
@@ -370,7 +370,7 @@ function Ra_func(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     n0 = real(Media.refractive_index(medium, field.w0))
     Eu = Units.E(unit, n0)
 
-    R = zeros(Complex128, grid.Nw)
+    R = zeros(ComplexF64, grid.Nw)
     for i=1:grid.Nw
         if grid.w[i] != 0.
             R[i] = 1im / (grid.w[i] * unit.w) *
