@@ -73,9 +73,13 @@ end
 function dht!(ht::HankelTransform, f::Array{ComplexF64, 2})
     N1, N2 = size(f)
     for j=1:N2
-        @inbounds @views @. ht.F1 = f[:, j] * ht.RdivJ
+        for i=1:N1
+            @inbounds ht.F1[i] = f[i, j] * ht.RdivJ[i]
+        end
         LinearAlgebra.mul!(ht.F2, ht.T, ht.F1)
-        @inbounds @views @. f[:, j] = ht.F2 * ht.JdivV
+        for i=1:N1
+            @inbounds f[i, j] = ht.F2[i] * ht.JdivV[i]
+        end
     end
     return nothing
 end
@@ -99,9 +103,13 @@ end
 function idht!(ht::HankelTransform, f::Array{ComplexF64, 2})
     N1, N2 = size(f)
     for j=1:N2
-        @inbounds @views @. ht.F2 = f[:, j] * ht.VdivJ
+        for i=1:N1
+            @inbounds ht.F2[i] = f[i, j] * ht.VdivJ[i]
+        end
         LinearAlgebra.mul!(ht.F1, ht.T, ht.F2)
-        @inbounds @views @. f[:, j] = ht.F1 * ht.JdivR
+        for i=1:N1
+            @inbounds f[i, j] = ht.F1[i] * ht.JdivR[i]
+        end
     end
     return nothing
 end
