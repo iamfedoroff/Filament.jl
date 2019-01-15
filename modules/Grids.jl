@@ -56,7 +56,7 @@ function Grid(rmax, Nr, tmin, tmax, Nt)
     geometry = "RT"
 
     HT = Hankel.HankelTransform(rmax, Nr)   # Hankel transform
-    HTGPU = HankelGPU.HankelTransform(rmax, Nr)   # Hankel transform for GPU
+    HTGPU = HankelGPU.HankelTransform(rmax, Nr, Nt)   # Hankel transform for GPU
 
     r = HT.r   # radial coordinates
     dr = sum(diff(r)) / length(diff(r))   # spatial step
