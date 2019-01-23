@@ -6,6 +6,7 @@ import DelimitedFiles
 struct TabularFunction
     x :: Array{Float64, 1}
     y :: Array{Float64, 1}
+    dy :: Array{Float64, 1}
 end
 
 
@@ -24,7 +25,13 @@ function TabularFunction(unit, fname::String)
     @. x = log10(x)
     @. y = log10(y)
 
-    return TabularFunction(x, y)
+    N = length(x)
+    dy = zeros(N)
+    for i=1:N-1
+        dy[i] = (y[i + 1] - y[i]) / (x[i + 1] - x[i])
+    end
+
+    return TabularFunction(x, y, dy)
 end
 
 
@@ -36,8 +43,7 @@ function tfvalue(tf::TabularFunction, x::Float64)
         y = 10. ^ tf.y[end]
     else
         i = searchsortedfirst(tf.x, xc)
-        y = tf.y[i] + (tf.y[i + 1] - tf.y[i]) * (xc - tf.x[i]) /
-                      (tf.x[i + 1] - tf.x[i])
+        y = tf.y[i] + tf.dy[i] * (xc - tf.x[i])
         y = 10. ^ y
     end
     return y
