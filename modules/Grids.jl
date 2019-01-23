@@ -66,7 +66,7 @@ function Grid(rmax, Nr, tmin, tmax, Nt)
     dk = sum(diff(k)) / length(diff(k))   # spatial frequency step
     kc = 2. * pi * 0.5 / dr   # spatial Nyquist frequency
 
-    t = range(tmin, stop=tmax, length=Nt)   # temporal coordinates
+    t = range(tmin, tmax, length=Nt)   # temporal coordinates
     dt = t[2] - t[1]   # temporal step
 
     copy!(npfft, PyCall.pyimport_conda("numpy.fft", "numpy"))
