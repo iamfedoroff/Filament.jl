@@ -318,7 +318,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
     # Linear propagator --------------------------------------------------------
     HankelGPU.dht!(grid.HTGPU, field.S_gpu)
-    @inbounds @. field.S_gpu = field.S_gpu * exp_cuda(model.KZ_gpu * dz_gpu)
+    linear_propagator!(field.S_gpu, model.KZ_gpu, dz_gpu)   # S = S * exp(KZ * dz)
     Guards.apply_angular_filter!(model.guard, field.S_gpu)
     HankelGPU.idht!(grid.HTGPU, field.S_gpu)
 
@@ -432,18 +432,31 @@ function phi_plasma(unit::Units.Unit, field::Fields.Field, medium::Media.Medium)
 end
 
 
-"""
-Calculates "exp(-1im * x)" on GPU.
+function linear_propagator_kernel(S, KZ, dz)
+    idx = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
+    idy = (CUDAnative.blockIdx().y - 1) * CUDAnative.blockDim().y + CUDAnative.threadIdx().y
+    N1, N2 = size(S)
+    if (idx <= N1) & (idy <= N2)
+        # Unfortunately, "CUDAnative.exp(x)" function does not work with
+        # complex arguments. To solve the issue, I use Euler's formula:
+        #     exp(-1im * x) = (cos(xr) - 1im * sin(xr)) * exp(xi),
+        # where xr = real(x) and xi = imag(x).
+        xr = real(KZ[idx, idy]) * dz
+        xi = imag(KZ[idx, idy]) * dz
+        expval = (CUDAnative.cos(xr) - ComplexGPU(1im) * CUDAnative.sin(xr)) *
+                 CUDAnative.exp(xi)
+        S[idx, idy] = S[idx, idy] * expval
+    end
+    return nothing
+end
 
-Unfortunately, "CUDAnative.exp.(x)" function does not work with complex
-arguments. To solve the issue, I use Euler's formula:
-    exp(-1im * x) = (cos(xr) - 1im * sin(xr)) * exp(xi),
-where xr = real(x) and xi = imag(x).
-"""
-function exp_cuda(x::ComplexGPU)
-    xr = real(x)
-    xi = imag(x)
-    return (CUDAnative.cos(xr) - 1im * CUDAnative.sin(xr)) * CUDAnative.exp(xi)
+
+function linear_propagator!(S, KZ, dz)
+    N1, N2 = size(S)
+    nth = 32
+    nblx = Int(ceil(N1 / nth))
+    nbly = Int(ceil(N2 / nth))
+    @CUDAnative.cuda blocks=(nblx, nbly) threads=(nth, nth) linear_propagator_kernel(S, KZ, dz)
 end
 
 
