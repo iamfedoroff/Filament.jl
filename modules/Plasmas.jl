@@ -1,10 +1,17 @@
 module Plasmas
 
+import CUDAnative
+import CuArrays
+import CUDAdrv
+
 import Units
 import Grids
 import Fields
 import Media
 import PlasmaComponents
+
+const FloatGPU = Float32
+const ComplexGPU = ComplexF32
 
 
 struct Plasma
@@ -12,10 +19,28 @@ struct Plasma
     mr :: Float64
     components :: Array{PlasmaComponents.Component, 1}
     Ncomp :: Int64
-    rho :: Array{Float64, 2}
-    Kdrho :: Array{Float64, 2}
-    RI :: Array{Float64, 2}
+
+    rho :: CuArrays.CuArray{FloatGPU, 2}
+    Kdrho :: CuArrays.CuArray{FloatGPU, 2}
+    RI :: CuArrays.CuArray{FloatGPU, 2}
+
+    rho_comp :: CuArrays.CuArray{FloatGPU, 2}
+    Kdrho_comp :: CuArrays.CuArray{FloatGPU, 2}
+    RI_comp :: CuArrays.CuArray{FloatGPU, 2}
+
+    frho0s :: CuArrays.CuArray{FloatGPU, 1}
+    Ks :: CuArrays.CuArray{FloatGPU, 1}
+    Wavas :: CuArrays.CuArray{FloatGPU, 1}
+    tfxs :: CuArrays.CuArray{FloatGPU, 2}
+    tfys :: CuArrays.CuArray{FloatGPU, 2}
+
+    IONARG :: Int64
+    AVALANCHE :: Int64
+
+    nblocks :: Int64
+    nthreads :: Int64
 end
+
 
 function Plasma(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
                 medium::Media.Medium, rho0::Float64, nuc::Float64, mr::Float64,
@@ -35,62 +60,141 @@ function Plasma(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
                                                    Ui, fname_tabfunc, keys)
     end
 
-    rho = zeros(Float64, (grid.Nr, grid.Nt))
-    Kdrho = zeros(Float64, (grid.Nr, grid.Nt))
-    RI = zeros(Float64, (grid.Nr, grid.Nt))
+    rho = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
+    Kdrho = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
+    RI = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
 
-    return Plasma(nuc, mr, components, Ncomp, rho, Kdrho, RI)
+    rho_comp = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
+    Kdrho_comp = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
+    RI_comp = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
+
+    frho0s = zeros(Ncomp)
+    Ks = zeros(Ncomp)
+    Wavas = zeros(Ncomp)
+    tfxs = zeros((Ncomp, length(components[1].tf.x)))
+    tfys = zeros((Ncomp, length(components[1].tf.y)))
+    for i=1:Ncomp
+        frho0s[i] = components[i].frho0
+        Ks[i] = components[i].K
+        Wavas[i] = components[i].Wava
+        @. tfxs[i, :] = components[i].tf.x
+        @. tfys[i, :] = components[i].tf.y
+    end
+    frho0s = CuArrays.CuArray(convert(Array{FloatGPU, 1}, frho0s))
+    Ks = CuArrays.CuArray(convert(Array{FloatGPU, 1}, Ks))
+    Wavas = CuArrays.CuArray(convert(Array{FloatGPU, 1}, Wavas))
+    tfxs = CuArrays.CuArray(convert(Array{FloatGPU, 2}, tfxs))
+    tfys = CuArrays.CuArray(convert(Array{FloatGPU, 2}, tfys))
+
+    IONARG = keys["IONARG"]
+    AVALANCHE = keys["AVALANCHE"]
+
+    dev = CUDAnative.CuDevice(0)
+    MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
+    # nthreads = min(grid.Nr, MAX_THREADS_PER_BLOCK)   # CUDA error: too many resources requested for launch
+    nthreads = 256
+    nblocks = Int(ceil(grid.Nr / nthreads))
+
+    return Plasma(nuc, mr, components, Ncomp,
+                  rho, Kdrho, RI, rho_comp, Kdrho_comp, RI_comp,
+                  frho0s, Ks, Wavas, tfxs, tfys, IONARG, AVALANCHE,
+                  nblocks, nthreads)
 end
 
 
-# function peak_plasma_density(plasma)
-#     rhomax = maximum(plasma.rho[:, end])
-#     return rhomax
-# end
-#
-#
-# function plasma_radius(plasma, grid)
-#     rad = 2. * radius(grid.r, plasma.rho[:, end])
-#     # Factor 2. because rho(r) is only half of full distribution rho(x)
-#     return rad
-# end
-#
-#
-# """
-# Linear plasma density:
-#     lrho = Int[Ne * 2*pi*r*dr],   [De] = 1/m
-# """
-# function linear_plasma_density(plasma, grid)
-#     lrho = 0.
-#     for i=1:grid.Nr
-#         dr = step(i, grid.r)
-#         lrho = lrho + plasma.rho[i, end] * grid.r[i] * dr
-#     end
-#     lrho = lrho * 2. * pi
-#     return lrho
-# end
+function free_charge(plasma::Plasma, grid::Grids.Grid, field::Fields.Field)
+    nbl = plasma.nblocks
+    nth = plasma.nthreads
+    @CUDAnative.cuda blocks=nbl threads=nth kernel(plasma.rho, plasma.Kdrho,
+                                                   plasma.RI, plasma.rho_comp,
+                                                   plasma.Kdrho_comp,
+                                                   plasma.RI_comp, field.E_gpu,
+                                                   grid.dt, plasma.frho0s,
+                                                   plasma.Ks, plasma.Wavas,
+                                                   plasma.tfxs, plasma.tfys,
+                                                   plasma.IONARG,
+                                                   plasma.AVALANCHE)
+    field.rho = convert(Array{Float64, 1}, CuArrays.collect(plasma.rho[:, end]))
+    return nothing
+end
 
 
-"""
-Calculates free charge concentration, its derivative, and ionization rate for
-all medium components.
-"""
-function free_charge(plasma, grid, field)
-    Et = zeros(ComplexF64, grid.Nt)
+function kernel(rho, Kdrho, RI, rho_comp, Kdrho_comp, RI_comp, E, dt, frho0s,
+                Ks, Wavas, tfxs, tfys, IONARG, AVALANCHE)
+    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
 
-    @inbounds @. plasma.rho = 0.
-    @inbounds @. plasma.Kdrho = 0.
-    @inbounds @. plasma.RI = 0.
-    for comp in plasma.components
-        @inbounds for i=1:grid.Nr
-            @views @. Et = field.E[i, :]
-            PlasmaComponents.free_charge(comp, grid, Et)
-            @views @. plasma.rho[i, :] = plasma.rho[i, :] + comp.rho
-            @views @. plasma.Kdrho[i, :] = plasma.Kdrho[i, :] + comp.Kdrho
-            @views @. plasma.RI[i, :] = plasma.RI[i, :] + comp.RI
+    Nr, Nt = size(rho)
+    Ncomp, Ntf = size(tfxs)
+
+    if id <= Nr
+        for j=1:Nt
+            rho[id, j] = FloatGPU(0)
+            Kdrho[id, j] = FloatGPU(0)
+            RI[id, j] = FloatGPU(0)
         end
     end
-    @inbounds @views @. field.rho = plasma.rho[:, end]
+
+    for n=1:Ncomp
+        frho0 = frho0s[n]
+        K = Ks[n]
+        Wava = Wavas[n]
+
+        if id <= Nr
+            rho_comp[id, 1] = FloatGPU(0)
+            Kdrho_comp[id, 1] = FloatGPU(0)
+            RI_comp[id, 1] = FloatGPU(0)
+
+            for j=2:Nt
+                if IONARG != 0
+                    Ival = FloatGPU(0.5) * (abs2(E[id, j]) + abs2(E[id, j-1]))
+                else
+                    Ival = FloatGPU(0.5) * (real(E[id, j])^2 + real(E[id, j-1])^2)
+                end
+
+                xc = CUDAnative.log10(Ival)
+                if xc < tfxs[n, 1]
+                    W1 = FloatGPU(0)
+                elseif xc >= tfxs[n, end]
+                    W1 = CUDAnative.pow(FloatGPU(10), tfys[n, end])
+                else
+                    xcnorm = (xc - tfxs[n, 1]) / (tfxs[n, end] - tfxs[n, 1])
+                    iloc = Int32(CUDAnative.floor(xcnorm * Ntf + 1.))
+                    W1log = tfys[n, iloc] + (tfys[n, iloc + 1] - tfys[n, iloc]) * (xc - tfxs[n, iloc]) /
+                                            (tfxs[n, iloc + 1] - tfxs[n, iloc])
+                    W1 = CUDAnative.pow(FloatGPU(10), W1log)
+                end
+
+                if AVALANCHE != 0
+                    W2 = Wava * Ival
+                else
+                    W2 = FloatGPU(0)
+                end
+
+                if W1 == 0.
+                    # if no field ionization, then calculate only the avalanche one
+                    rho_comp[id, j] = rho_comp[id, j-1] * CUDAnative.exp(W2 * dt)
+                    Kdrho_comp[id, j] = 0.
+                else
+                    # without this "if" statement 1/W12 will cause NaN values in rho
+                    W12 = W1 - W2
+                    rho_comp[id, j] = W1 / W12 * frho0 -
+                                      (W1 / W12 * frho0 - rho_comp[id, j-1]) *
+                                      CUDAnative.exp(-W12 * dt)
+                    Kdrho_comp[id, j] = K * W1 * (frho0 - rho_comp[id, j])
+                end
+
+                RI_comp[id, j] = W1
+            end
+
+            for j=1:Nt
+                rho[id, j] = rho[id, j] + rho_comp[id, j]
+                Kdrho[id, j] = Kdrho[id, j] + Kdrho_comp[id, j]
+                RI[id, j] = RI[id, j] + RI_comp[id, j]
+            end
+        end
+    end
+
+    return nothing
 end
 
 

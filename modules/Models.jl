@@ -251,7 +251,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
             # Plasma nonlinearity:
             if model.keys["PLASMA"] != 0
-                equal1!(rhoi_gpu, i, rho_gpu)   # rhoi_gpu = rho_gpu[i, :]
+                equal1!(rhoi_gpu, i, plasma.rho)   # rhoi_gpu = rho_gpu[i, :]
                 @inbounds @. Ftmp_gpu = rhoi_gpu * Er_gpu
                 Guards.apply_temporal_filter!(model.guard, Ftmp_gpu)
                 FourierGPU.rfft1d!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
@@ -261,7 +261,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
             # Losses due to multiphoton ionization:
             if model.keys["ILOSSES"] != 0
-                equal1!(Kdrhoi_gpu, i, Kdrho_gpu)   # Kdrhoi_gpu = Kdrho_gpu[i, :]
+                equal1!(Kdrhoi_gpu, i, plasma.Kdrho)   # Kdrhoi_gpu = Kdrho_gpu[i, :]
 
                 if model.keys["IONARG"] != 0
                     @inbounds @. Ftmp_gpu = abs2(Ec_gpu)
@@ -313,9 +313,6 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     # Nonlinear propagator -----------------------------------------------------
     if (model.keys["KERR"] != 0) | (model.keys["PLASMA"] != 0) |
        (model.keys["ILOSSES"] != 0)
-        rho_gpu = CuArrays.cu(convert(Array{FloatGPU, 2}, plasma.rho))
-        Kdrho_gpu = CuArrays.cu(convert(Array{FloatGPU, 2}, plasma.Kdrho))
-
         RungeKuttasGPU.RungeKutta_calc!(model.RKGPU, field.S_gpu, dz_gpu, func_gpu!)
     end
 
