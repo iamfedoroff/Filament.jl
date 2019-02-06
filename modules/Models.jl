@@ -215,7 +215,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
         for i=1:grid.Nr
             equal1!(Sr_gpu, i, S_gpu)   # Sr_gpu = S_gpu[i, :]
-            FourierGPU.spectrum_real_to_signal_analytic!(grid.FTGPU, Sr_gpu, Ec_gpu)
+            FourierGPU.hilbert!(grid.FTGPU, Sr_gpu, Ec_gpu)   # spectrum real to signal analytic
             @inbounds @. Er_gpu = real(Ec_gpu)
 
             @inbounds @. resi_gpu = zeros_gpu
@@ -228,7 +228,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
                     @inbounds @. Ftmp_gpu = 3. / 4. * abs2(Ec_gpu) * Er_gpu
                 end
                 Guards.apply_temporal_filter!(model.guard, Ftmp_gpu)
-                FourierGPU.rfft1d!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
+                FourierGPU.rfft!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
 
                 @inbounds @. resi_gpu = resi_gpu + model.Rk_gpu * Stmp_gpu
             end
@@ -244,7 +244,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
                 FourierGPU.convolution!(grid.FTGPU, model.Hramanw_gpu, Ftmp_gpu)
                 @inbounds @. Ftmp_gpu = Ftmp_gpu * Er_gpu
                 Guards.apply_temporal_filter!(model.guard, Ftmp_gpu)
-                FourierGPU.rfft1d!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
+                FourierGPU.rfft!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
 
                 @inbounds @. resi_gpu = resi_gpu + model.Rr_gpu * Stmp_gpu
             end
@@ -254,7 +254,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
                 equal1!(rhoi_gpu, i, plasma.rho)   # rhoi_gpu = rho_gpu[i, :]
                 @inbounds @. Ftmp_gpu = rhoi_gpu * Er_gpu
                 Guards.apply_temporal_filter!(model.guard, Ftmp_gpu)
-                FourierGPU.rfft1d!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
+                FourierGPU.rfft!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
 
                 @inbounds @. resi_gpu = resi_gpu + model.Rp_gpu * Stmp_gpu
             end
@@ -272,7 +272,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
                 safe_inverse!(Ftmp_gpu)
                 @inbounds @. Ftmp_gpu = Kdrhoi_gpu * Ftmp_gpu * Er_gpu
                 Guards.apply_temporal_filter!(model.guard, Ftmp_gpu)
-                FourierGPU.rfft1d!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
+                FourierGPU.rfft!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
 
                 @inbounds @. resi_gpu = resi_gpu + model.Ra_gpu * Stmp_gpu
             end
@@ -308,7 +308,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     dz_gpu = FloatGPU(dz)
 
     # Field -> temporal spectrum -----------------------------------------------
-    FourierGPU.rfft2d!(grid.FTGPU, field.E_gpu, field.S_gpu)
+    FourierGPU.rfft2!(grid.FTGPU, field.E_gpu, field.S_gpu)
 
     # Nonlinear propagator -----------------------------------------------------
     if (model.keys["KERR"] != 0) | (model.keys["PLASMA"] != 0) |
@@ -324,7 +324,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
     # Temporal spectrum -> field -----------------------------------------------
     Guards.apply_spectral_filter!(model.guard, field.S_gpu)
-    FourierGPU.spectrum_real_to_signal_analytic_2d!(grid.FTGPU, field.S_gpu, field.E_gpu)
+    FourierGPU.hilbert2!(grid.FTGPU, field.S_gpu, field.E_gpu)   # spectrum real to signal analytic
     Guards.apply_spatial_filter!(model.guard, field.E_gpu)
     Guards.apply_temporal_filter!(model.guard, field.E_gpu)
 

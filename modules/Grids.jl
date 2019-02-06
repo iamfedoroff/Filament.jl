@@ -94,7 +94,7 @@ function Grid(rmax, Nr, tmin, tmax, Nt)
     # lamc = 0.5 / self.dlam   # Nyquist wavelength (need check!)
 
     FT = Fourier.FourierTransform(Nt, dt)   # Fourier transform
-    FTGPU = FourierGPU.FourierTransform(Nt, dt)   # Fourier transform for GPU
+    FTGPU = FourierGPU.FourierTransform(Nr, Nt)   # Fourier transform for GPU
 
     return Grid(geometry, rmax, Nr, tmin, tmax, Nt,
                 HT, HTGPU, r, dr, v, k, dk, kc,
