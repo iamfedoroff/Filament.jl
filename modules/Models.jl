@@ -148,7 +148,8 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
               " normalized to 1.\n")
     end
 
-    @. Hraman = Hraman * guard.T   # temporal filter
+    Tguard = convert(Array{ComplexF64, 1}, CuArrays.collect(guard.T))
+    @. Hraman = Hraman * Tguard   # temporal filter
     # ifftshift code is taken from AbstractFFTs.jl source:
     # https://github.com/JuliaMath/AbstractFFTs.jl/blob/master/src/definitions.jl
     ifftshift(x) = circshift(x, div.([size(x)...],-2))
@@ -319,14 +320,12 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     # Linear propagator --------------------------------------------------------
     HankelGPU.dht!(grid.HTGPU, field.S_gpu)
     linear_propagator!(field.S_gpu, model.KZ_gpu, dz_gpu)   # S = S * exp(KZ * dz)
-    Guards.apply_angular_filter!(model.guard, field.S_gpu)
+    Guards.apply_frequency_angular_filter!(model.guard, field.S_gpu)
     HankelGPU.idht!(grid.HTGPU, field.S_gpu)
 
     # Temporal spectrum -> field -----------------------------------------------
-    Guards.apply_spectral_filter!(model.guard, field.S_gpu)
     FourierGPU.hilbert2!(grid.FTGPU, field.S_gpu, field.E_gpu)   # spectrum real to signal analytic
-    Guards.apply_spatial_filter!(model.guard, field.E_gpu)
-    Guards.apply_temporal_filter!(model.guard, field.E_gpu)
+    Guards.apply_spatio_temporal_filter!(model.guard, field.E_gpu)
 
     # Collect field from GPU:
     field.E = convert(Array{ComplexF64, 2}, CuArrays.collect(field.E_gpu))
