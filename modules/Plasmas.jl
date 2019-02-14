@@ -122,15 +122,15 @@ end
 function kernel(rho, Kdrho, RI, rho_comp, Kdrho_comp, RI_comp, E, dt, frho0s,
                 Ks, Wavas, tfxs, tfys, IONARG, AVALANCHE)
     id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
-
+    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
     Nr, Nt = size(rho)
     Ncomp, Ntf = size(tfxs)
 
-    if id <= Nr
+    for i=id:stride:Nr
         for j=1:Nt
-            rho[id, j] = FloatGPU(0)
-            Kdrho[id, j] = FloatGPU(0)
-            RI[id, j] = FloatGPU(0)
+            rho[i, j] = FloatGPU(0)
+            Kdrho[i, j] = FloatGPU(0)
+            RI[i, j] = FloatGPU(0)
         end
     end
 
@@ -139,23 +139,23 @@ function kernel(rho, Kdrho, RI, rho_comp, Kdrho_comp, RI_comp, E, dt, frho0s,
         K = Ks[n]
         Wava = Wavas[n]
 
-        if id <= Nr
-            rho_comp[id, 1] = FloatGPU(0)
-            Kdrho_comp[id, 1] = FloatGPU(0)
-            RI_comp[id, 1] = FloatGPU(0)
+        for i=id:stride:Nr
+            rho_comp[i, 1] = FloatGPU(0)
+            Kdrho_comp[i, 1] = FloatGPU(0)
+            RI_comp[i, 1] = FloatGPU(0)
 
             for j=2:Nt
                 if IONARG != 0
-                    Ival = FloatGPU(0.5) * (abs2(E[id, j]) + abs2(E[id, j-1]))
+                    Ival = FloatGPU(0.5) * (abs2(E[i, j]) + abs2(E[i, j-1]))
                 else
-                    Ival = FloatGPU(0.5) * (real(E[id, j])^2 + real(E[id, j-1])^2)
+                    Ival = FloatGPU(0.5) * (real(E[i, j])^2 + real(E[i, j-1])^2)
                 end
 
                 xc = CUDAnative.log10(Ival)
                 if xc < tfxs[n, 1]
                     W1 = FloatGPU(0)
                 elseif xc >= tfxs[n, end]
-                    W1 = CUDAnative.pow(FloatGPU(10), tfys[n, end])
+                    W1 = CUDAnative.pow(FloatGPU(10.), tfys[n, end])
                 else
                     xcnorm = (xc - tfxs[n, 1]) / (tfxs[n, end] - tfxs[n, 1])
                     iloc = Int32(CUDAnative.floor(xcnorm * Ntf + 1.))
@@ -172,24 +172,24 @@ function kernel(rho, Kdrho, RI, rho_comp, Kdrho_comp, RI_comp, E, dt, frho0s,
 
                 if W1 == 0.
                     # if no field ionization, then calculate only the avalanche one
-                    rho_comp[id, j] = rho_comp[id, j-1] * CUDAnative.exp(W2 * dt)
-                    Kdrho_comp[id, j] = 0.
+                    rho_comp[i, j] = rho_comp[i, j-1] * CUDAnative.exp(W2 * dt)
+                    Kdrho_comp[i, j] = 0.
                 else
                     # without this "if" statement 1/W12 will cause NaN values in rho
                     W12 = W1 - W2
-                    rho_comp[id, j] = W1 / W12 * frho0 -
-                                      (W1 / W12 * frho0 - rho_comp[id, j-1]) *
-                                      CUDAnative.exp(-W12 * dt)
-                    Kdrho_comp[id, j] = K * W1 * (frho0 - rho_comp[id, j])
+                    rho_comp[i, j] = W1 / W12 * frho0 -
+                                     (W1 / W12 * frho0 - rho_comp[i, j-1]) *
+                                     CUDAnative.exp(-W12 * dt)
+                    Kdrho_comp[i, j] = K * W1 * (frho0 - rho_comp[i, j])
                 end
 
-                RI_comp[id, j] = W1
+                RI_comp[i, j] = W1
             end
 
             for j=1:Nt
-                rho[id, j] = rho[id, j] + rho_comp[id, j]
-                Kdrho[id, j] = Kdrho[id, j] + Kdrho_comp[id, j]
-                RI[id, j] = RI[id, j] + RI_comp[id, j]
+                rho[i, j] = rho[i, j] + rho_comp[i, j]
+                Kdrho[i, j] = Kdrho[i, j] + Kdrho_comp[i, j]
+                RI[i, j] = RI[i, j] + RI_comp[i, j]
             end
         end
     end
