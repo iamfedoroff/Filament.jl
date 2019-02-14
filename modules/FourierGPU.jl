@@ -26,11 +26,12 @@ struct FourierTransform
     prfft2 :: FFTW.Plan
     pirfft :: FFTW.Plan
 
-    nthreads :: Int64
+    nthreadsNt :: Int64
+    nthreadsNw :: Int64
+    nblocksNt :: Int64
+    nblocksNw :: Int64
     nthreads2 :: Int64
-    nblocks :: Int64
-    nblocks2x :: Int64
-    nblocks2y :: Int64
+    nblocks2 :: Int64
 end
 
 
@@ -56,17 +57,18 @@ function FourierTransform(Nr::Int64, Nt::Int64)
 
     dev = CUDAnative.CuDevice(0)
     MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
-    nthreads = min(Nt, MAX_THREADS_PER_BLOCK)
-    nblocks = Int(ceil(Nt / nthreads))
-
-    nthreads2 = min(isqrt(Nr * Nt), isqrt(MAX_THREADS_PER_BLOCK))
-    nblocks2x = Int(ceil(Nr / nthreads2))
-    nblocks2y = Int(ceil(Nt / nthreads2))
+    nthreadsNt = min(Nt, MAX_THREADS_PER_BLOCK)
+    nthreadsNw = min(Nw, MAX_THREADS_PER_BLOCK)
+    nblocksNt = Int(ceil(Nt / nthreadsNt))
+    nblocksNw = Int(ceil(Nw / nthreadsNw))
+    nthreads2 = min(Nr * Nt, MAX_THREADS_PER_BLOCK)
+    nblocks2 = Int(ceil(Nr * Nt / nthreads2))
 
     return FourierTransform(Nr, Nt, Nw,
                             Er2, Sc, Sc2, Sr,
                             pifft, pifft2, prfft, prfft2, pirfft,
-                            nthreads, nthreads2, nblocks, nblocks2x, nblocks2y)
+                            nthreadsNt, nthreadsNw, nblocksNt, nblocksNw,
+                            nthreads2, nblocks2)
 end
 
 
@@ -98,20 +100,22 @@ function rfft2!(FT::FourierTransform,
                 E::CuArrays.CuArray{ComplexGPU, 2},
                 S::CuArrays.CuArray{ComplexGPU, 2})
     nth = FT.nthreads2
-    nblx = FT.nblocks2x
-    nbly = FT.nblocks2y
-    @CUDAnative.cuda blocks=(nblx, nbly) threads=(nth, nth) rfft2_kernel(E, FT.Er2)
+    nbl = FT.nblocks2
+    @CUDAnative.cuda blocks=nbl threads=nth rfft2_kernel(E, FT.Er2)
     LinearAlgebra.mul!(S, FT.prfft2, FT.Er2)   # time -> frequency
     return nothing
 end
 
 
 function rfft2_kernel(Ec, Er)
-    idx = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
-    idy = (CUDAnative.blockIdx().y - 1) * CUDAnative.blockDim().y + CUDAnative.threadIdx().y
+    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
+    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
     Nr, Nt = size(Ec)
-    if (idx <= Nr) & (idy <= Nt)
-        Er[idx, idy] = real(Ec[idx, idy])
+    cartesian = CartesianIndices((Nr, Nt))
+    for k=id:stride:Nr*Nt
+        i = cartesian[k][1]
+        j = cartesian[k][2]
+        @inbounds Er[i, j] = real(Ec[i, j])
     end
     return nothing
 end
@@ -133,8 +137,8 @@ WARNING: Needs test for odd N and low frequencies.
 function hilbert!(FT::FourierTransform,
                    Sr::CuArrays.CuArray{ComplexGPU, 1},
                    Ec::CuArrays.CuArray{ComplexGPU, 1})
-    nth = FT.nthreads
-    nbl = FT.nblocks
+    nth = FT.nthreadsNt
+    nbl = FT.nblocksNt
     @CUDAnative.cuda blocks=nbl threads=nth hilbert_kernel(Sr, FT.Sc)
     ifft!(FT, FT.Sc, Ec)   # frequency -> time
     return nothing
@@ -143,17 +147,18 @@ end
 
 function hilbert_kernel(Sr, Sc)
     id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
+    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
     Nt = length(Sc)
     Nw = length(Sr)
-    if id <= Nt
-        if id <= Nw
-            if id == 1
-                Sc[id] = Sr[id]
+    for i=id:stride:Nt
+        if i <= Nw
+            if i == 1
+                @inbounds Sc[i] = Sr[i]
             else
-                Sc[id] = FloatGPU(2.) * Sr[id]
+                @inbounds Sc[i] = FloatGPU(2.) * Sr[i]
             end
         else
-            Sc[id] = FloatGPU(0.)
+            @inbounds Sc[i] = FloatGPU(0.)
         end
     end
     return nothing
@@ -169,28 +174,30 @@ function hilbert2!(FT::FourierTransform,
                    Sr::CuArrays.CuArray{ComplexGPU, 2},
                    Ec::CuArrays.CuArray{ComplexGPU, 2})
     nth = FT.nthreads2
-    nblx = FT.nblocks2x
-    nbly = FT.nblocks2y
-    @CUDAnative.cuda blocks=(nblx, nbly) threads=(nth, nth) hilbert2_kernel(Sr, FT.Sc2)
+    nbl = FT.nblocks2
+    @CUDAnative.cuda blocks=nbl threads=nth hilbert2_kernel(Sr, FT.Sc2)
     ifft2!(FT, FT.Sc2, Ec)   # frequency -> time
     return nothing
 end
 
 
 function hilbert2_kernel(Sr, Sc)
-    idx = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
-    idy = (CUDAnative.blockIdx().y - 1) * CUDAnative.blockDim().y + CUDAnative.threadIdx().y
+    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
+    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
     Nr, Nt = size(Sc)
     Nr, Nw = size(Sr)
-    if (idx <= Nr) & (idy <= Nt)
-        if idy <= Nw
-            if idy == 1
-                Sc[idx, idy] = Sr[idx, idy]
+    cartesian = CartesianIndices((Nr, Nt))
+    for k=id:stride:Nr*Nt
+        i = cartesian[k][1]
+        j = cartesian[k][2]
+        if j <= Nw
+            if j == 1
+                @inbounds Sc[i, j] = Sr[i, j]
             else
-                Sc[idx, idy] = FloatGPU(2.) * Sr[idx, idy]
+                @inbounds Sc[i, j] = FloatGPU(2.) * Sr[i, j]
             end
         else
-            Sc[idx, idy] = FloatGPU(0.)
+            @inbounds Sc[i, j] = FloatGPU(0.)
         end
     end
     return nothing
@@ -201,8 +208,8 @@ function convolution!(FT::FourierTransform,
                       Hw::CuArrays.CuArray{ComplexGPU, 1},
                       x::CuArrays.CuArray{FloatGPU, 1})
     rfft!(FT, x, FT.Sr)
-    nth = FT.nthreads
-    nbl = FT.nblocks
+    nth = FT.nthreadsNw
+    nbl = FT.nblocksNw
     @CUDAnative.cuda blocks=nbl threads=nth convolution_kernel(FT.Sr, Hw)
     irfft!(FT, FT.Sr, x)
     return nothing
@@ -211,9 +218,10 @@ end
 
 function convolution_kernel(Sr, Hw)
     id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
+    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
     Nw = length(Sr)
-    if id <= Nw
-        Sr[id] = Hw[id] * Sr[id]
+    for i=id:stride:Nw
+        @inbounds Sr[i] = Hw[i] * Sr[i]
     end
     return nothing
 end
