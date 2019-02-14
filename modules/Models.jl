@@ -432,102 +432,106 @@ function phi_plasma(unit::Units.Unit, field::Fields.Field, medium::Media.Medium)
 end
 
 
-function linear_propagator_kernel(S, KZ, dz)
-    idx = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
-    idy = (CUDAnative.blockIdx().y - 1) * CUDAnative.blockDim().y + CUDAnative.threadIdx().y
+function linear_propagator!(S, KZ, dz)
     N1, N2 = size(S)
-    if (idx <= N1) & (idy <= N2)
+    dev = CUDAnative.CuDevice(0)
+    MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
+    nth = min(N1 * N2, MAX_THREADS_PER_BLOCK)
+    nbl = Int(ceil(N1 * N2 / nth))
+    @CUDAnative.cuda blocks=nbl threads=nth linear_propagator_kernel(S, KZ, dz)
+end
+
+
+function linear_propagator_kernel(S, KZ, dz)
+    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
+    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
+    N1, N2 = size(S)
+    cartesian = CartesianIndices((N1, N2))
+    for k=id:stride:N1*N2
+        i = cartesian[k][1]
+        j = cartesian[k][2]
         # Unfortunately, "CUDAnative.exp(x)" function does not work with
         # complex arguments. To solve the issue, I use Euler's formula:
         #     exp(-1im * x) = (cos(xr) - 1im * sin(xr)) * exp(xi),
         # where xr = real(x) and xi = imag(x).
-        xr = real(KZ[idx, idy]) * dz
-        xi = imag(KZ[idx, idy]) * dz
+        @inbounds xr = real(KZ[i, j]) * dz
+        @inbounds xi = imag(KZ[i, j]) * dz
         expval = (CUDAnative.cos(xr) - ComplexGPU(1im) * CUDAnative.sin(xr)) *
                  CUDAnative.exp(xi)
-        S[idx, idy] = S[idx, idy] * expval
+        @inbounds S[i, j] = S[i, j] * expval
     end
     return nothing
 end
 
 
-function linear_propagator!(S, KZ, dz)
-    N1, N2 = size(S)
-    nth = 32
-    nblx = Int(ceil(N1 / nth))
-    nbly = Int(ceil(N2 / nth))
-    @CUDAnative.cuda blocks=(nblx, nbly) threads=(nth, nth) linear_propagator_kernel(S, KZ, dz)
-end
-
-
-function safe_inverse!(a_gpu::CuArrays.CuArray{FloatGPU, 1})
-
-    function kernel(a::CUDAnative.CuDeviceArray{Float32,1})
-        i = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
-        if i <= length(a)
-            if a[i] >= FloatGPU(1e-30)
-                a[i] = FloatGPU(1.) / a[i]
-            else
-                a[i] = FloatGPU(0.)
-            end
-        end
-        return nothing
-    end
-
+function safe_inverse!(a::CuArrays.CuArray{FloatGPU, 1})
+    N = length(a)
     dev = CUDAnative.CuDevice(0)
-    N = length(a_gpu)
     MAX_THREADS = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
-    threads = min(N, MAX_THREADS)
-    blocks = Int(ceil(N / threads))
-
-    @CUDAnative.cuda blocks=blocks threads=threads kernel(a_gpu)
+    nth = min(N, MAX_THREADS)
+    nbl = Int(ceil(N / nth))
+    @CUDAnative.cuda blocks=nbl threads=nth safe_inverse_kernel(a)
     return nothing
 end
 
 
-# function equal1!(b_gpu::CuArrays.CuArray{ComplexGPU, 1},
-#                  i::Int64,
-#                  a_gpu::CuArrays.CuArray{ComplexGPU, 2})
-function equal1!(b_gpu, i::Int64, a_gpu)
-
-    function kernel(b, i, a)
-        j = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
-        if j <= length(b)
-            b[j] = a[i, j]
+function safe_inverse_kernel(a)
+    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
+    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
+    N = length(a)
+    for i=id:stride:N
+        if a[i] >= FloatGPU(1e-30)
+            a[i] = FloatGPU(1.) / a[i]
+        else
+            a[i] = FloatGPU(0.)
         end
-        return nothing
     end
-
-    dev = CUDAnative.CuDevice(0)
-    N = length(b_gpu)
-    MAX_THREADS = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
-    threads = min(N, MAX_THREADS)
-    blocks = Int(ceil(N / threads))
-
-    @CUDAnative.cuda blocks=blocks threads=threads kernel(b_gpu, i, a_gpu)
     return nothing
 end
 
 
-function equal2!(b_gpu::CuArrays.CuArray{ComplexGPU, 2},
+function equal1!(b, i::Int64, a)
+    N = length(b)
+    dev = CUDAnative.CuDevice(0)
+    MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
+    nth = min(N, MAX_THREADS_PER_BLOCK)
+    nbl = Int(ceil(N / nth))
+    @CUDAnative.cuda blocks=nbl threads=nth equal1_kernel(b, i, a)
+    return nothing
+end
+
+
+function equal1_kernel(b, i, a)
+    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
+    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
+    N = length(b)
+    for j=id:stride:N
+        b[j] = a[i, j]
+    end
+    return nothing
+end
+
+
+function equal2!(b::CuArrays.CuArray{ComplexGPU, 2},
                  i::Int64,
-                 a_gpu::CuArrays.CuArray{ComplexGPU, 1})
-
-    function kernel(b, i, a)
-        j = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
-        if j <= length(a)
-            b[i, j] = a[j]
-        end
-        return nothing
-    end
-
+                 a::CuArrays.CuArray{ComplexGPU, 1})
+    N = length(b)
     dev = CUDAnative.CuDevice(0)
-    N = length(b_gpu)
-    MAX_THREADS = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
-    threads = min(N, MAX_THREADS)
-    blocks = Int(ceil(N / threads))
+    MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
+    nth = min(N, MAX_THREADS_PER_BLOCK)
+    nbl = Int(ceil(N / nth))
+    @CUDAnative.cuda blocks=nbl threads=nth equal2_kernel(b, i, a)
+end
 
-    @CUDAnative.cuda blocks=blocks threads=threads kernel(b_gpu, i, a_gpu)
+
+function equal2_kernel(b, i, a)
+    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
+    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
+    N = length(a)
+    for j=id:stride:N
+        b[i, j] = a[j]
+    end
+    return nothing
 end
 
 
