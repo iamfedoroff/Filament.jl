@@ -76,8 +76,8 @@ $file_medium_content
                                    Parameters
 ********************************************************************************
 # Grid -------------------------------------------------------------------------
-dr = $(fmt(grid.dr * unit.r)) [m] - average spatial step
-dk = $(fmt(grid.dk * unit.k)) [1/m] - average spatial frequency (angular) step
+dr = $(fmt(grid.dr_mean * unit.r)) [m] - average spatial step
+dk = $(fmt(grid.dk_mean * unit.k)) [1/m] - average spatial frequency (angular) step
 kc = $(fmt(grid.kc * unit.k)) [1/m] - spatial Nyquist frequency (angular)
 dt = $(fmt(grid.dt * unit.t)) [s] - temporal step
 df = $(fmt(grid.df * unit.w)) [1/s] - temporal frequency step

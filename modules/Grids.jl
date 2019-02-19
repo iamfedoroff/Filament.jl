@@ -28,10 +28,11 @@ struct Grid
     HTGPU :: HankelGPU.HankelTransform
 
     r :: Array{Float64, 1}
-    dr :: Float64
+    dr :: Array{Float64, 1}
+    dr_mean :: Float64
     v :: Array{Float64, 1}
     k :: Array{Float64, 1}
-    dk :: Float64
+    dk_mean :: Float64
     kc :: Float64
 
     t :: Array{Float64, 1}
@@ -59,12 +60,19 @@ function Grid(rmax, Nr, tmin, tmax, Nt)
     HTGPU = HankelGPU.HankelTransform(rmax, Nr, Nt)   # Hankel transform for GPU
 
     r = HT.r   # radial coordinates
-    dr = sum(diff(r)) / length(diff(r))   # spatial step
+
+    # steps for radial coordinate:
+    dr = zeros(Nr)
+    for i=1:Nr
+        dr[i] = step(i, r)
+    end
+
+    dr_mean = sum(diff(r)) / length(diff(r))   # spatial step
 
     v = HT.v   # spatial frequency
     k = 2. * pi * v   # spatial angular frequency
-    dk = sum(diff(k)) / length(diff(k))   # spatial frequency step
-    kc = 2. * pi * 0.5 / dr   # spatial Nyquist frequency
+    dk_mean = sum(diff(k)) / length(diff(k))   # spatial frequency step
+    kc = 2. * pi * 0.5 / dr_mean   # spatial Nyquist frequency
 
     t = range(tmin, tmax, length=Nt)   # temporal coordinates
     dt = t[2] - t[1]   # temporal step
@@ -97,8 +105,22 @@ function Grid(rmax, Nr, tmin, tmax, Nt)
     FTGPU = FourierGPU.FourierTransform(Nr, Nt)   # Fourier transform for GPU
 
     return Grid(geometry, rmax, Nr, tmin, tmax, Nt,
-                HT, HTGPU, r, dr, v, k, dk, kc,
+                HT, HTGPU, r, dr, dr_mean, v, k, dk_mean, kc,
                 t, dt, f, Nf, df, fc, w, Nw, dw, wc, lam, Nlam, FT, FTGPU)
+end
+
+
+"""Calculates step dx for a specific index i on a nonuniform grid x."""
+function step(i::Int64, x::Array{Float64, 1})
+    Nx = length(x)
+    if i == 1
+        dx = x[2] - x[1]
+    elseif i == Nx
+        dx = x[Nx] - x[Nx - 1]
+    else
+        dx = 0.5 * (x[i+1] - x[i-1])
+    end
+    return dx
 end
 
 

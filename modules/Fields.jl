@@ -60,12 +60,10 @@ Total energy:
     W = Int[|E(r,t)|^2 * 2*pi*r*dr*dt],   [W] = J
 """
 function energy(field::Field)
-    r = field.grid.r
     W = 0.
     for j=1:field.grid.Nt
         for i=1:field.grid.Nr
-            dr = step(i, r)
-            W = W + abs2(field.E[i, j]) * r[i] * dr
+            W = W + abs2(field.E[i, j]) * field.grid.r[i] * field.grid.dr[i]
         end
     end
     W = W * 2. * pi * field.grid.dt
@@ -132,12 +130,10 @@ Temporal fluence:
     F(t) = Int[|E(r,t)|^2 * 2*pi*r*dr],   [F(t)] = W
 """
 function temporal_fluence(field::Field)
-    r = field.grid.r
     F = zeros(field.grid.Nt)
     for j=1:field.grid.Nt
         for i=1:field.grid.Nr
-            dr = step(i, r)
-            F[j] = F[j] + abs2(field.E[i, j]) * r[i] * dr
+            F[j] = F[j] + abs2(field.E[i, j]) * field.grid.r[i] * field.grid.dr[i]
         end
     end
     F = F * 2. * pi
@@ -189,8 +185,7 @@ function linear_plasma_density(field::Field)
     r = field.grid.r
     lrho = 0.
     for i=1:field.grid.Nr
-        dr = step(i, r)
-        lrho = lrho + field.rho[i] * r[i] * dr
+        lrho = lrho + field.rho[i] * field.grid.r[i] * field.grid.dr[i]
     end
     lrho = lrho * 2. * pi
     return lrho
@@ -203,32 +198,15 @@ Integral power spectrum:
     S = Int[|Ew|^2 * 2*pi*r*dr]
 """
 function integral_power_spectrum(field::Field)
-    r = field.grid.r
     S = zeros(field.grid.Nw)
     for i=1:field.grid.Nr
         Et = real(field.E[i, :])
         Ew = FFTW.rfft(Et)
         Ew = 2. * Ew * field.grid.dt
-
-        dr = step(i, r)
-        S = S + abs2.(Ew) * r[i] * dr
+        S = S + abs2.(Ew) * field.grid.r[i] * field.grid.dr[i]
     end
     S = S * 2. * pi
     return S
-end
-
-
-"""Step dx at a specific point i of a nonuniform grid x"""
-function step(i::Int64, x::Array{Float64, 1})
-    Nx = length(x)
-    if i == 1
-        dx = x[2] - x[1]
-    elseif i == Nx
-        dx = x[Nx] - x[Nx - 1]
-    else
-        dx = 0.5 * (x[i+1] - x[i-1])
-    end
-    return dx
 end
 
 
