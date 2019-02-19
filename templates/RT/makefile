@@ -1,6 +1,5 @@
 CORE=../../cores/coreRT.jl
 
 run:
-	julia ${CORE} input.jl
-#	julia --track-allocation=user ${CORE} input.jl
+	julia -O3 --check-bounds=no ${CORE} input.jl
 
