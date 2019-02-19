@@ -21,8 +21,6 @@ mutable struct Field
     f0 :: Float64
     w0 :: Float64
 
-    grid :: Grids.Grid
-
     E :: Array{ComplexF64, 2}
     E_gpu :: CuArrays.CuArray{ComplexGPU, 2}
     S_gpu :: CuArrays.CuArray{ComplexGPU, 2}
@@ -45,13 +43,12 @@ function Field(unit::Units.Unit, grid::Grids.Grid, lam0::Float64,
 
     rho = zeros(grid.Nr)
 
-    return Field(lam0, f0, w0, grid, E, E_gpu, S_gpu, rho)
+    return Field(lam0, f0, w0, E, E_gpu, S_gpu, rho)
 end
 
 
 function peak_intensity(field::Field)
-    Imax = maximum(abs2.(field.E))
-    return Imax
+    return maximum(abs2.(field.E))
 end
 
 
@@ -59,30 +56,27 @@ end
 Total energy:
     W = Int[|E(r,t)|^2 * 2*pi*r*dr*dt],   [W] = J
 """
-function energy(field::Field)
+function energy(grid::Grids.Grid, field::Field)
     W = 0.
-    for j=1:field.grid.Nt
-        for i=1:field.grid.Nr
-            W = W + abs2(field.E[i, j]) * field.grid.r[i] * field.grid.dr[i]
+    for j=1:grid.Nt
+        for i=1:grid.Nr
+            W = W + abs2(field.E[i, j]) * grid.r[i] * grid.dr[i]
         end
     end
-    W = W * 2. * pi * field.grid.dt
-    return W
+    return W * 2. * pi * grid.dt
 end
 
 
-function energy_gauss(field::Field)
-    t0 = pulse_duration(field)
-    a0 = beam_radius(field)
+function energy_gauss(grid::Grids.Grid, field::Field)
+    t0 = pulse_duration(grid, field)
+    a0 = beam_radius(grid, field)
     I0 = peak_intensity(field)
-    Wg = pi^1.5 * t0 * a0^2 * I0
-    return Wg
+    return pi^1.5 * t0 * a0^2 * I0
 end
 
 
 function energy_photon(field::Field)
-    Wph = HBAR * field.w0
-    return Wph
+    return HBAR * field.w0
 end
 
 
@@ -90,38 +84,34 @@ end
 Fluence:
     F(r) = Int[|E(r,t)|^2 * dt],   [F(r)] = J/cm^2
 """
-function fluence(field::Field)
-    F = zeros(field.grid.Nr)
-    for j=1:field.grid.Nt
-        for i=1:field.grid.Nr
+function fluence(grid::Grids.Grid, field::Field)
+    F = zeros(grid.Nr)
+    for j=1:grid.Nt
+        for i=1:grid.Nr
             F[i] = F[i] + abs2(field.E[i, j])
         end
     end
-    F = F * field.grid.dt
-    return F
+    return F * grid.dt
 end
 
 
-function peak_fluence(field::Field)
-    F = fluence(field)
-    Fmax = maximum(F)
-    return Fmax
+function peak_fluence(grid::Grids.Grid, field::Field)
+    F = fluence(grid, field)
+    return maximum(F)
 end
 
 
-function peak_fluence_gauss(field::Field)
-    t0 = pulse_duration(field)
+function peak_fluence_gauss(grid::Grids.Grid, field::Field)
+    t0 = pulse_duration(grid, field)
     I0 = peak_intensity(field)
-    Fmaxg = sqrt(pi) * t0 * I0
-    return Fmaxg
+    return sqrt(pi) * t0 * I0
 end
 
 
-function beam_radius(field::Field)
-    F = fluence(field)
-    a0 = 2. * radius(field.grid.r, F)
-    # Factor 2. because F(r) is only half of full distribution F(x)
-    return a0
+function beam_radius(grid::Grids.Grid, field::Field)
+    F = fluence(grid, field)
+    # Factor 2. because F(r) is only half of full distribution F(x):
+    return 2. * radius(grid.r, F)
 end
 
 
@@ -129,51 +119,45 @@ end
 Temporal fluence:
     F(t) = Int[|E(r,t)|^2 * 2*pi*r*dr],   [F(t)] = W
 """
-function temporal_fluence(field::Field)
-    F = zeros(field.grid.Nt)
-    for j=1:field.grid.Nt
-        for i=1:field.grid.Nr
-            F[j] = F[j] + abs2(field.E[i, j]) * field.grid.r[i] * field.grid.dr[i]
+function temporal_fluence(grid::Grids.Grid, field::Field)
+    F = zeros(grid.Nt)
+    for j=1:grid.Nt
+        for i=1:grid.Nr
+            F[j] = F[j] + abs2(field.E[i, j]) * grid.r[i] * grid.dr[i]
         end
     end
-    F = F * 2. * pi
-    return F
+    return F * 2. * pi
 end
 
 
-function pulse_duration(field::Field)
-    F = temporal_fluence(field)
-    t0 = radius(field.grid.t, F)
-    return t0
+function pulse_duration(grid::Grids.Grid, field::Field)
+    F = temporal_fluence(grid, field)
+    return radius(grid.t, F)
 end
 
 
-function peak_power(field::Field)
-    W = energy(field)
-    t0 = pulse_duration(field)
-    P = W / t0 / sqrt(pi)
-    return P
+function peak_power(grid::Grids.Grid, field::Field)
+    W = energy(grid, field)
+    t0 = pulse_duration(grid, field)
+    return W / t0 / sqrt(pi)
 end
 
 
-function peak_power_gauss(field::Field)
-    a0 = beam_radius(field)
+function peak_power_gauss(grid::Grids.Grid, field::Field)
+    a0 = beam_radius(grid, field)
     I0 = peak_intensity(field)
-    Pg = pi * a0^2 * I0
-    return Pg
+    return pi * a0^2 * I0
 end
 
 
 function peak_plasma_density(field::Field)
-    rhomax = maximum(field.rho)
-    return rhomax
+    return maximum(field.rho)
 end
 
 
-function plasma_radius(field::Field)
-    rad = 2. * radius(field.grid.r, field.rho)
+function plasma_radius(grid::Grids.Grid, field::Field)
     # Factor 2. because rho(r) is only half of full distribution rho(x)
-    return rad
+    return 2. * radius(grid.r, field.rho)
 end
 
 
@@ -181,14 +165,12 @@ end
 Linear plasma density:
     lrho = Int[Ne * 2*pi*r*dr],   [De] = 1/m
 """
-function linear_plasma_density(field::Field)
-    r = field.grid.r
+function linear_plasma_density(grid::Grids.Grid, field::Field)
     lrho = 0.
-    for i=1:field.grid.Nr
-        lrho = lrho + field.rho[i] * field.grid.r[i] * field.grid.dr[i]
+    for i=1:grid.Nr
+        lrho = lrho + field.rho[i] * grid.r[i] * grid.dr[i]
     end
-    lrho = lrho * 2. * pi
-    return lrho
+    return lrho * 2. * pi
 end
 
 
@@ -197,16 +179,15 @@ Integral power spectrum:
     Ew = FFT[Et]
     S = Int[|Ew|^2 * 2*pi*r*dr]
 """
-function integral_power_spectrum(field::Field)
-    S = zeros(field.grid.Nw)
-    for i=1:field.grid.Nr
+function integral_power_spectrum(grid::Grids.Grid, field::Field)
+    S = zeros(grid.Nw)
+    for i=1:grid.Nr
         Et = real(field.E[i, :])
         Ew = FFTW.rfft(Et)
-        Ew = 2. * Ew * field.grid.dt
-        S = S + abs2.(Ew) * field.grid.r[i] * field.grid.dr[i]
+        Ew = 2. * Ew * grid.dt
+        S = S + abs2.(Ew) * grid.r[i] * grid.dr[i]
     end
-    S = S * 2. * pi
-    return S
+    return S * 2. * pi
 end
 
 

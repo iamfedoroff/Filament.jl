@@ -37,10 +37,10 @@ function Info(fname, file_input, file_initial_condition, file_medium,
     file_initial_condition_content = read(file_initial_condition, String)
     file_medium_content = read(file_medium, String)
 
-    a0 = Fields.beam_radius(field) * unit.r
-    t0 = Fields.pulse_duration(field) * unit.t
+    a0 = Fields.beam_radius(grid, field) * unit.r
+    t0 = Fields.pulse_duration(grid, field) * unit.t
     I0 = Fields.peak_intensity(field) * unit.I
-    P = Fields.peak_power(field) * unit.r^2 * unit.I
+    P = Fields.peak_power(grid, field) * unit.r^2 * unit.I
     Pcr = Media.critical_power(medium, field.w0)
 
     comp_tab = ""
@@ -91,11 +91,11 @@ lam0 = $(fmt(field.lam0)) [m] - central wavelength
 f0   = $(fmt(field.f0)) [1/s] - central frequency
 w0   = $(fmt(field.w0)) [1/s] - central frequency (angular)
 P    = $(fmt(P)) [W] - peak power
-Pg   = $(fmt(Fields.peak_power_gauss(field) * unit.r^2 * unit.I)) [W] - Gaussian peak power (pi*a0^2*I0)
-F    = $(fmt(Fields.peak_fluence(field) * unit.t * unit.I)) [J/m^2] - peak fluence
-Fg   = $(fmt(Fields.peak_fluence_gauss(field) * unit.t * unit.I)) [J/m^2] - Gaussian peak fluence (pi^0.5*t0*I0)
-W    = $(fmt(Fields.energy(field) * unit.r^2 * unit.t * unit.I)) [J] - pulse energy
-Wg   = $(fmt(Fields.energy_gauss(field) * unit.r^2 * unit.t * unit.I)) [J] - Gaussian pulse energy (pi^1.5*t0*a0^2*I0)
+Pg   = $(fmt(Fields.peak_power_gauss(grid, field) * unit.r^2 * unit.I)) [W] - Gaussian peak power (pi*a0^2*I0)
+F    = $(fmt(Fields.peak_fluence(grid, field) * unit.t * unit.I)) [J/m^2] - peak fluence
+Fg   = $(fmt(Fields.peak_fluence_gauss(grid, field) * unit.t * unit.I)) [J/m^2] - Gaussian peak fluence (pi^0.5*t0*I0)
+W    = $(fmt(Fields.energy(grid, field) * unit.r^2 * unit.t * unit.I)) [J] - pulse energy
+Wg   = $(fmt(Fields.energy_gauss(grid, field) * unit.r^2 * unit.t * unit.I)) [J] - Gaussian pulse energy (pi^1.5*t0*a0^2*I0)
 Wph  = $(fmt(Fields.energy_photon(field))) [J] - energy of one photon
 
 # Medium (all values are given at central frequency) ---------------------------

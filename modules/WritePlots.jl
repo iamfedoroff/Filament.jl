@@ -15,7 +15,6 @@ struct PlotVar
     name :: String
     siunit :: String
     unit :: Float64
-    func :: Function
 end
 
 
@@ -27,13 +26,13 @@ end
 
 function PlotDAT(fname::String, unit::Units.Unit)
     plotvars = [
-        PlotVar("Fmax", "J/m^2", unit.t * unit.I, Fields.peak_fluence),
-        PlotVar("Imax", "W/m2", unit.I, Fields.peak_intensity),
-        PlotVar("Nemax", "1/m3", unit.rho, Fields.peak_plasma_density),
-        PlotVar("De", "1/m", unit.r^2 * unit.rho, Fields.linear_plasma_density),
-        PlotVar("rfil", "m", unit.r, Fields.beam_radius),
-        PlotVar("rpl", "m", unit.r, Fields.plasma_radius),
-        PlotVar("W", "J", unit.I * unit.t * unit.r^2, Fields.energy),
+        PlotVar("Fmax", "J/m^2", unit.t * unit.I),
+        PlotVar("Imax", "W/m2", unit.I),
+        PlotVar("Nemax", "1/m3", unit.rho),
+        PlotVar("De", "1/m", unit.r^2 * unit.rho),
+        PlotVar("rfil", "m", unit.r),
+        PlotVar("rpl", "m", unit.r),
+        PlotVar("W", "J", unit.I * unit.t * unit.r^2),
         ]
 
     # Write header:
@@ -69,13 +68,41 @@ function PlotDAT(fname::String, unit::Units.Unit)
 end
 
 
-function writeDAT(plotdat::PlotDAT, z::Float64, field::Fields.Field)
+function writeDAT(plotdat::PlotDAT, z::Float64, grid::Grids.Grid,
+                  field::Fields.Field)
     fp = open(plotdat.fname, "a")
+
+    # z
     write(fp, "  $(Formatting.fmt("18.12e", z)) ")
-    for plotvar in plotdat.plotvars
-        var = plotvar.func(field)
-        write(fp, "$(Formatting.fmt("18.12e", var)) ")
-    end
+
+    # Fmax
+    var = Fields.peak_fluence(grid, field)
+    write(fp, "$(Formatting.fmt("18.12e", var)) ")
+
+    # Imax
+    var = Fields.peak_intensity(field)
+    write(fp, "$(Formatting.fmt("18.12e", var)) ")
+
+    # Nemax
+    var = Fields.peak_plasma_density(field)
+    write(fp, "$(Formatting.fmt("18.12e", var)) ")
+
+    # De
+    var = Fields.linear_plasma_density(grid, field)
+    write(fp, "$(Formatting.fmt("18.12e", var)) ")
+
+    # rfil
+    var = Fields.beam_radius(grid, field)
+    write(fp, "$(Formatting.fmt("18.12e", var)) ")
+
+    # rpl
+    var = Fields.plasma_radius(grid, field)
+    write(fp, "$(Formatting.fmt("18.12e", var)) ")
+
+    # W
+    var = Fields.energy(grid, field)
+    write(fp, "$(Formatting.fmt("18.12e", var)) ")
+
     write(fp, "\n")
     close(fp)
 end
@@ -154,7 +181,8 @@ function writeHDF(plothdf::PlotHDF, z::Float64, field::Fields.Field)
 end
 
 
-function writeHDF_zdata(plothdf::PlotHDF, z::Float64, field::Fields.Field)
+function writeHDF_zdata(plothdf::PlotHDF, z::Float64, grid::Grids.Grid,
+                        field::Fields.Field)
     plothdf.iz = plothdf.iz + 1
     iz = plothdf.iz
 
@@ -173,35 +201,35 @@ function writeHDF_zdata(plothdf::PlotHDF, z::Float64, field::Fields.Field)
     data_name = "Fzx"
     if ! HDF5.exists(group_zdat, data_name)
         HDF5.d_create(group_zdat, data_name, Float64,
-                      # ((1, field.grid.Nr), (-1, field.grid.Nr)),
-                      ((field.grid.Nr, 1), (field.grid.Nr, -1)),
+                      # ((1, grid.Nr), (-1, grid.Nr)),
+                      ((grid.Nr, 1), (grid.Nr, -1)),
                       "chunk", (1, 1))
     end
     data = group_zdat[data_name]
-    # HDF5.set_dims!(data, (iz, field.grid.Nr))
-    # data[iz, :] = Fields.fluence(field)
-    HDF5.set_dims!(data, (field.grid.Nr, iz))
-    data[:, iz] = Fields.fluence(field)
+    # HDF5.set_dims!(data, (iz, grid.Nr))
+    # data[iz, :] = Fields.fluence(grid, field)
+    HDF5.set_dims!(data, (grid.Nr, iz))
+    data[:, iz] = Fields.fluence(grid, field)
 
     data_name = "Nezx"
     if ! HDF5.exists(group_zdat, data_name)
         HDF5.d_create(group_zdat, data_name, Float64,
-                      ((1, field.grid.Nr), (-1, field.grid.Nr)),
+                      ((1, grid.Nr), (-1, grid.Nr)),
                       "chunk", (1, 1))
     end
     data = group_zdat[data_name]
-    HDF5.set_dims!(data, (iz, field.grid.Nr))
+    HDF5.set_dims!(data, (iz, grid.Nr))
     data[iz, :] = field.rho
 
     data_name = "iSzf"
     if ! HDF5.exists(group_zdat, data_name)
         HDF5.d_create(group_zdat, data_name, Float64,
-                      ((1, field.grid.Nw), (-1, field.grid.Nw)),
+                      ((1, grid.Nw), (-1, grid.Nw)),
                       "chunk", (1, 1))
     end
     data = group_zdat[data_name]
-    HDF5.set_dims!(data, (iz, field.grid.Nw))
-    data[iz, :] = Fields.integral_power_spectrum(field)
+    HDF5.set_dims!(data, (iz, grid.Nw))
+    data[iz, :] = Fields.integral_power_spectrum(grid, field)
 
     HDF5.close(fp)
 end

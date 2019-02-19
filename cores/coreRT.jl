@@ -80,12 +80,12 @@ function main()
 
     file_plotdat = joinpath(prefix_dir, string(prefix_name, "plot.dat"))
     plotdat = WritePlots.PlotDAT(file_plotdat, unit)
-    WritePlots.writeDAT(plotdat, z, field)
+    WritePlots.writeDAT(plotdat, z, grid, field)
 
     file_plothdf = joinpath(prefix_dir, string(prefix_name, "plot.h5"))
     plothdf = WritePlots.PlotHDF(file_plothdf, unit, grid)
     WritePlots.writeHDF(plothdf, z, field)
-    WritePlots.writeHDF_zdata(plothdf, z, field)
+    WritePlots.writeHDF_zdata(plothdf, z, grid, field)
 
     # **************************************************************************
     # Prepare model
@@ -126,7 +126,7 @@ function main()
         Models.zstep(dz, grid, field, plasma, model)
 
         # Write integral parameters to dat file
-        WritePlots.writeDAT(plotdat, z, field)
+        WritePlots.writeDAT(plotdat, z, grid, field)
 
         # Write field to hdf file
         if z >= znext_plothdf
@@ -136,13 +136,13 @@ function main()
 
         # Write 1d field data to hdf file
         if z >= znext_zdata
-            WritePlots.writeHDF_zdata(plothdf, z, field)
+            WritePlots.writeHDF_zdata(plothdf, z, grid, field)
             znext_zdata = z + dz_zdata
         end
 
         # Exit conditions
         if Imax > Input.Istop
-            WritePlots.writeHDF_zdata(plothdf, z, field)
+            WritePlots.writeHDF_zdata(plothdf, z, grid, field)
             message = "Stop (Imax >= Istop): z=$(z)[zu], z=$(z * unit.z)[m]\n"
             Infos.write_message(info, message)
             break
