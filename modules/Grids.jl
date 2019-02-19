@@ -5,7 +5,6 @@ using PyCall
 @pyimport scipy.constants as sc
 
 import Hankel
-import HankelGPU
 import Fourier
 import FourierGPU
 
@@ -25,7 +24,6 @@ struct Grid
     Nt :: Int64
 
     HT :: Hankel.HankelTransform
-    HTGPU :: HankelGPU.HankelTransform
 
     r :: Array{Float64, 1}
     dr :: Array{Float64, 1}
@@ -56,8 +54,7 @@ end
 function Grid(rmax, Nr, tmin, tmax, Nt)
     geometry = "RT"
 
-    HT = Hankel.HankelTransform(rmax, Nr)   # Hankel transform
-    HTGPU = HankelGPU.HankelTransform(rmax, Nr, Nt)   # Hankel transform for GPU
+    HT = Hankel.HankelTransform(rmax, Nr, Nt)   # Hankel transform
 
     r = HT.r   # radial coordinates
 
@@ -105,7 +102,7 @@ function Grid(rmax, Nr, tmin, tmax, Nt)
     FTGPU = FourierGPU.FourierTransform(Nr, Nt)   # Fourier transform for GPU
 
     return Grid(geometry, rmax, Nr, tmin, tmax, Nt,
-                HT, HTGPU, r, dr, dr_mean, v, k, dk_mean, kc,
+                HT, r, dr, dr_mean, v, k, dk_mean, kc,
                 t, dt, f, Nf, df, fc, w, Nw, dw, wc, lam, Nlam, FT, FTGPU)
 end
 

@@ -12,7 +12,7 @@ import Grids
 import Fields
 import Media
 import Plasmas
-import HankelGPU
+import Hankel
 import Fourier
 import FourierGPU
 import RungeKuttasGPU
@@ -285,16 +285,16 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
         if model.keys["QPARAXIAL"] != 0
             @inbounds @. res_gpu = -1im * model.QZ_gpu * res_gpu
         else
-            print("STOP!\n")
-            quit()
-            for j=1:grid.Nw
-                res[:, j] = Hankel.dht(grid.HT, res[:, j])
-            end
-            @inbounds @. res = -1im * model.QZ * res
-            @inbounds @. res = res * model.guard.K   # angular filter
-            for j=1:grid.Nw
-                res[:, j] = Hankel.idht(grid.HT, res[:, j])
-            end
+            println("STOP!")
+            exit()
+            # for j=1:grid.Nw
+            #     res[:, j] = Hankel.dht(grid.HT, res[:, j])
+            # end
+            # @inbounds @. res = -1im * model.QZ * res
+            # @inbounds @. res = res * model.guard.K   # angular filter
+            # for j=1:grid.Nw
+            #     res[:, j] = Hankel.idht(grid.HT, res[:, j])
+            # end
         end
 
         return nothing
@@ -318,10 +318,10 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     end
 
     # Linear propagator --------------------------------------------------------
-    HankelGPU.dht!(grid.HTGPU, field.S_gpu)
+    Hankel.dht!(grid.HT, field.S_gpu)
     linear_propagator!(field.S_gpu, model.KZ_gpu, dz_gpu)   # S = S * exp(KZ * dz)
     Guards.apply_frequency_angular_filter!(model.guard, field.S_gpu)
-    HankelGPU.idht!(grid.HTGPU, field.S_gpu)
+    Hankel.idht!(grid.HT, field.S_gpu)
 
     # Temporal spectrum -> field -----------------------------------------------
     FourierGPU.hilbert2!(grid.FTGPU, field.S_gpu, field.E_gpu)   # spectrum real to signal analytic
