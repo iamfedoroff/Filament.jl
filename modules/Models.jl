@@ -15,7 +15,7 @@ import Plasmas
 import Hankel
 import Fourier
 import FourierGPU
-import RungeKuttasGPU
+import RungeKuttas
 import Guards
 
 const C0 = sc.c   # speed of light in vacuum
@@ -40,8 +40,8 @@ struct Model
     phi_kerr :: Float64
     phi_plasma :: Float64
     guard :: Guards.GuardFilter
-    RKGPU :: Union{RungeKuttasGPU.RungeKutta2, RungeKuttasGPU.RungeKutta3,
-                   RungeKuttasGPU.RungeKutta4}
+    RK :: Union{RungeKuttas.RungeKutta2, RungeKuttas.RungeKutta3,
+                RungeKuttas.RungeKutta4}
     keys :: Dict
 end
 
@@ -58,7 +58,7 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
 
     # Runge-Kutta --------------------------------------------------------------
     RKORDER = keys["RKORDER"]
-    RKGPU = RungeKuttasGPU.RungeKutta(RKORDER, grid.Nr, grid.Nw)
+    RK = RungeKuttas.RungeKutta(RKORDER, grid.Nr, grid.Nw)
 
     # Linear propagator --------------------------------------------------------
     KPARAXIAL = keys["KPARAXIAL"]
@@ -175,7 +175,7 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     Ra_gpu = CuArrays.cu(convert(Array{ComplexGPU, 1}, Ra))
 
     return Model(KZ_gpu, QZ_gpu, Rk_gpu, Rr_gpu, Hramanw_gpu, Rp_gpu, Ra_gpu,
-                 phi_kerr, phi_plasma, guard, RKGPU, keys)
+                 phi_kerr, phi_plasma, guard, RK, keys)
 end
 
 
@@ -314,7 +314,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     # Nonlinear propagator -----------------------------------------------------
     if (model.keys["KERR"] != 0) | (model.keys["PLASMA"] != 0) |
        (model.keys["ILOSSES"] != 0)
-        RungeKuttasGPU.RungeKutta_calc!(model.RKGPU, field.S_gpu, dz_gpu, func_gpu!)
+        RungeKuttas.RungeKutta_calc!(model.RK, field.S_gpu, dz_gpu, func_gpu!)
     end
 
     # Linear propagator --------------------------------------------------------
