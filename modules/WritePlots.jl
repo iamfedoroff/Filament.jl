@@ -6,6 +6,7 @@ import HDF5
 import Units
 import Grids
 import Fields
+import Plasmas
 
 
 # ******************************************************************************
@@ -69,7 +70,7 @@ end
 
 
 function writeDAT(plotdat::PlotDAT, z::Float64, grid::Grids.Grid,
-                  field::Fields.Field)
+                  field::Fields.Field, plasma::Plasmas.Plasma)
     fp = open(plotdat.fname, "a")
 
     # z
@@ -84,11 +85,11 @@ function writeDAT(plotdat::PlotDAT, z::Float64, grid::Grids.Grid,
     write(fp, "$(Formatting.fmt("18.12e", var)) ")
 
     # Nemax
-    var = Fields.peak_plasma_density(field)
+    var = Plasmas.peak_plasma_density(plasma)
     write(fp, "$(Formatting.fmt("18.12e", var)) ")
 
     # De
-    var = Fields.linear_plasma_density(grid, field)
+    var = Plasmas.linear_plasma_density(grid, plasma)
     write(fp, "$(Formatting.fmt("18.12e", var)) ")
 
     # rfil
@@ -96,7 +97,7 @@ function writeDAT(plotdat::PlotDAT, z::Float64, grid::Grids.Grid,
     write(fp, "$(Formatting.fmt("18.12e", var)) ")
 
     # rpl
-    var = Fields.plasma_radius(grid, field)
+    var = Plasmas.plasma_radius(grid, plasma)
     write(fp, "$(Formatting.fmt("18.12e", var)) ")
 
     # W
@@ -182,7 +183,7 @@ end
 
 
 function writeHDF_zdata(plothdf::PlotHDF, z::Float64, grid::Grids.Grid,
-                        field::Fields.Field)
+                        field::Fields.Field, plasma::Plasmas.Plasma)
     plothdf.iz = plothdf.iz + 1
     iz = plothdf.iz
 
@@ -219,7 +220,7 @@ function writeHDF_zdata(plothdf::PlotHDF, z::Float64, grid::Grids.Grid,
     end
     data = group_zdat[data_name]
     HDF5.set_dims!(data, (iz, grid.Nr))
-    data[iz, :] = field.rho
+    data[iz, :] = plasma.rho_end
 
     data_name = "iSzf"
     if ! HDF5.exists(group_zdat, data_name)

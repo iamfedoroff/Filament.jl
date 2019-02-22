@@ -20,6 +20,8 @@ struct Plasma
     components :: Array{PlasmaComponents.Component, 1}
     Ncomp :: Int64
 
+    rho_end :: Array{Float64, 1}
+
     rho :: CuArrays.CuArray{FloatGPU, 2}
     Kdrho :: CuArrays.CuArray{FloatGPU, 2}
     RI :: CuArrays.CuArray{FloatGPU, 2}
@@ -60,6 +62,8 @@ function Plasma(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
                                                    Ui, fname_tabfunc, keys)
     end
 
+    rho_end = zeros(grid.Nr)
+
     rho = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
     Kdrho = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
     RI = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
@@ -96,9 +100,33 @@ function Plasma(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     nblocks = Int(ceil(grid.Nr / nthreads))
 
     return Plasma(nuc, mr, components, Ncomp,
-                  rho, Kdrho, RI, rho_comp, Kdrho_comp, RI_comp,
+                  rho_end, rho, Kdrho, RI, rho_comp, Kdrho_comp, RI_comp,
                   frho0s, Ks, Wavas, tfxs, tfys, IONARG, AVALANCHE,
                   nblocks, nthreads)
+end
+
+
+function peak_plasma_density(plasma::Plasma)
+    return maximum(plasma.rho_end)
+end
+
+
+function plasma_radius(grid::Grids.Grid, plasma::Plasma)
+    # Factor 2. because rho(r) is only half of full distribution rho(x)
+    return 2. * Fields.radius(grid.r, plasma.rho_end)
+end
+
+
+"""
+Linear plasma density:
+    lrho = Int[rho * 2*pi*r*dr],   [lrho] = 1/m
+"""
+function linear_plasma_density(grid::Grids.Grid, plasma::Plasma)
+    lrho = 0.
+    for i=1:grid.Nr
+        lrho = lrho + plasma.rho_end[i] * grid.r[i] * grid.dr[i]
+    end
+    return lrho * 2. * pi
 end
 
 
@@ -114,7 +142,7 @@ function free_charge(plasma::Plasma, grid::Grids.Grid, field::Fields.Field)
                                                    plasma.tfxs, plasma.tfys,
                                                    plasma.IONARG,
                                                    plasma.AVALANCHE)
-    field.rho = convert(Array{Float64, 1}, CuArrays.collect(plasma.rho[:, end]))
+    plasma.rho_end[:] = CuArrays.collect(plasma.rho[:, end])
     return nothing
 end
 

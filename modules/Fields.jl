@@ -24,7 +24,6 @@ mutable struct Field
     E :: Array{ComplexF64, 2}
     E_gpu :: CuArrays.CuArray{ComplexGPU, 2}
     S_gpu :: CuArrays.CuArray{ComplexGPU, 2}
-    rho :: Array{Float64, 1}
 end
 
 
@@ -41,9 +40,7 @@ function Field(unit::Units.Unit, grid::Grids.Grid, lam0::Float64,
     E_gpu = CuArrays.cu(convert(Array{ComplexGPU, 2}, E))
     S_gpu = CuArrays.cuzeros(ComplexGPU, (grid.Nr, grid.Nw))
 
-    rho = zeros(grid.Nr)
-
-    return Field(lam0, f0, w0, E, E_gpu, S_gpu, rho)
+    return Field(lam0, f0, w0, E, E_gpu, S_gpu)
 end
 
 
@@ -147,30 +144,6 @@ function peak_power_gauss(grid::Grids.Grid, field::Field)
     a0 = beam_radius(grid, field)
     I0 = peak_intensity(field)
     return pi * a0^2 * I0
-end
-
-
-function peak_plasma_density(field::Field)
-    return maximum(field.rho)
-end
-
-
-function plasma_radius(grid::Grids.Grid, field::Field)
-    # Factor 2. because rho(r) is only half of full distribution rho(x)
-    return 2. * radius(grid.r, field.rho)
-end
-
-
-"""
-Linear plasma density:
-    lrho = Int[Ne * 2*pi*r*dr],   [De] = 1/m
-"""
-function linear_plasma_density(grid::Grids.Grid, field::Field)
-    lrho = 0.
-    for i=1:grid.Nr
-        lrho = lrho + field.rho[i] * grid.r[i] * grid.dr[i]
-    end
-    return lrho * 2. * pi
 end
 
 
