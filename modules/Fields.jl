@@ -16,7 +16,7 @@ const C0 = sc.c   # speed of light in vacuum
 const HBAR = sc.hbar   # the Planck constant (divided by 2*pi) [J*s]
 
 
-mutable struct Field
+struct Field
     lam0 :: Float64
     f0 :: Float64
     w0 :: Float64

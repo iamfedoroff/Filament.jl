@@ -328,7 +328,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     Guards.apply_spatio_temporal_filter!(model.guard, field.E_gpu)
 
     # Collect field from GPU:
-    field.E = convert(Array{ComplexF64, 2}, CuArrays.collect(field.E_gpu))
+    field.E[:, :] = CuArrays.collect(field.E_gpu)
 
     return nothing
 end
