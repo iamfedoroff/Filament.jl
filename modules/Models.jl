@@ -43,6 +43,11 @@ struct Model
     RK :: Union{RungeKuttas.RungeKutta2, RungeKuttas.RungeKutta3,
                 RungeKuttas.RungeKutta4}
     keys :: Dict
+
+    Ec :: CuArrays.CuArray{ComplexGPU, 2}
+    Er :: CuArrays.CuArray{FloatGPU, 2}
+    Ftmp :: CuArrays.CuArray{FloatGPU, 2}
+    Stmp :: CuArrays.CuArray{ComplexGPU, 2}
 end
 
 
@@ -174,8 +179,14 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     Rp_gpu = CuArrays.cu(convert(Array{ComplexGPU, 1}, Rp))
     Ra_gpu = CuArrays.cu(convert(Array{ComplexGPU, 1}, Ra))
 
+    Ec = CuArrays.cuzeros(ComplexGPU, (grid.Nr, grid.Nt))
+    Er = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
+    Ftmp = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
+    Stmp = CuArrays.cuzeros(ComplexGPU, (grid.Nr, grid.Nw))
+
     return Model(KZ_gpu, QZ_gpu, Rk_gpu, Rr_gpu, Hramanw_gpu, Rp_gpu, Ra_gpu,
-                 phi_kerr, phi_plasma, guard, RK, keys)
+                 phi_kerr, phi_plasma, guard, RK, keys,
+                 Ec, Er, Ftmp, Stmp)
 end
 
 
@@ -199,91 +210,67 @@ end
 
 
 function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
-               plasma::Plasmas.Plasma, model::Models.Model)
+               plasma::Plasmas.Plasma, model::Model)
 
 
-    function func_gpu!(S_gpu::CuArrays.CuArray{ComplexGPU, 2},
-                       res_gpu::CuArrays.CuArray{ComplexGPU, 2})
-        Ec_gpu = CuArrays.cuzeros(ComplexGPU, grid.Nt)
-        Er_gpu = CuArrays.cuzeros(FloatGPU, grid.Nt)
-        Sr_gpu = CuArrays.cuzeros(ComplexGPU, grid.Nw)
-        Ftmp_gpu = CuArrays.cuzeros(FloatGPU, grid.Nt)
-        Stmp_gpu = CuArrays.cuzeros(ComplexGPU, grid.Nw)
-        resi_gpu = CuArrays.cuzeros(ComplexGPU, grid.Nw)
-        rhoi_gpu = CuArrays.cuzeros(FloatGPU, grid.Nt)
-        Kdrhoi_gpu = CuArrays.cuzeros(FloatGPU, grid.Nt)
-        zeros_gpu = CuArrays.cuzeros(ComplexGPU, grid.Nw)
+    function func!(S::CuArrays.CuArray{ComplexGPU, 2},
+                   out::CuArrays.CuArray{ComplexGPU, 2})
+        fill!(out, FloatGPU(0.))
 
-        for i=1:grid.Nr
-            equal1!(Sr_gpu, i, S_gpu)   # Sr_gpu = S_gpu[i, :]
-            FourierGPU.hilbert!(grid.FTGPU, Sr_gpu, Ec_gpu)   # spectrum real to signal analytic
-            @inbounds @. Er_gpu = real(Ec_gpu)
+        FourierGPU.hilbert2!(grid.FTGPU, S, model.Ec)   # spectrum real to signal analytic
+        @inbounds @. model.Er = real(model.Ec)
 
-            @inbounds @. resi_gpu = zeros_gpu
-
-            # Kerr nonlinearity:
-            if model.keys["KERR"] != 0
-                if model.keys["THG"] != 0
-                    @inbounds @. Ftmp_gpu = Er_gpu^3
-                else
-                    @inbounds @. Ftmp_gpu = 3. / 4. * abs2(Ec_gpu) * Er_gpu
-                end
-                Guards.apply_temporal_filter!(model.guard, Ftmp_gpu)
-                FourierGPU.rfft!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
-
-                @inbounds @. resi_gpu = resi_gpu + model.Rk_gpu * Stmp_gpu
+        # Kerr nonlinearity:
+        if model.keys["KERR"] != 0
+            if model.keys["THG"] != 0
+                @inbounds @. model.Ftmp = model.Er * model.Er * model.Er
+            else
+                @inbounds @. model.Ftmp = FloatGPU(3. / 4.) * abs2(model.Ec) * model.Er
             end
+            Guards.apply_spatio_temporal_filter!(model.guard, model.Ftmp)
+            FourierGPU.rfft2!(grid.FTGPU, model.Ftmp, model.Stmp)   # time -> frequency
+            @inbounds @. out = out + model.Rk_gpu * model.Stmp
+        end
 
-            # Stimulated Raman nonlinearity:
-            if model.keys["RAMAN"] != 0
-                if model.keys["RTHG"] != 0
-                    @inbounds @. Ftmp_gpu = Er_gpu^2
-                else
-                    @inbounds @. Ftmp_gpu = 3. / 4. * abs2(Ec_gpu)
-                end
-                Guards.apply_temporal_filter!(model.guard, Ftmp_gpu)
-                FourierGPU.convolution!(grid.FTGPU, model.Hramanw_gpu, Ftmp_gpu)
-                @inbounds @. Ftmp_gpu = Ftmp_gpu * Er_gpu
-                Guards.apply_temporal_filter!(model.guard, Ftmp_gpu)
-                FourierGPU.rfft!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
-
-                @inbounds @. resi_gpu = resi_gpu + model.Rr_gpu * Stmp_gpu
+        # Stimulated Raman nonlinearity:
+        if model.keys["RAMAN"] != 0
+            if model.keys["RTHG"] != 0
+                @inbounds @. model.Ftmp = model.Er * model.Er
+            else
+                @inbounds @. model.Ftmp = FloatGPU(3. / 4.) * abs2(model.Ec)
             end
+            FourierGPU.convolution2!(grid.FTGPU, model.Hramanw_gpu, model.Ftmp)
+            @inbounds @. model.Ftmp = model.Ftmp * model.Er
+            Guards.apply_spatio_temporal_filter!(model.guard, model.Ftmp)
+            FourierGPU.rfft2!(grid.FTGPU, model.Ftmp, model.Stmp)   # time -> frequency
+            @inbounds @. out = out + model.Rr_gpu * model.Stmp
+        end
 
-            # Plasma nonlinearity:
-            if model.keys["PLASMA"] != 0
-                equal1!(rhoi_gpu, i, plasma.rho)   # rhoi_gpu = rho_gpu[i, :]
-                @inbounds @. Ftmp_gpu = rhoi_gpu * Er_gpu
-                Guards.apply_temporal_filter!(model.guard, Ftmp_gpu)
-                FourierGPU.rfft!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
+        # Plasma nonlinearity:
+        if model.keys["PLASMA"] != 0
+            @inbounds @. model.Ftmp = plasma.rho * model.Er
+            Guards.apply_spatio_temporal_filter!(model.guard, model.Ftmp)
+            FourierGPU.rfft2!(grid.FTGPU, model.Ftmp, model.Stmp)   # time -> frequency
+            update_out!(out, model.Rp_gpu, model.Stmp)   # out = out + Rp * Stmp
+        end
 
-                @inbounds @. resi_gpu = resi_gpu + model.Rp_gpu * Stmp_gpu
+        # Losses due to multiphoton ionization:
+        if model.keys["ILOSSES"] != 0
+            if model.keys["IONARG"] != 0
+                @inbounds @. model.Ftmp = abs2(model.Ec)
+            else
+                @inbounds @. model.Ftmp = model.Er * model.Er
             end
-
-            # Losses due to multiphoton ionization:
-            if model.keys["ILOSSES"] != 0
-                equal1!(Kdrhoi_gpu, i, plasma.Kdrho)   # Kdrhoi_gpu = Kdrho_gpu[i, :]
-
-                if model.keys["IONARG"] != 0
-                    @inbounds @. Ftmp_gpu = abs2(Ec_gpu)
-                else
-                    @inbounds @. Ftmp_gpu = Er_gpu^2
-                end
-
-                safe_inverse!(Ftmp_gpu)
-                @inbounds @. Ftmp_gpu = Kdrhoi_gpu * Ftmp_gpu * Er_gpu
-                Guards.apply_temporal_filter!(model.guard, Ftmp_gpu)
-                FourierGPU.rfft!(grid.FTGPU, Ftmp_gpu, Stmp_gpu)   # time -> frequency
-
-                @inbounds @. resi_gpu = resi_gpu + model.Ra_gpu * Stmp_gpu
-            end
-
-            equal2!(res_gpu, i, resi_gpu)   # res_gpu[i, :] = resi_gpu
+            inverse!(model.Ftmp)
+            @inbounds @. model.Ftmp = plasma.Kdrho * model.Ftmp * model.Er
+            Guards.apply_spatio_temporal_filter!(model.guard, model.Ftmp)
+            FourierGPU.rfft2!(grid.FTGPU, model.Ftmp, model.Stmp)   # time -> frequency
+            update_out!(out, model.Ra_gpu, model.Stmp)   # out = out + Ra * Stmp
         end
 
         # Nonparaxiality:
         if model.keys["QPARAXIAL"] != 0
-            @inbounds @. res_gpu = -1im * model.QZ_gpu * res_gpu
+            @inbounds @. out = -1im * model.QZ_gpu * out
         else
             println("STOP!")
             exit()
@@ -314,7 +301,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     # Nonlinear propagator -----------------------------------------------------
     if (model.keys["KERR"] != 0) | (model.keys["PLASMA"] != 0) |
        (model.keys["ILOSSES"] != 0)
-        RungeKuttas.RungeKutta_calc!(model.RK, field.S_gpu, dz_gpu, func_gpu!)
+        RungeKuttas.RungeKutta_calc!(model.RK, field.S_gpu, dz_gpu, func!)
     end
 
     # Linear propagator --------------------------------------------------------
@@ -463,72 +450,50 @@ function linear_propagator_kernel(S, KZ, dz)
 end
 
 
-function safe_inverse!(a::CuArrays.CuArray{FloatGPU, 1})
-    N = length(a)
+function inverse!(F)
+    N1, N2 = size(F)
     dev = CUDAnative.CuDevice(0)
-    MAX_THREADS = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
-    nth = min(N, MAX_THREADS)
-    nbl = Int(ceil(N / nth))
-    @CUDAnative.cuda blocks=nbl threads=nth safe_inverse_kernel(a)
+    MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
+    nth = min(N1 * N2, MAX_THREADS_PER_BLOCK)
+    nbl = Int(ceil(N1 * N2 / nth))
+    @CUDAnative.cuda blocks=nbl threads=nth inverse_kernel(F)
     return nothing
 end
 
-
-function safe_inverse_kernel(a)
+function inverse_kernel(F)
     id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
     stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
-    N = length(a)
-    for i=id:stride:N
-        if a[i] >= FloatGPU(1e-30)
-            a[i] = FloatGPU(1.) / a[i]
+    N1, N2 = size(F)
+    for k=id:stride:N1*N2
+        if F[k] >= FloatGPU(1e-30)
+            F[k] = FloatGPU(1.) / F[k]
         else
-            a[i] = FloatGPU(0.)
+            F[k] = FloatGPU(0.)
         end
     end
     return nothing
 end
 
-
-function equal1!(b, i::Int64, a)
-    N = length(b)
+function update_out!(out, R, S)
+    N1, N2 = size(S)
     dev = CUDAnative.CuDevice(0)
     MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
-    nth = min(N, MAX_THREADS_PER_BLOCK)
-    nbl = Int(ceil(N / nth))
-    @CUDAnative.cuda blocks=nbl threads=nth equal1_kernel(b, i, a)
+    nth = min(N1 * N2, MAX_THREADS_PER_BLOCK)
+    nbl = Int(ceil(N1 * N2 / nth))
+    @CUDAnative.cuda blocks=nbl threads=nth update_out_kernel(out, R, S)
     return nothing
 end
 
 
-function equal1_kernel(b, i, a)
+function update_out_kernel(out, R, S)
     id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
     stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
-    N = length(b)
-    for j=id:stride:N
-        b[j] = a[i, j]
-    end
-    return nothing
-end
-
-
-function equal2!(b::CuArrays.CuArray{ComplexGPU, 2},
-                 i::Int64,
-                 a::CuArrays.CuArray{ComplexGPU, 1})
-    N = length(b)
-    dev = CUDAnative.CuDevice(0)
-    MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
-    nth = min(N, MAX_THREADS_PER_BLOCK)
-    nbl = Int(ceil(N / nth))
-    @CUDAnative.cuda blocks=nbl threads=nth equal2_kernel(b, i, a)
-end
-
-
-function equal2_kernel(b, i, a)
-    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
-    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
-    N = length(a)
-    for j=id:stride:N
-        b[i, j] = a[j]
+    Nr, Nw = size(S)
+    cartesian = CartesianIndices((Nr, Nw))
+    for k=id:stride:Nr*Nw
+        i = cartesian[k][1]
+        j = cartesian[k][2]
+        @inbounds out[i, j] = out[i, j] + R[j] * S[i, j]
     end
     return nothing
 end

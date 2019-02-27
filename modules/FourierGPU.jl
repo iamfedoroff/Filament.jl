@@ -19,19 +19,23 @@ struct FourierTransform
     Sc :: CuArrays.CuArray{ComplexGPU, 1}
     Sc2 :: CuArrays.CuArray{ComplexGPU, 2}
     Sr :: CuArrays.CuArray{ComplexGPU, 1}
+    Sr2 :: CuArrays.CuArray{ComplexGPU, 2}
 
     pifft :: FFTW.Plan
     pifft2 :: FFTW.Plan
     prfft :: FFTW.Plan
     prfft2 :: FFTW.Plan
     pirfft :: FFTW.Plan
+    pirfft2 :: FFTW.Plan
 
     nthreadsNt :: Int64
     nthreadsNw :: Int64
     nblocksNt :: Int64
     nblocksNw :: Int64
-    nthreads2 :: Int64
-    nblocks2 :: Int64
+    nthreadsNrNt :: Int64
+    nthreadsNrNw :: Int64
+    nblocksNrNt :: Int64
+    nblocksNrNw :: Int64
 end
 
 
@@ -48,12 +52,14 @@ function FourierTransform(Nr::Int64, Nt::Int64)
     Sc = CuArrays.cuzeros(ComplexGPU, Nt)
     Sc2 = CuArrays.cuzeros(ComplexGPU, (Nr, Nt))
     Sr = CuArrays.cuzeros(ComplexGPU, Nw)
+    Sr2 = CuArrays.cuzeros(ComplexGPU, (Nr, Nw))
 
     pifft = FFTW.plan_ifft(CuArrays.cuzeros(ComplexGPU, Nt))
     pifft2 = FFTW.plan_ifft(CuArrays.cuzeros(ComplexGPU, (Nr, Nt)), [2])
     prfft = FFTW.plan_rfft(CuArrays.cuzeros(FloatGPU, Nt))
     prfft2 = FFTW.plan_rfft(CuArrays.cuzeros(FloatGPU, (Nr, Nt)), [2])
     pirfft = FFTW.plan_irfft(CuArrays.cuzeros(ComplexGPU, Nw), Nt)
+    pirfft2 = FFTW.plan_irfft(CuArrays.cuzeros(ComplexGPU, (Nr, Nw)), Nt, [2])
 
     dev = CUDAnative.CuDevice(0)
     MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
@@ -61,14 +67,16 @@ function FourierTransform(Nr::Int64, Nt::Int64)
     nthreadsNw = min(Nw, MAX_THREADS_PER_BLOCK)
     nblocksNt = Int(ceil(Nt / nthreadsNt))
     nblocksNw = Int(ceil(Nw / nthreadsNw))
-    nthreads2 = min(Nr * Nt, MAX_THREADS_PER_BLOCK)
-    nblocks2 = Int(ceil(Nr * Nt / nthreads2))
+    nthreadsNrNt = min(Nr * Nt, MAX_THREADS_PER_BLOCK)
+    nblocksNrNt = Int(ceil(Nr * Nt / nthreadsNrNt))
+    nthreadsNrNw = min(Nr * Nw, MAX_THREADS_PER_BLOCK)
+    nblocksNrNw = Int(ceil(Nr * Nw / nthreadsNrNt))
 
     return FourierTransform(Nr, Nt, Nw,
-                            Er2, Sc, Sc2, Sr,
-                            pifft, pifft2, prfft, prfft2, pirfft,
+                            Er2, Sc, Sc2, Sr, Sr2,
+                            pifft, pifft2, prfft, prfft2, pirfft, pirfft2,
                             nthreadsNt, nthreadsNw, nblocksNt, nblocksNw,
-                            nthreads2, nblocks2)
+                            nthreadsNrNt, nthreadsNrNw, nblocksNrNt, nblocksNrNw)
 end
 
 
@@ -97,10 +105,18 @@ end
 
 
 function rfft2!(FT::FourierTransform,
+                E::CuArrays.CuArray{FloatGPU, 2},
+                S::CuArrays.CuArray{ComplexGPU, 2})
+    LinearAlgebra.mul!(S, FT.prfft2, E)   # time -> frequency
+    return nothing
+end
+
+
+function rfft2!(FT::FourierTransform,
                 E::CuArrays.CuArray{ComplexGPU, 2},
                 S::CuArrays.CuArray{ComplexGPU, 2})
-    nth = FT.nthreads2
-    nbl = FT.nblocks2
+    nth = FT.nthreadsNrNt
+    nbl = FT.nblocksNrNt
     @CUDAnative.cuda blocks=nbl threads=nth rfft2_kernel(E, FT.Er2)
     LinearAlgebra.mul!(S, FT.prfft2, FT.Er2)   # time -> frequency
     return nothing
@@ -125,6 +141,14 @@ function irfft!(FT::FourierTransform,
                 S::CuArrays.CuArray{ComplexGPU, 1},
                 E::CuArrays.CuArray{FloatGPU, 1})
     LinearAlgebra.mul!(E, FT.pirfft, S)   # frequency -> time
+    return nothing
+end
+
+
+function irfft2!(FT::FourierTransform,
+                 S::CuArrays.CuArray{ComplexGPU, 2},
+                 E::CuArrays.CuArray{FloatGPU, 2})
+    LinearAlgebra.mul!(E, FT.pirfft2, S)   # frequency -> time
     return nothing
 end
 
@@ -173,8 +197,8 @@ WARNING: Needs test for odd N and low frequencies.
 function hilbert2!(FT::FourierTransform,
                    Sr::CuArrays.CuArray{ComplexGPU, 2},
                    Ec::CuArrays.CuArray{ComplexGPU, 2})
-    nth = FT.nthreads2
-    nbl = FT.nblocks2
+    nth = FT.nthreadsNrNt
+    nbl = FT.nblocksNrNt
     @CUDAnative.cuda blocks=nbl threads=nth hilbert2_kernel(Sr, FT.Sc2)
     ifft2!(FT, FT.Sc2, Ec)   # frequency -> time
     return nothing
@@ -222,6 +246,32 @@ function convolution_kernel(Sr, Hw)
     Nw = length(Sr)
     for i=id:stride:Nw
         @inbounds Sr[i] = Hw[i] * Sr[i]
+    end
+    return nothing
+end
+
+
+function convolution2!(FT::FourierTransform,
+                      Hw::CuArrays.CuArray{ComplexGPU, 1},
+                      x::CuArrays.CuArray{FloatGPU, 2})
+    rfft2!(FT, x, FT.Sr2)
+    nth = FT.nthreadsNrNw
+    nbl = FT.nblocksNrNw
+    @CUDAnative.cuda blocks=nbl threads=nth convolution2_kernel(FT.Sr2, Hw)
+    irfft2!(FT, FT.Sr2, x)
+    return nothing
+end
+
+
+function convolution2_kernel(Sr, Hw)
+    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
+    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
+    Nr, Nw = size(Sr)
+    cartesian = CartesianIndices((Nr, Nw))
+    for k=id:stride:Nr*Nw
+        i = cartesian[k][1]
+        j = cartesian[k][2]
+        @inbounds Sr[i, j] = Hw[j] * Sr[i, j]
     end
     return nothing
 end

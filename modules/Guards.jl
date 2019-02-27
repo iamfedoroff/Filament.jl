@@ -161,6 +161,14 @@ end
 
 
 function apply_spatio_temporal_filter!(guard::GuardFilter,
+                                       E::CuArrays.CuArray{FloatGPU, 2})
+    nth = guard.nthreadsNrNt
+    nbl = guard.nblocksNrNt
+    @CUDAnative.cuda blocks=nbl threads=nth apply_spatio_temporal_filter_kernel(E, guard.R, guard.T)
+end
+
+
+function apply_spatio_temporal_filter!(guard::GuardFilter,
                                        E::CuArrays.CuArray{ComplexGPU, 2})
     nth = guard.nthreadsNrNt
     nbl = guard.nblocksNrNt
