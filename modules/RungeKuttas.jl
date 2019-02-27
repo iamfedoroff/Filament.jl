@@ -13,11 +13,10 @@ module RungeKuttas
 
 
     struct RungeKutta3
-        k1_gpu :: CuArrays.CuArray{ComplexGPU, 2}
-        k2_gpu :: CuArrays.CuArray{ComplexGPU, 2}
-        k3_gpu :: CuArrays.CuArray{ComplexGPU, 2}
-        res_gpu :: CuArrays.CuArray{ComplexGPU, 2}
-        dum_gpu :: CuArrays.CuArray{ComplexGPU, 2}
+        k1 :: CuArrays.CuArray{ComplexGPU, 2}
+        k2 :: CuArrays.CuArray{ComplexGPU, 2}
+        k3 :: CuArrays.CuArray{ComplexGPU, 2}
+        tmp :: CuArrays.CuArray{ComplexGPU, 2}
     end
 
 
@@ -35,12 +34,11 @@ module RungeKuttas
             k2 = zeros(ComplexF64, (Nr, Nw))
             RK = RungeKutta2(k1, k2)
         elseif order == 3
-            k1_gpu = CuArrays.cuzeros(ComplexGPU, (Nr, Nw))
-            k2_gpu = CuArrays.cuzeros(ComplexGPU, (Nr, Nw))
-            k3_gpu = CuArrays.cuzeros(ComplexGPU, (Nr, Nw))
-            res_gpu = CuArrays.cuzeros(ComplexGPU, (Nr, Nw))
-            dum_gpu = CuArrays.cuzeros(ComplexGPU, (Nr, Nw))
-            RK = RungeKutta3(k1_gpu, k2_gpu, k3_gpu, res_gpu, dum_gpu)
+            k1 = CuArrays.cuzeros(ComplexGPU, (Nr, Nw))
+            k2 = CuArrays.cuzeros(ComplexGPU, (Nr, Nw))
+            k3 = CuArrays.cuzeros(ComplexGPU, (Nr, Nw))
+            tmp = CuArrays.cuzeros(ComplexGPU, (Nr, Nw))
+            RK = RungeKutta3(k1, k2, k3, tmp)
         elseif order == 4
             k1 = zeros(ComplexF64, (Nr, Nw))
             k2 = zeros(ComplexF64, (Nr, Nw))
@@ -70,20 +68,21 @@ module RungeKuttas
 
 
     function RungeKutta_calc!(RK::RungeKutta3,
-                              f_gpu::CuArrays.CuArray{ComplexGPU, 2},
-                              h::FloatGPU, func!::Function)
-        func!(f_gpu, RK.res_gpu)
-        @inbounds @. RK.k1_gpu = h * RK.res_gpu
+                              f::CuArrays.CuArray{ComplexGPU, 2},
+                              h::FloatGPU,
+                              func!::Function)
+        func!(f, RK.k1)
+        @inbounds @. RK.k1 = h * RK.k1
 
-        @inbounds @. RK.dum_gpu = f_gpu + 0.5 * RK.k1_gpu
-        func!(RK.dum_gpu, RK.res_gpu)
-        @inbounds @. RK.k2_gpu = h * RK.res_gpu
+        @inbounds @. RK.tmp = f + 0.5 * RK.k1
+        func!(RK.tmp, RK.k2)
+        @inbounds @. RK.k2 = h * RK.k2
 
-        @inbounds @. RK.dum_gpu = f_gpu - RK.k1_gpu + 2. * RK.k2_gpu
-        func!(RK.dum_gpu, RK.res_gpu)
-        @inbounds @. RK.k3_gpu = h * RK.res_gpu
+        @inbounds @. RK.tmp = f - RK.k1 + 2. * RK.k2
+        func!(RK.tmp, RK.k3)
+        @inbounds @. RK.k3 = h * RK.k3
 
-        @inbounds @. f_gpu = f_gpu + (RK.k1_gpu + 4. * RK.k2_gpu + RK.k3_gpu) / 6.
+        @inbounds @. f = f + (RK.k1 + 4. * RK.k2 + RK.k3) / 6.
         return nothing
     end
 
