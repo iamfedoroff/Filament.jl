@@ -9,7 +9,9 @@ using PyCall
 import Units
 import Grids
 import Fourier
+import FourierGPU
 
+const FloatGPU = Float32
 const ComplexGPU = ComplexF32
 
 const C0 = sc.c   # speed of light in vacuum
@@ -38,29 +40,25 @@ function Field(unit::Units.Unit, grid::Grids.Grid, lam0::Float64,
     end
 
     E_gpu = CuArrays.cu(convert(Array{ComplexGPU, 2}, E))
+
     S_gpu = CuArrays.cuzeros(ComplexGPU, (grid.Nr, grid.Nw))
+    FourierGPU.rfft2!(grid.FTGPU, E_gpu, S_gpu)
 
     return Field(lam0, f0, w0, E, E_gpu, S_gpu)
 end
 
 
 function peak_intensity(field::Field)
-    return maximum(abs2.(field.E))
+    return Float64(maximum(abs2.(field.E_gpu)))
 end
 
 
 """
 Total energy:
-    W = Int[|E(r,t)|^2 * 2*pi*r*dr*dt],   [W] = J
+    W = 2 * pi * Int[|E(r, t)|^2 * r * dr * dt],   [W] = J
 """
 function energy(grid::Grids.Grid, field::Field)
-    W = 0.
-    for j=1:grid.Nt
-        for i=1:grid.Nr
-            W = W + abs2(field.E[i, j]) * grid.r[i] * grid.dr[i]
-        end
-    end
-    return W * 2. * pi * grid.dt
+    return sum(abs2.(field.E_gpu) .* grid.r_gpu .* grid.dr_gpu) * 2. * pi * grid.dt
 end
 
 
@@ -79,22 +77,16 @@ end
 
 """
 Fluence:
-    F(r) = Int[|E(r,t)|^2 * dt],   [F(r)] = J/cm^2
+    F(r) = Int[|E(r, t)|^2 * dt],   [F(r)] = J/cm^2
 """
 function fluence(grid::Grids.Grid, field::Field)
-    F = zeros(grid.Nr)
-    for j=1:grid.Nt
-        for i=1:grid.Nr
-            F[i] = F[i] + abs2(field.E[i, j])
-        end
-    end
-    return F * grid.dt
+    F = sum(abs2.(field.E_gpu) .* FloatGPU(grid.dt), dims=2)
+    return convert(Array{Float64, 1}, CuArrays.collect(F)[:, 1])
 end
 
 
 function peak_fluence(grid::Grids.Grid, field::Field)
-    F = fluence(grid, field)
-    return maximum(F)
+    return maximum(sum(abs2.(field.E_gpu), dims=2)) * grid.dt
 end
 
 
@@ -114,16 +106,12 @@ end
 
 """
 Temporal fluence:
-    F(t) = Int[|E(r,t)|^2 * 2*pi*r*dr],   [F(t)] = W
+    F(t) = 2 * pi * Int[|E(r, t)|^2 * r * dr],   [F(t)] = W
 """
 function temporal_fluence(grid::Grids.Grid, field::Field)
-    F = zeros(grid.Nt)
-    for j=1:grid.Nt
-        for i=1:grid.Nr
-            F[j] = F[j] + abs2(field.E[i, j]) * grid.r[i] * grid.dr[i]
-        end
-    end
-    return F * 2. * pi
+    F = sum(abs2.(field.E_gpu) .* grid.r_gpu .* grid.dr_gpu .*
+            FloatGPU(2. * pi), dims=1)
+    return convert(Array{Float64, 1}, CuArrays.collect(F)[1, :])
 end
 
 
@@ -149,23 +137,19 @@ end
 
 """
 Integral power spectrum:
-    Ew = FFT[Et]
-    S = Int[|Ew|^2 * 2*pi*r*dr]
+    Ew = rfft(Et)
+    Ew = 2. * Ew * dt
+    S = 2 * pi * Int[|Ew|^2 * r * dr]
 """
 function integral_power_spectrum(grid::Grids.Grid, field::Field)
-    S = zeros(grid.Nw)
-    for i=1:grid.Nr
-        Et = real(field.E[i, :])
-        Ew = FFTW.rfft(Et)
-        Ew = 2. * Ew * grid.dt
-        S = S + abs2.(Ew) * grid.r[i] * grid.dr[i]
-    end
-    return S * 2. * pi
+    S = sum(abs2.(field.S_gpu) .* grid.r_gpu .* grid.dr_gpu .*
+            FloatGPU(8. * pi * grid.dt^2), dims=1)
+    return convert(Array{Float64, 1}, CuArrays.collect(S)[1, :])
 end
 
 
 function radius(x::Array{Float64, 1}, y::Array{Float64, 1},
-                level::Float64=1. / exp(1.))
+                level::Float64=exp(-1.))
     Nx = length(x)
     ylevel = maximum(y) * level
 
@@ -185,8 +169,7 @@ function radius(x::Array{Float64, 1}, y::Array{Float64, 1},
         end
     end
 
-    rad = 0.5 * (abs(radl) + abs(radr))
-    return rad
+    return 0.5 * (abs(radl) + abs(radr))
 end
 
 

@@ -1,5 +1,7 @@
 module Grids
 
+import CuArrays
+
 using PyCall
 # @pyimport numpy.fft as npfft
 @pyimport scipy.constants as sc
@@ -9,6 +11,8 @@ import Fourier
 import FourierGPU
 
 const npfft = PyCall.PyNULL()
+
+const FloatGPU = Float32
 
 const C0 = sc.c   # speed of light in vacuum
 
@@ -32,6 +36,9 @@ struct Grid
     k :: Array{Float64, 1}
     dk_mean :: Float64
     kc :: Float64
+
+    r_gpu :: CuArrays.CuArray{FloatGPU, 1}
+    dr_gpu :: CuArrays.CuArray{FloatGPU, 1}
 
     t :: Array{Float64, 1}
     dt :: Float64
@@ -71,6 +78,9 @@ function Grid(rmax, Nr, tmin, tmax, Nt)
     dk_mean = sum(diff(k)) / length(diff(k))   # spatial frequency step
     kc = 2. * pi * 0.5 / dr_mean   # spatial Nyquist frequency
 
+    r_gpu = CuArrays.CuArray(convert(Array{FloatGPU, 1}, r))
+    dr_gpu = CuArrays.CuArray(convert(Array{FloatGPU, 1}, dr))
+
     t = range(tmin, tmax, length=Nt)   # temporal coordinates
     dt = t[2] - t[1]   # temporal step
 
@@ -102,7 +112,7 @@ function Grid(rmax, Nr, tmin, tmax, Nt)
     FTGPU = FourierGPU.FourierTransform(Nr, Nt)   # Fourier transform for GPU
 
     return Grid(geometry, rmax, Nr, tmin, tmax, Nt,
-                HT, r, dr, dr_mean, v, k, dk_mean, kc,
+                HT, r, dr, dr_mean, v, k, dk_mean, kc, r_gpu, dr_gpu,
                 t, dt, f, Nf, df, fc, w, Nw, dw, wc, lam, Nlam, FT, FTGPU)
 end
 
