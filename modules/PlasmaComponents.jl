@@ -1,7 +1,6 @@
 module PlasmaComponents
 
-using PyCall
-@pyimport scipy.constants as sc
+import PyCall
 
 import Units
 import Grids
@@ -9,9 +8,10 @@ import Fields
 import Media
 import TabularFunctions
 
-const QE = sc.e   # elementary charge [C]
-const ME = sc.m_e   # electron mass [kg]
-const HBAR = sc.hbar   # the Planck constant (divided by 2*pi) [J*s]
+scipy_constants = PyCall.pyimport("scipy.constants")
+const QE = scipy_constants.e   # elementary charge [C]
+const ME = scipy_constants.m_e   # electron mass [kg]
+const HBAR = scipy_constants.hbar   # the Planck constant (divided by 2*pi) [J*s]
 
 
 struct Component

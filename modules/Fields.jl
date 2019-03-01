@@ -3,8 +3,7 @@ module Fields
 import FFTW
 import CuArrays
 
-using PyCall
-@pyimport scipy.constants as sc
+import PyCall
 
 import Units
 import Grids
@@ -14,8 +13,9 @@ import FourierGPU
 const FloatGPU = Float32
 const ComplexGPU = ComplexF32
 
-const C0 = sc.c   # speed of light in vacuum
-const HBAR = sc.hbar   # the Planck constant (divided by 2*pi) [J*s]
+scipy_constants = PyCall.pyimport("scipy.constants")
+const C0 = scipy_constants.c   # speed of light in vacuum
+const HBAR = scipy_constants.hbar   # the Planck constant (divided by 2*pi) [J*s]
 
 
 struct Field

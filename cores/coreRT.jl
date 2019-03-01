@@ -16,10 +16,10 @@ module Input
     # Modules and variables available in input files:
     import FFTW
 
-    using PyCall
-    @pyimport numpy.fft as npfft
-    @pyimport scipy.constants as sc
-    C0 = sc.c   # speed of light in vacuum
+    import PyCall
+    numpy_fft = PyCall.pyimport("numpy.fft")
+    scipy_constants = PyCall.pyimport("scipy.constants")
+    C0 = scipy_constants.c   # speed of light in vacuum
 
     # Read input file and change current working directory:
     file_input = abspath(ARGS[1])

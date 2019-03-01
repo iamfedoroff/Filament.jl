@@ -2,19 +2,16 @@ module Grids
 
 import CuArrays
 
-using PyCall
-# @pyimport numpy.fft as npfft
-@pyimport scipy.constants as sc
+import PyCall
 
 import Hankel
 import Fourier
 import FourierGPU
 
-const npfft = PyCall.PyNULL()
-
 const FloatGPU = Float32
 
-const C0 = sc.c   # speed of light in vacuum
+scipy_constants = PyCall.pyimport("scipy.constants")
+const C0 = scipy_constants.c   # speed of light in vacuum
 
 
 struct Grid
@@ -84,9 +81,8 @@ function Grid(rmax, Nr, tmin, tmax, Nt)
     t = range(tmin, tmax, length=Nt)   # temporal coordinates
     dt = t[2] - t[1]   # temporal step
 
-    copy!(npfft, PyCall.pyimport_conda("numpy.fft", "numpy"))
-    f = npfft[:rfftfreq](Nt, dt)   # temporal frequency
-    # f = npfft.rfftfreq(Nt, dt)   # temporal frequency
+    numpy_fft = PyCall.pyimport("numpy.fft")
+    f = numpy_fft.rfftfreq(Nt, dt)   # temporal frequency
     Nf = length(f)   # length of temporal frequency array
     df = f[2] - f[1]   # temporal frequency step
     fc = 0.5 / dt   # temporal Nyquist frequency

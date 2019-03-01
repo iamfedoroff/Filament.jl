@@ -15,10 +15,7 @@ import CUDAnative
 import CuArrays
 import CUDAdrv
 
-using PyCall
-# @pyimport scipy.special as spec
-
-const spec = PyCall.PyNULL()
+import PyCall
 
 const FloatGPU = Float32
 const ComplexGPU = ComplexF32
@@ -45,9 +42,8 @@ end
 
 
 function HankelTransform(R::Float64, Nr::Int64, Nt::Int64, p::Int64=0)
-    copy!(spec, PyCall.pyimport_conda("scipy.special", "scipy"))
-    jn_zeros = spec[:jn_zeros](p, Nr + 1)
-    # jn_zeros = pycall(spec.jn_zeros, Array{Float64, 1}, p, Nr + 1)
+    scipy_special = PyCall.pyimport("scipy.special")
+    jn_zeros = scipy_special.jn_zeros(p, Nr + 1)
     a = jn_zeros[1:end-1]
     aNp1 = jn_zeros[end]
 

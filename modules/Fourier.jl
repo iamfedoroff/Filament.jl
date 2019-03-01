@@ -3,10 +3,7 @@ module Fourier
 import FFTW
 import LinearAlgebra
 
-using PyCall
-# @pyimport numpy.fft as npfft
-
-const npfft = PyCall.PyNULL()
+import PyCall
 
 
 struct FourierTransform
@@ -29,9 +26,8 @@ function FourierTransform(Nt, dt)
         Nw = div(Nt + 1, 2)
     end
 
-    copy!(npfft, PyCall.pyimport_conda("numpy.fft", "numpy"))
-    f = npfft[:fftfreq](Nt, dt)   # temporal frequency
-    # f = npfft.fftfreq(Nt, dt)
+    numpy_fft = PyCall.pyimport("numpy.fft")
+    f = numpy_fft.fftfreq(Nt, dt)   # temporal frequency
     HS = @. 1. + sign(f)   # Heaviside-like step function for Hilbert transform
 
     # arrays to store intermediate results:

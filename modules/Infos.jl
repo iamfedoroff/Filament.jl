@@ -3,14 +3,14 @@ module Infos
 import Formatting
 import Dates
 
-using PyCall
-@pyimport scipy.constants as sc
+import PyCall
 
 import Fields
 import Media
 import PlasmaComponents
 
-const C0 = sc.c   # speed of light in vacuum
+scipy_constants = PyCall.pyimport("scipy.constants")
+const C0 = scipy_constants.c   # speed of light in vacuum
 
 
 struct Info
