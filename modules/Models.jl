@@ -277,16 +277,10 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
         if model.keys["QPARAXIAL"] != 0
             @inbounds @. out = -1im * model.QZ * out
         else
-            println("STOP!")
-            exit()
-            # for j=1:grid.Nw
-            #     res[:, j] = Hankel.dht(grid.HT, res[:, j])
-            # end
-            # @inbounds @. res = -1im * model.QZ * res
-            # @inbounds @. res = res * model.guard.K   # angular filter
-            # for j=1:grid.Nw
-            #     res[:, j] = Hankel.idht(grid.HT, res[:, j])
-            # end
+            Hankel.dht!(grid.HT, out)
+            @inbounds @. out = -1im * model.QZ * out
+            Guards.apply_frequency_angular_filter!(model.guard, out)
+            Hankel.idht!(grid.HT, out)
         end
 
         return nothing
