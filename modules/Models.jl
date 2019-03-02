@@ -31,13 +31,13 @@ const ComplexGPU = ComplexF32
 
 
 struct Model
-    KZ_gpu :: CuArrays.CuArray{ComplexGPU, 2}
-    QZ_gpu :: CuArrays.CuArray{ComplexGPU, 2}
-    Rk_gpu :: FloatGPU
-    Rr_gpu :: FloatGPU
-    Hramanw_gpu :: CuArrays.CuArray{ComplexGPU, 1}
-    Rp_gpu :: CuArrays.CuArray{ComplexGPU, 1}
-    Ra_gpu :: CuArrays.CuArray{ComplexGPU, 1}
+    KZ :: CuArrays.CuArray{ComplexGPU, 2}
+    QZ :: CuArrays.CuArray{ComplexGPU, 2}
+    Rk :: FloatGPU
+    Rr :: FloatGPU
+    Hramanw :: CuArrays.CuArray{ComplexGPU, 1}
+    Rp :: CuArrays.CuArray{ComplexGPU, 1}
+    Ra :: CuArrays.CuArray{ComplexGPU, 1}
     phi_kerr :: Float64
     phi_plasma :: Float64
     guard :: Guards.GuardFilter
@@ -96,6 +96,8 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
 
     @. KZ = conj(KZ)
 
+    KZ = CuArrays.cu(convert(Array{ComplexGPU, 2}, KZ))
+
     # Nonlinear propagator -----------------------------------------------------
     QPARAXIAL = keys["QPARAXIAL"]
 
@@ -127,6 +129,8 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
 
     @. QZ = conj(QZ)
 
+    QZ = CuArrays.cu(convert(Array{ComplexGPU, 2}, QZ))
+
     # Kerr nonlinearity --------------------------------------------------------
     Rk = Rk_func(unit, field, medium)
     phi_kerr = phi_kerr_func(unit, field, medium)
@@ -142,6 +146,9 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     else
         Rr = 0.
     end
+
+    Rk = FloatGPU(Rk)
+    Rr = FloatGPU(Rr)
 
     # For assymetric grids, where abs(tmin) != tmax, we need tshift to put H(t)
     # into the grid center (see "circular convolution"):
@@ -162,32 +169,29 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     Hraman = ifftshift(Hraman)
     Hramanw = Fourier.rfft1d(grid.FT, Hraman)   # time -> frequency
 
+    Hramanw = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, Hramanw))
+
     # Plasma nonlinearity ------------------------------------------------------
     Rp = Rp_func(unit, grid, field, medium, plasma)
     @. Rp = conj(Rp)
     phi_plasma = phi_kerr_func(unit, field, medium)
 
+    Rp = CuArrays.cu(convert(Array{ComplexGPU, 1}, Rp))
+
     # Losses due to multiphoton ionization -------------------------------------
     Ra = Ra_func(unit, grid, field, medium)
     @. Ra = conj(Ra)
 
-    # GPU:
-    KZ_gpu = CuArrays.cu(convert(Array{ComplexGPU, 2}, KZ))
-    QZ_gpu = CuArrays.cu(convert(Array{ComplexGPU, 2}, QZ))
-    Rk_gpu = FloatGPU(Rk)
-    Rr_gpu = FloatGPU(Rr)
-    Hramanw_gpu = CuArrays.cu(convert(Array{ComplexGPU, 1}, Hramanw))
-    Rp_gpu = CuArrays.cu(convert(Array{ComplexGPU, 1}, Rp))
-    Ra_gpu = CuArrays.cu(convert(Array{ComplexGPU, 1}, Ra))
+    Ra = CuArrays.cu(convert(Array{ComplexGPU, 1}, Ra))
 
+    # Temporary arrays:
     Ec = CuArrays.cuzeros(ComplexGPU, (grid.Nr, grid.Nt))
     Er = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
     Ftmp = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
     Stmp = CuArrays.cuzeros(ComplexGPU, (grid.Nr, grid.Nw))
 
-    return Model(KZ_gpu, QZ_gpu, Rk_gpu, Rr_gpu, Hramanw_gpu, Rp_gpu, Ra_gpu,
-                 phi_kerr, phi_plasma, guard, RK, keys,
-                 Ec, Er, Ftmp, Stmp)
+    return Model(KZ, QZ, Rk, Rr, Hramanw, Rp, Ra, phi_kerr, phi_plasma, guard,
+                 RK, keys, Ec, Er, Ftmp, Stmp)
 end
 
 
@@ -230,7 +234,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
             end
             Guards.apply_spatio_temporal_filter!(model.guard, model.Ftmp)
             FourierGPU.rfft2!(grid.FTGPU, model.Ftmp, model.Stmp)   # time -> frequency
-            @inbounds @. out = out + model.Rk_gpu * model.Stmp
+            @inbounds @. out = out + model.Rk * model.Stmp
         end
 
         # Stimulated Raman nonlinearity:
@@ -240,11 +244,11 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
             else
                 @inbounds @. model.Ftmp = FloatGPU(3. / 4.) * abs2(model.Ec)
             end
-            FourierGPU.convolution2!(grid.FTGPU, model.Hramanw_gpu, model.Ftmp)
+            FourierGPU.convolution2!(grid.FTGPU, model.Hramanw, model.Ftmp)
             @inbounds @. model.Ftmp = model.Ftmp * model.Er
             Guards.apply_spatio_temporal_filter!(model.guard, model.Ftmp)
             FourierGPU.rfft2!(grid.FTGPU, model.Ftmp, model.Stmp)   # time -> frequency
-            @inbounds @. out = out + model.Rr_gpu * model.Stmp
+            @inbounds @. out = out + model.Rr * model.Stmp
         end
 
         # Plasma nonlinearity:
@@ -252,7 +256,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
             @inbounds @. model.Ftmp = plasma.rho * model.Er
             Guards.apply_spatio_temporal_filter!(model.guard, model.Ftmp)
             FourierGPU.rfft2!(grid.FTGPU, model.Ftmp, model.Stmp)   # time -> frequency
-            update_out!(out, model.Rp_gpu, model.Stmp)   # out = out + Rp * Stmp
+            update_out!(out, model.Rp, model.Stmp)   # out = out + Rp * Stmp
         end
 
         # Losses due to multiphoton ionization:
@@ -266,12 +270,12 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
             @inbounds @. model.Ftmp = plasma.Kdrho * model.Ftmp * model.Er
             Guards.apply_spatio_temporal_filter!(model.guard, model.Ftmp)
             FourierGPU.rfft2!(grid.FTGPU, model.Ftmp, model.Stmp)   # time -> frequency
-            update_out!(out, model.Ra_gpu, model.Stmp)   # out = out + Ra * Stmp
+            update_out!(out, model.Ra, model.Stmp)   # out = out + Ra * Stmp
         end
 
         # Nonparaxiality:
         if model.keys["QPARAXIAL"] != 0
-            @inbounds @. out = -1im * model.QZ_gpu * out
+            @inbounds @. out = -1im * model.QZ * out
         else
             println("STOP!")
             exit()
@@ -314,7 +318,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     # Linear propagator --------------------------------------------------------
     @timeit timer "linear" begin
         Hankel.dht!(grid.HT, field.S)
-        linear_propagator!(field.S, model.KZ_gpu, dz_gpu)   # S = S * exp(KZ * dz)
+        linear_propagator!(field.S, model.KZ, dz_gpu)   # S = S * exp(KZ * dz)
         Guards.apply_frequency_angular_filter!(model.guard, field.S)
         Hankel.idht!(grid.HT, field.S)
     end
