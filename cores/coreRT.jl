@@ -1,3 +1,4 @@
+using TimerOutputs
 import Formatting
 import Dates
 
@@ -10,6 +11,8 @@ import Plasmas
 import Infos
 import WritePlots
 import Models
+
+const timer = TimerOutputs.TimerOutput()
 
 
 module Input
@@ -110,51 +113,60 @@ function main()
     dz_zdata = 0.5 * field.lam0
     znext_zdata = z + dz_zdata
 
-    @time while z < Input.zmax
-        Imax = Fields.peak_intensity(field)
-        rhomax = Plasmas.peak_plasma_density(plasma)
+    @timeit timer "main loop" while z < Input.zmax
+    
+        @timeit timer "adaptive dz" begin
+            Imax = Fields.peak_intensity(field)
+            rhomax = Plasmas.peak_plasma_density(plasma)
 
-        # Adaptive z step
-        dz = Models.adaptive_dz(model, Input.dzAdaptLevel, Imax, rhomax)
-        dz = min(Input.dz_initial, Input.dz_plothdf, dz)
-        z = z + dz
+            # Adaptive z step
+            dz = Models.adaptive_dz(model, Input.dzAdaptLevel, Imax, rhomax)
+            dz = min(Input.dz_initial, Input.dz_plothdf, dz)
+            z = z + dz
 
-        print("z=$(Formatting.fmt("18.12e", z))[zu] " *
-              "I=$(Formatting.fmt("18.12e", Imax))[Iu] " *
-              "rho=$(Formatting.fmt("18.12e", rhomax))[rhou]\n")
-
-        Models.zstep(dz, grid, field, plasma, model)
-
-        # Write integral parameters to dat file
-        WritePlots.writeDAT(plotdat, z, grid, field, plasma)
-
-        # Write field to hdf file
-        if z >= znext_plothdf
-            WritePlots.writeHDF(plothdf, z, field)
-            znext_plothdf = znext_plothdf + Input.dz_plothdf
+            println("z=$(Formatting.fmt("18.12e", z))[zu] " *
+                    "I=$(Formatting.fmt("18.12e", Imax))[Iu] " *
+                    "rho=$(Formatting.fmt("18.12e", rhomax))[rhou]")
         end
 
-        # Write 1d field data to hdf file
-        if z >= znext_zdata
-            WritePlots.writeHDF_zdata(plothdf, z, grid, field, plasma)
-            znext_zdata = z + dz_zdata
+        @timeit timer "zstep" begin
+            Models.zstep(dz, grid, field, plasma, model, timer)
         end
 
-        # Exit conditions
-        if Imax > Input.Istop
-            WritePlots.writeHDF_zdata(plothdf, z, grid, field, plasma)
-            message = "Stop (Imax >= Istop): z=$(z)[zu], z=$(z * unit.z)[m]\n"
-            Infos.write_message(info, message)
-            break
+        @timeit timer "plots" begin
+            # Write integral parameters to dat file
+            WritePlots.writeDAT(plotdat, z, grid, field, plasma)
+
+            # Write field to hdf file
+            if z >= znext_plothdf
+                WritePlots.writeHDF(plothdf, z, field)
+                znext_plothdf = znext_plothdf + Input.dz_plothdf
+            end
+
+            # Write 1d field data to hdf file
+            if z >= znext_zdata
+                WritePlots.writeHDF_zdata(plothdf, z, grid, field, plasma)
+                znext_zdata = z + dz_zdata
+            end
+
+            # Exit conditions
+            if Imax > Input.Istop
+                WritePlots.writeHDF_zdata(plothdf, z, grid, field, plasma)
+                message = "Stop (Imax >= Istop): z=$(z)[zu], z=$(z * unit.z)[m]"
+                Infos.write_message(info, message)
+                break
+            end
         end
 
     end
+
+    Infos.write_message(info, timer)
 
     etime = Dates.now()
     ttime = Dates.canonicalize(Dates.CompoundPeriod(etime - stime))
     message = "Start time: $(stime)\n" *
               "End time:   $(etime)\n" *
-              "Run time:   $(ttime)\n"
+              "Run time:   $(ttime)"
     Infos.write_message(info, message)
 end
 

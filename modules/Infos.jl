@@ -138,9 +138,9 @@ end
 
 function write_message(info, message)
     fp = open(info.fname, "a")
-    write(fp, message)
+    println(fp, message)
     close(fp)
-    print(message)
+    println(message)
 end
 
 

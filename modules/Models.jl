@@ -1,5 +1,6 @@
 module Models
 
+using TimerOutputs
 import CuArrays
 import CUDAnative
 import CUDAdrv
@@ -210,7 +211,7 @@ end
 
 
 function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
-               plasma::Plasmas.Plasma, model::Model)
+               plasma::Plasmas.Plasma, model::Model, timer::TimerOutput)
 
 
     function func!(S::CuArrays.CuArray{ComplexGPU, 2},
@@ -289,33 +290,47 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
 
     # Calculate plasma density -------------------------------------------------
-    if (model.keys["PLASMA"] != 0) | (model.keys["ILOSSES"] != 0)
-        Plasmas.free_charge(plasma, grid, field)
+    @timeit timer "plasma" begin
+        if (model.keys["PLASMA"] != 0) | (model.keys["ILOSSES"] != 0)
+            Plasmas.free_charge(plasma, grid, field)
+        end
     end
 
     dz_gpu = FloatGPU(dz)
 
     # Field -> temporal spectrum -----------------------------------------------
-    FourierGPU.rfft2!(grid.FTGPU, field.E_gpu, field.S_gpu)
+    @timeit timer "field -> spectr" begin
+        FourierGPU.rfft2!(grid.FTGPU, field.E_gpu, field.S_gpu)
+    end
 
     # Nonlinear propagator -----------------------------------------------------
-    if (model.keys["KERR"] != 0) | (model.keys["PLASMA"] != 0) |
-       (model.keys["ILOSSES"] != 0)
-        RungeKuttas.RungeKutta_calc!(model.RK, field.S_gpu, dz_gpu, func!)
+    @timeit timer "nonlinearities" begin
+        if (model.keys["KERR"] != 0) | (model.keys["PLASMA"] != 0) |
+           (model.keys["ILOSSES"] != 0)
+           RungeKuttas.RungeKutta_calc!(model.RK, field.S_gpu, dz_gpu, func!)
+       end
     end
 
     # Linear propagator --------------------------------------------------------
-    Hankel.dht!(grid.HT, field.S_gpu)
-    linear_propagator!(field.S_gpu, model.KZ_gpu, dz_gpu)   # S = S * exp(KZ * dz)
-    Guards.apply_frequency_angular_filter!(model.guard, field.S_gpu)
-    Hankel.idht!(grid.HT, field.S_gpu)
+    @timeit timer "linear" begin
+        Hankel.dht!(grid.HT, field.S_gpu)
+        linear_propagator!(field.S_gpu, model.KZ_gpu, dz_gpu)   # S = S * exp(KZ * dz)
+        Guards.apply_frequency_angular_filter!(model.guard, field.S_gpu)
+        Hankel.idht!(grid.HT, field.S_gpu)
+    end
 
     # Temporal spectrum -> field -----------------------------------------------
-    FourierGPU.hilbert2!(grid.FTGPU, field.S_gpu, field.E_gpu)   # spectrum real to signal analytic
-    Guards.apply_spatio_temporal_filter!(model.guard, field.E_gpu)
+    @timeit timer "spectr -> field" begin
+        FourierGPU.hilbert2!(grid.FTGPU, field.S_gpu, field.E_gpu)   # spectrum real to signal analytic
+    end
+    @timeit timer "sp-temp filter" begin
+        Guards.apply_spatio_temporal_filter!(model.guard, field.E_gpu)
+    end
 
     # Collect field from GPU:
-    field.E[:, :] = CuArrays.collect(field.E_gpu)
+    @timeit timer "collect E" begin
+        field.E[:, :] = CuArrays.collect(field.E_gpu)
+    end
 
     return nothing
 end
