@@ -3,6 +3,8 @@ module WritePlots
 import Formatting
 import HDF5
 
+import PyCall
+
 import Units
 import Grids
 import Fields
@@ -112,11 +114,11 @@ end
 # ******************************************************************************
 # PlotHDF
 # ******************************************************************************
-VERSION = 2.0
-GROUP_UNIT = "units"
-GROUP_GRID = "grid"
-GROUP_FDAT = "field"
-GROUP_ZDAT = "zdata"
+const PFVERSION = "2.0"
+const GROUP_UNIT = "units"
+const GROUP_GRID = "grid"
+const GROUP_FDAT = "field"
+const GROUP_ZDAT = "zdata"
 
 
 mutable struct PlotHDF
@@ -135,7 +137,7 @@ function PlotHDF(fname::String, unit::Units.Unit, grid::Grids.Grid)
     HDF5.g_create(fp, GROUP_FDAT)
     HDF5.g_create(fp, GROUP_ZDAT)
 
-    fp["version"] = VERSION
+    # fp["version"] = PFVERSION
 
     group_unit = fp[GROUP_UNIT]
     group_unit["r"] = unit.r
@@ -145,7 +147,7 @@ function PlotHDF(fname::String, unit::Units.Unit, grid::Grids.Grid)
     group_unit["Ne"] = unit.rho
 
     group_grid = fp[GROUP_GRID]
-    group_grid["geometry"] = grid.geometry
+    # group_grid["geometry"] = grid.geometry
     group_grid["rmax"] = grid.rmax
     group_grid["Nr"] = grid.Nr
     group_grid["tmin"] = grid.tmin
@@ -153,6 +155,13 @@ function PlotHDF(fname::String, unit::Units.Unit, grid::Grids.Grid)
     group_grid["Nt"] = grid.Nt
 
     HDF5.close(fp)
+
+    # Write version and grid geometry which are compatable with h5py:
+    h5py = PyCall.pyimport("h5py")
+    fp = h5py.File(fname, "a")
+    fp.create_dataset("version", data=PFVERSION)
+    fp.create_dataset(GROUP_GRID * "/geometry", data=grid.geometry)
+    fp.close()
 
     numplot = 0
     previous_z = -Inf
@@ -215,22 +224,28 @@ function writeHDF_zdata(plothdf::PlotHDF, z::Float64, grid::Grids.Grid,
     data_name = "Nezx"
     if ! HDF5.exists(group_zdat, data_name)
         HDF5.d_create(group_zdat, data_name, Float64,
-                      ((1, grid.Nr), (-1, grid.Nr)),
+                      # ((1, grid.Nr), (-1, grid.Nr)),
+                      ((grid.Nr, 1), (grid.Nr, -1)),
                       "chunk", (1, 1))
     end
     data = group_zdat[data_name]
-    HDF5.set_dims!(data, (iz, grid.Nr))
-    data[iz, :] = plasma.rho_end
+    # HDF5.set_dims!(data, (iz, grid.Nr))
+    # data[iz, :] = plasma.rho_end
+    HDF5.set_dims!(data, (grid.Nr, iz))
+    data[:, iz] = plasma.rho_end
 
     data_name = "iSzf"
     if ! HDF5.exists(group_zdat, data_name)
         HDF5.d_create(group_zdat, data_name, Float64,
-                      ((1, grid.Nw), (-1, grid.Nw)),
+                      # ((1, grid.Nw), (-1, grid.Nw)),
+                      ((grid.Nw, 1), (grid.Nw, -1)),
                       "chunk", (1, 1))
     end
     data = group_zdat[data_name]
-    HDF5.set_dims!(data, (iz, grid.Nw))
-    data[iz, :] = Fields.integral_power_spectrum(grid, field)
+    # HDF5.set_dims!(data, (iz, grid.Nw))
+    # data[iz, :] = Fields.integral_power_spectrum(grid, field)
+    HDF5.set_dims!(data, (grid.Nw, iz))
+    data[:, iz] = Fields.integral_power_spectrum(grid, field)
 
     HDF5.close(fp)
 end
