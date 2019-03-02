@@ -79,7 +79,7 @@ Fluence:
 """
 function fluence(grid::Grids.Grid, field::Field)
     F = sum(abs2.(field.E) .* FloatGPU(grid.dt), dims=2)
-    return convert(Array{Float64, 1}, CuArrays.collect(F)[:, 1])
+    return CuArrays.collect(F)[:, 1]
 end
 
 
@@ -109,7 +109,7 @@ Temporal fluence:
 function temporal_fluence(grid::Grids.Grid, field::Field)
     F = sum(abs2.(field.E) .* grid.r_gpu .* grid.dr_gpu .*
             FloatGPU(2. * pi), dims=1)
-    return convert(Array{Float64, 1}, CuArrays.collect(F)[1, :])
+    return CuArrays.collect(F)[1, :]
 end
 
 
@@ -142,11 +142,11 @@ Integral power spectrum:
 function integral_power_spectrum(grid::Grids.Grid, field::Field)
     S = sum(abs2.(field.S) .* grid.r_gpu .* grid.dr_gpu .*
             FloatGPU(8. * pi * grid.dt^2), dims=1)
-    return convert(Array{Float64, 1}, CuArrays.collect(S)[1, :])
+    return CuArrays.collect(S)[1, :]
 end
 
 
-function radius(x::Array{Float64, 1}, y::Array{Float64, 1},
+function radius(x::Array{Float64, 1}, y::Array{FloatGPU, 1},
                 level::Float64=exp(-1.))
     Nx = length(x)
     ylevel = maximum(y) * level

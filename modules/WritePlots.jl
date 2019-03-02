@@ -11,6 +11,8 @@ import Grids
 import Fields
 import Plasmas
 
+const FloatGPU = Float32
+
 
 # ******************************************************************************
 # PlotDAT
@@ -202,16 +204,16 @@ function writeHDF_zdata(plothdf::PlotHDF, z::Float64, grid::Grids.Grid,
 
     data_name = "z"
     if ! HDF5.exists(group_zdat, data_name)
-        HDF5.d_create(group_zdat, data_name, Float64,
+        HDF5.d_create(group_zdat, data_name, FloatGPU,
                       ((1,), (-1,)), "chunk", (1,))
     end
     data = group_zdat[data_name]
     HDF5.set_dims!(data, (iz,))
-    data[iz] = z
+    data[iz] = FloatGPU(z)
 
     data_name = "Fzx"
     if ! HDF5.exists(group_zdat, data_name)
-        HDF5.d_create(group_zdat, data_name, Float64,
+        HDF5.d_create(group_zdat, data_name, FloatGPU,
                       # ((1, grid.Nr), (-1, grid.Nr)),
                       ((grid.Nr, 1), (grid.Nr, -1)),
                       "chunk", (1, 1))
@@ -224,7 +226,7 @@ function writeHDF_zdata(plothdf::PlotHDF, z::Float64, grid::Grids.Grid,
 
     data_name = "Nezx"
     if ! HDF5.exists(group_zdat, data_name)
-        HDF5.d_create(group_zdat, data_name, Float64,
+        HDF5.d_create(group_zdat, data_name, FloatGPU,
                       # ((1, grid.Nr), (-1, grid.Nr)),
                       ((grid.Nr, 1), (grid.Nr, -1)),
                       "chunk", (1, 1))
@@ -237,7 +239,7 @@ function writeHDF_zdata(plothdf::PlotHDF, z::Float64, grid::Grids.Grid,
 
     data_name = "iSzf"
     if ! HDF5.exists(group_zdat, data_name)
-        HDF5.d_create(group_zdat, data_name, Float64,
+        HDF5.d_create(group_zdat, data_name, FloatGPU,
                       # ((1, grid.Nw), (-1, grid.Nw)),
                       ((grid.Nw, 1), (grid.Nw, -1)),
                       "chunk", (1, 1))

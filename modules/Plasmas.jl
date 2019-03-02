@@ -20,7 +20,7 @@ struct Plasma
     components :: Array{PlasmaComponents.Component, 1}
     Ncomp :: Int64
 
-    rho_end :: Array{Float64, 1}
+    rho_end :: Array{FloatGPU, 1}
 
     rho :: CuArrays.CuArray{FloatGPU, 2}
     Kdrho :: CuArrays.CuArray{FloatGPU, 2}
@@ -62,7 +62,7 @@ function Plasma(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
                                                    Ui, fname_tabfunc, keys)
     end
 
-    rho_end = zeros(grid.Nr)
+    rho_end = zeros(FloatGPU, grid.Nr)
 
     rho = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
     Kdrho = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
