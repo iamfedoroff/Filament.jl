@@ -300,36 +300,31 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
     # Field -> temporal spectrum -----------------------------------------------
     @timeit timer "field -> spectr" begin
-        FourierGPU.rfft2!(grid.FTGPU, field.E_gpu, field.S_gpu)
+        FourierGPU.rfft2!(grid.FTGPU, field.E, field.S)
     end
 
     # Nonlinear propagator -----------------------------------------------------
     @timeit timer "nonlinearities" begin
         if (model.keys["KERR"] != 0) | (model.keys["PLASMA"] != 0) |
            (model.keys["ILOSSES"] != 0)
-           RungeKuttas.RungeKutta_calc!(model.RK, field.S_gpu, dz_gpu, func!)
+           RungeKuttas.RungeKutta_calc!(model.RK, field.S, dz_gpu, func!)
        end
     end
 
     # Linear propagator --------------------------------------------------------
     @timeit timer "linear" begin
-        Hankel.dht!(grid.HT, field.S_gpu)
-        linear_propagator!(field.S_gpu, model.KZ_gpu, dz_gpu)   # S = S * exp(KZ * dz)
-        Guards.apply_frequency_angular_filter!(model.guard, field.S_gpu)
-        Hankel.idht!(grid.HT, field.S_gpu)
+        Hankel.dht!(grid.HT, field.S)
+        linear_propagator!(field.S, model.KZ_gpu, dz_gpu)   # S = S * exp(KZ * dz)
+        Guards.apply_frequency_angular_filter!(model.guard, field.S)
+        Hankel.idht!(grid.HT, field.S)
     end
 
     # Temporal spectrum -> field -----------------------------------------------
     @timeit timer "spectr -> field" begin
-        FourierGPU.hilbert2!(grid.FTGPU, field.S_gpu, field.E_gpu)   # spectrum real to signal analytic
+        FourierGPU.hilbert2!(grid.FTGPU, field.S, field.E)   # spectrum real to signal analytic
     end
     @timeit timer "sp-temp filter" begin
-        Guards.apply_spatio_temporal_filter!(model.guard, field.E_gpu)
-    end
-
-    # Collect field from GPU:
-    @timeit timer "collect E" begin
-        field.E[:, :] = CuArrays.collect(field.E_gpu)
+        Guards.apply_spatio_temporal_filter!(model.guard, field.E)
     end
 
     return nothing

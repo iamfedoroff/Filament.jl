@@ -136,7 +136,7 @@ function free_charge(plasma::Plasma, grid::Grids.Grid, field::Fields.Field)
     @CUDAnative.cuda blocks=nbl threads=nth kernel(plasma.rho, plasma.Kdrho,
                                                    plasma.RI, plasma.rho_comp,
                                                    plasma.Kdrho_comp,
-                                                   plasma.RI_comp, field.E_gpu,
+                                                   plasma.RI_comp, field.E,
                                                    grid.dt, plasma.frho0s,
                                                    plasma.Ks, plasma.Wavas,
                                                    plasma.tfxs, plasma.tfys,

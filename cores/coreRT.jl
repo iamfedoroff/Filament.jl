@@ -114,7 +114,7 @@ function main()
     znext_zdata = z + dz_zdata
 
     @timeit timer "main loop" while z < Input.zmax
-    
+
         @timeit timer "adaptive dz" begin
             Imax = Fields.peak_intensity(field)
             rhomax = Plasmas.peak_plasma_density(plasma)
@@ -135,18 +135,24 @@ function main()
 
         @timeit timer "plots" begin
             # Write integral parameters to dat file
-            WritePlots.writeDAT(plotdat, z, grid, field, plasma)
+            @timeit timer "writeDAT" begin
+                WritePlots.writeDAT(plotdat, z, grid, field, plasma)
+            end
 
             # Write field to hdf file
             if z >= znext_plothdf
-                WritePlots.writeHDF(plothdf, z, field)
-                znext_plothdf = znext_plothdf + Input.dz_plothdf
+                @timeit timer "writeHDF" begin
+                    WritePlots.writeHDF(plothdf, z, field)
+                    znext_plothdf = znext_plothdf + Input.dz_plothdf
+                end
             end
 
             # Write 1d field data to hdf file
             if z >= znext_zdata
-                WritePlots.writeHDF_zdata(plothdf, z, grid, field, plasma)
-                znext_zdata = z + dz_zdata
+                @timeit timer "writeHDF_zdata" begin
+                    WritePlots.writeHDF_zdata(plothdf, z, grid, field, plasma)
+                    znext_zdata = z + dz_zdata
+                end
             end
 
             # Exit conditions

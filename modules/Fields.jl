@@ -23,9 +23,8 @@ struct Field
     f0 :: Float64
     w0 :: Float64
 
-    E :: Array{ComplexF64, 2}
-    E_gpu :: CuArrays.CuArray{ComplexGPU, 2}
-    S_gpu :: CuArrays.CuArray{ComplexGPU, 2}
+    E :: CuArrays.CuArray{ComplexGPU, 2}
+    S :: CuArrays.CuArray{ComplexGPU, 2}
 end
 
 
@@ -38,18 +37,17 @@ function Field(unit::Units.Unit, grid::Grids.Grid, lam0::Float64,
     for i=1:grid.Nr
         E[i, :] = Fourier.signal_real_to_signal_analytic(grid.FT, real(E[i, :]))
     end
+    E = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, E))
 
-    E_gpu = CuArrays.cu(convert(Array{ComplexGPU, 2}, E))
+    S = CuArrays.cuzeros(ComplexGPU, (grid.Nr, grid.Nw))
+    FourierGPU.rfft2!(grid.FTGPU, E, S)
 
-    S_gpu = CuArrays.cuzeros(ComplexGPU, (grid.Nr, grid.Nw))
-    FourierGPU.rfft2!(grid.FTGPU, E_gpu, S_gpu)
-
-    return Field(lam0, f0, w0, E, E_gpu, S_gpu)
+    return Field(lam0, f0, w0, E, S)
 end
 
 
 function peak_intensity(field::Field)
-    return Float64(maximum(abs2.(field.E_gpu)))
+    return Float64(maximum(abs2.(field.E)))
 end
 
 
@@ -58,7 +56,7 @@ Total energy:
     W = 2 * pi * Int[|E(r, t)|^2 * r * dr * dt],   [W] = J
 """
 function energy(grid::Grids.Grid, field::Field)
-    return sum(abs2.(field.E_gpu) .* grid.r_gpu .* grid.dr_gpu) * 2. * pi * grid.dt
+    return sum(abs2.(field.E) .* grid.r_gpu .* grid.dr_gpu) * 2. * pi * grid.dt
 end
 
 
@@ -80,13 +78,13 @@ Fluence:
     F(r) = Int[|E(r, t)|^2 * dt],   [F(r)] = J/cm^2
 """
 function fluence(grid::Grids.Grid, field::Field)
-    F = sum(abs2.(field.E_gpu) .* FloatGPU(grid.dt), dims=2)
+    F = sum(abs2.(field.E) .* FloatGPU(grid.dt), dims=2)
     return convert(Array{Float64, 1}, CuArrays.collect(F)[:, 1])
 end
 
 
 function peak_fluence(grid::Grids.Grid, field::Field)
-    return maximum(sum(abs2.(field.E_gpu), dims=2)) * grid.dt
+    return maximum(sum(abs2.(field.E), dims=2)) * grid.dt
 end
 
 
@@ -109,7 +107,7 @@ Temporal fluence:
     F(t) = 2 * pi * Int[|E(r, t)|^2 * r * dr],   [F(t)] = W
 """
 function temporal_fluence(grid::Grids.Grid, field::Field)
-    F = sum(abs2.(field.E_gpu) .* grid.r_gpu .* grid.dr_gpu .*
+    F = sum(abs2.(field.E) .* grid.r_gpu .* grid.dr_gpu .*
             FloatGPU(2. * pi), dims=1)
     return convert(Array{Float64, 1}, CuArrays.collect(F)[1, :])
 end
@@ -142,7 +140,7 @@ Integral power spectrum:
     S = 2 * pi * Int[|Ew|^2 * r * dr]
 """
 function integral_power_spectrum(grid::Grids.Grid, field::Field)
-    S = sum(abs2.(field.S_gpu) .* grid.r_gpu .* grid.dr_gpu .*
+    S = sum(abs2.(field.S) .* grid.r_gpu .* grid.dr_gpu .*
             FloatGPU(8. * pi * grid.dt^2), dims=1)
     return convert(Array{Float64, 1}, CuArrays.collect(S)[1, :])
 end

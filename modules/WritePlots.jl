@@ -1,6 +1,7 @@
 module WritePlots
 
 import Formatting
+import CuArrays
 import HDF5
 
 import PyCall
@@ -184,8 +185,8 @@ function writeHDF(plothdf::PlotHDF, z::Float64, field::Fields.Field)
 
     fp = HDF5.h5open(plothdf.fname, "r+")
     group_fdat = fp[GROUP_FDAT]
-    # group_fdat[dset] = real(field.E)
-    group_fdat[dset] = collect(transpose(real(field.E)))
+    # group_fdat[dset] = CuArrays.collect(real.(field.E))
+    group_fdat[dset] = CuArrays.collect(transpose(real.(field.E)))
     HDF5.attrs(group_fdat[dset])["z"] = z
     HDF5.close(fp)
 end
