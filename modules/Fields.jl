@@ -56,7 +56,7 @@ Total energy:
     W = 2 * pi * Int[|E(r, t)|^2 * r * dr * dt],   [W] = J
 """
 function energy(grid::Grids.Grid, field::Field)
-    return sum(abs2.(field.E) .* grid.r_gpu .* grid.dr_gpu) * 2. * pi * grid.dt
+    return sum(abs2.(field.E) .* grid.rdr) * 2. * pi * grid.dt
 end
 
 
@@ -107,8 +107,7 @@ Temporal fluence:
     F(t) = 2 * pi * Int[|E(r, t)|^2 * r * dr],   [F(t)] = W
 """
 function temporal_fluence(grid::Grids.Grid, field::Field)
-    F = sum(abs2.(field.E) .* grid.r_gpu .* grid.dr_gpu .*
-            FloatGPU(2. * pi), dims=1)
+    F = sum(abs2.(field.E) .* grid.rdr .* FloatGPU(2. * pi), dims=1)
     return CuArrays.collect(F)[1, :]
 end
 
@@ -140,8 +139,7 @@ Integral power spectrum:
     S = 2 * pi * Int[|Ew|^2 * r * dr]
 """
 function integral_power_spectrum(grid::Grids.Grid, field::Field)
-    S = sum(abs2.(field.S) .* grid.r_gpu .* grid.dr_gpu .*
-            FloatGPU(8. * pi * grid.dt^2), dims=1)
+    S = sum(abs2.(field.S) .* grid.rdr .* FloatGPU(8. * pi * grid.dt^2), dims=1)
     return CuArrays.collect(S)[1, :]
 end
 
