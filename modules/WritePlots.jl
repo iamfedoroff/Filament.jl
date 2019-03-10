@@ -181,6 +181,21 @@ function PlotHDF(fname::String, unit::Units.Unit, grid::Grids.Grid)
     group_grid["tmax"] = grid.tmax
     group_grid["Nt"] = grid.Nt
 
+    group_zdat = fp[GROUP_ZDAT]
+    HDF5.d_create(group_zdat, "z", FloatGPU, ((1,), (-1,)), "chunk", (1,))
+    HDF5.d_create(group_zdat, "Fzx", FloatGPU,
+                  # ((1, grid.Nr), (-1, grid.Nr)),
+                  ((grid.Nr, 1), (grid.Nr, -1)),
+                  "chunk", (1, 1))
+    HDF5.d_create(group_zdat, "Nezx", FloatGPU,
+                  # ((1, grid.Nr), (-1, grid.Nr)),
+                  ((grid.Nr, 1), (grid.Nr, -1)),
+                  "chunk", (1, 1))
+    HDF5.d_create(group_zdat, "iSzf", FloatGPU,
+                  # ((1, grid.Nw), (-1, grid.Nw)),
+                  ((grid.Nw, 1), (grid.Nw, -1)),
+                  "chunk", (1, 1))
+
     HDF5.close(fp)
 
     # Write version and grid geometry which are compatable with h5py:
@@ -218,60 +233,34 @@ function writeHDF(plothdf::PlotHDF, z::Float64, field::Fields.Field)
 end
 
 
-function writeHDF_zdata(plothdf::PlotHDF, z::Float64, grid::Grids.Grid,
-                        pcache::PlotCache)
+function writeHDF_zdata(plothdf::PlotHDF, z::Float64, pcache::PlotCache)
     plothdf.iz = plothdf.iz + 1
     iz = plothdf.iz
 
     fp = HDF5.h5open(plothdf.fname, "r+")
+    
     group_zdat = fp[GROUP_ZDAT]
 
-    data_name = "z"
-    if ! HDF5.exists(group_zdat, data_name)
-        HDF5.d_create(group_zdat, data_name, FloatGPU,
-                      ((1,), (-1,)), "chunk", (1,))
-    end
-    data = group_zdat[data_name]
+    data = group_zdat["z"]
     HDF5.set_dims!(data, (iz,))
     data[iz] = FloatGPU(z)
 
-    data_name = "Fzx"
-    if ! HDF5.exists(group_zdat, data_name)
-        HDF5.d_create(group_zdat, data_name, FloatGPU,
-                      # ((1, grid.Nr), (-1, grid.Nr)),
-                      ((grid.Nr, 1), (grid.Nr, -1)),
-                      "chunk", (1, 1))
-    end
-    data = group_zdat[data_name]
+    data = group_zdat["Fzx"]
     # HDF5.set_dims!(data, (iz, grid.Nr))
     # data[iz, :] = pcache.F
-    HDF5.set_dims!(data, (grid.Nr, iz))
+    HDF5.set_dims!(data, (length(pcache.F), iz))
     data[:, iz] = pcache.F
 
-    data_name = "Nezx"
-    if ! HDF5.exists(group_zdat, data_name)
-        HDF5.d_create(group_zdat, data_name, FloatGPU,
-                      # ((1, grid.Nr), (-1, grid.Nr)),
-                      ((grid.Nr, 1), (grid.Nr, -1)),
-                      "chunk", (1, 1))
-    end
-    data = group_zdat[data_name]
+    data = group_zdat["Nezx"]
     # HDF5.set_dims!(data, (iz, grid.Nr))
     # data[iz, :] = pcache.rho
-    HDF5.set_dims!(data, (grid.Nr, iz))
+    HDF5.set_dims!(data, (length(pcache.rho), iz))
     data[:, iz] = pcache.rho
 
-    data_name = "iSzf"
-    if ! HDF5.exists(group_zdat, data_name)
-        HDF5.d_create(group_zdat, data_name, FloatGPU,
-                      # ((1, grid.Nw), (-1, grid.Nw)),
-                      ((grid.Nw, 1), (grid.Nw, -1)),
-                      "chunk", (1, 1))
-    end
-    data = group_zdat[data_name]
+    data = group_zdat["iSzf"]
     # HDF5.set_dims!(data, (iz, grid.Nw))
     # data[iz, :] = pcache.S
-    HDF5.set_dims!(data, (grid.Nw, iz))
+    HDF5.set_dims!(data, (length(pcache.S), iz))
     data[:, iz] = pcache.S
 
     HDF5.close(fp)

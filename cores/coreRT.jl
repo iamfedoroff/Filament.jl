@@ -91,7 +91,7 @@ function main()
     file_plothdf = joinpath(prefix_dir, string(prefix_name, "plot.h5"))
     plothdf = WritePlots.PlotHDF(file_plothdf, unit, grid)
     WritePlots.writeHDF(plothdf, z, field)
-    WritePlots.writeHDF_zdata(plothdf, z, grid, pcache)
+    WritePlots.writeHDF_zdata(plothdf, z, pcache)
 
     # **************************************************************************
     # Prepare model
@@ -154,7 +154,7 @@ function main()
             # Write 1d field data to hdf file
             if z >= znext_zdata
                 @timeit timer "writeHDF_zdata" begin
-                    WritePlots.writeHDF_zdata(plothdf, z, grid, pcache)
+                    WritePlots.writeHDF_zdata(plothdf, z, pcache)
                     znext_zdata = z + dz_zdata
                 end
             end
