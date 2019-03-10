@@ -98,7 +98,7 @@ end
 function beam_radius(grid::Grids.Grid, field::Field)
     F = fluence(grid, field)
     # Factor 2. because F(r) is only half of full distribution F(x):
-    return 2. * radius(grid.r, F)
+    return 2. * Grids.radius(grid.r, F)
 end
 
 
@@ -114,7 +114,7 @@ end
 
 function pulse_duration(grid::Grids.Grid, field::Field)
     F = temporal_fluence(grid, field)
-    return radius(grid.t, F)
+    return Grids.radius(grid.t, F)
 end
 
 
@@ -141,31 +141,6 @@ Integral power spectrum:
 function integral_power_spectrum(grid::Grids.Grid, field::Field)
     S = sum(abs2.(field.S) .* grid.rdr .* FloatGPU(8. * pi * grid.dt^2), dims=1)
     return CuArrays.collect(S)[1, :]
-end
-
-
-function radius(x::Array{Float64, 1}, y::Array{FloatGPU, 1},
-                level::Float64=exp(-1.))
-    Nx = length(x)
-    ylevel = maximum(y) * level
-
-    radl = 0.
-    for i=1:Nx
-        if y[i] >= ylevel
-            radl = x[i]
-            break
-        end
-    end
-
-    radr = 0.
-    for i=Nx:-1:1
-        if y[i] >= ylevel
-            radr = x[i]
-            break
-        end
-    end
-
-    return 0.5 * (abs(radl) + abs(radr))
 end
 
 

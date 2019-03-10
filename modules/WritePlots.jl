@@ -55,8 +55,8 @@ function plotcache_update!(pcache::PlotCache, grid::Grids.Grid,
     pcache.Imax = Float64(maximum(pcache.I))
     pcache.rhomax = Float64(maximum(rho))
     pcache.De = sum(rho .* grid.rdr) * 2. * pi
-    pcache.rfil = 2. * Fields.radius(grid.r, pcache.F)
-    pcache.rpl = 2. * Fields.radius(grid.r, pcache.rho)
+    pcache.rfil = 2. * Grids.radius(grid.r, pcache.F)
+    pcache.rpl = 2. * Grids.radius(grid.r, pcache.rho)
     pcache.W = sum(F .* grid.rdr) * 2. * pi
     pcache.S = Fields.integral_power_spectrum(grid, field)
     return nothing
@@ -238,7 +238,7 @@ function writeHDF_zdata(plothdf::PlotHDF, z::Float64, pcache::PlotCache)
     iz = plothdf.iz
 
     fp = HDF5.h5open(plothdf.fname, "r+")
-    
+
     group_zdat = fp[GROUP_ZDAT]
 
     data = group_zdat["z"]

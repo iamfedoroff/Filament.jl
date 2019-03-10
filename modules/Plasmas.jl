@@ -109,7 +109,7 @@ end
 
 # function plasma_radius(grid::Grids.Grid, plasma::Plasma)
 #     # Factor 2. because rho(r) is only half of full distribution rho(x)
-#     return 2. * Fields.radius(grid.r, plasma.rho_end)
+#     return 2. * Grids.radius(grid.r, plasma.rho_end)
 # end
 
 

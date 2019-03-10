@@ -125,4 +125,29 @@ function step(i::Int64, x::Array{Float64, 1})
 end
 
 
+function radius(x::Array{Float64, 1}, y::Array{FloatGPU, 1},
+                level::Float64=exp(-1.))
+    Nx = length(x)
+    ylevel = maximum(y) * level
+
+    radl = 0.
+    for i=1:Nx
+        if y[i] >= ylevel
+            radl = x[i]
+            break
+        end
+    end
+
+    radr = 0.
+    for i=Nx:-1:1
+        if y[i] >= ylevel
+            radr = x[i]
+            break
+        end
+    end
+
+    return 0.5 * (abs(radl) + abs(radr))
+end
+
+
 end
