@@ -81,14 +81,17 @@ function main()
                       Input.file_initial_condition, Input.file_medium,
                       unit, grid, field, medium, plasma)
 
+    pcache = WritePlots.PlotCache(grid)
+    WritePlots.plotcache_update!(pcache, grid, field, plasma)
+
     file_plotdat = joinpath(prefix_dir, string(prefix_name, "plot.dat"))
     plotdat = WritePlots.PlotDAT(file_plotdat, unit)
-    WritePlots.writeDAT(plotdat, z, grid, field, plasma)
+    WritePlots.writeDAT(plotdat, z, pcache)
 
     file_plothdf = joinpath(prefix_dir, string(prefix_name, "plot.h5"))
     plothdf = WritePlots.PlotHDF(file_plothdf, unit, grid)
     WritePlots.writeHDF(plothdf, z, field)
-    WritePlots.writeHDF_zdata(plothdf, z, grid, field, plasma)
+    WritePlots.writeHDF_zdata(plothdf, z, grid, pcache)
 
     # **************************************************************************
     # Prepare model
@@ -115,28 +118,29 @@ function main()
 
     @timeit timer "main loop" while z < Input.zmax
 
-        @timeit timer "adaptive dz" begin
-            Imax = Fields.peak_intensity(field)
-            rhomax = Plasmas.peak_plasma_density(plasma)
+        println("z=$(Formatting.fmt("18.12e", z))[zu] " *
+                "I=$(Formatting.fmt("18.12e", pcache.Imax))[Iu] " *
+                "rho=$(Formatting.fmt("18.12e", pcache.rhomax))[rhou]")
 
-            # Adaptive z step
-            dz = Models.adaptive_dz(model, Input.dzAdaptLevel, Imax, rhomax)
-            dz = min(Input.dz_initial, Input.dz_plothdf, dz)
-            z = z + dz
-
-            println("z=$(Formatting.fmt("18.12e", z))[zu] " *
-                    "I=$(Formatting.fmt("18.12e", Imax))[Iu] " *
-                    "rho=$(Formatting.fmt("18.12e", rhomax))[rhou]")
-        end
+        # Adaptive z step
+        dz = Models.adaptive_dz(model, Input.dzAdaptLevel, pcache.Imax,
+                                pcache.rhomax)
+        dz = min(Input.dz_initial, Input.dz_plothdf, dz)
+        z = z + dz
 
         @timeit timer "zstep" begin
             Models.zstep(dz, grid, field, plasma, model, timer)
         end
 
         @timeit timer "plots" begin
+            # Update plot cache
+            @timeit timer "plot cache" begin
+                WritePlots.plotcache_update!(pcache, grid, field, plasma)
+            end
+
             # Write integral parameters to dat file
             @timeit timer "writeDAT" begin
-                WritePlots.writeDAT(plotdat, z, grid, field, plasma)
+                WritePlots.writeDAT(plotdat, z, pcache)
             end
 
             # Write field to hdf file
@@ -150,18 +154,17 @@ function main()
             # Write 1d field data to hdf file
             if z >= znext_zdata
                 @timeit timer "writeHDF_zdata" begin
-                    WritePlots.writeHDF_zdata(plothdf, z, grid, field, plasma)
+                    WritePlots.writeHDF_zdata(plothdf, z, grid, pcache)
                     znext_zdata = z + dz_zdata
                 end
             end
+        end
 
-            # Exit conditions
-            if Imax > Input.Istop
-                WritePlots.writeHDF_zdata(plothdf, z, grid, field, plasma)
-                message = "Stop (Imax >= Istop): z=$(z)[zu], z=$(z * unit.z)[m]"
-                Infos.write_message(info, message)
-                break
-            end
+        # Exit conditions
+        if pcache.Imax > Input.Istop
+            message = "Stop (Imax >= Istop): z=$(z)[zu], z=$(z * unit.z)[m]"
+            Infos.write_message(info, message)
+            break
         end
 
     end

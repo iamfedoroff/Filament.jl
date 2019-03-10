@@ -15,6 +15,55 @@ const FloatGPU = Float32
 
 
 # ******************************************************************************
+# PlotCache
+# ******************************************************************************
+mutable struct PlotCache
+    Fmax :: Float64
+    Imax :: Float64
+    rhomax :: Float64
+    De :: Float64
+    rfil :: Float64
+    rpl :: Float64
+    W :: Float64
+    I :: CuArrays.CuArray{FloatGPU, 2}
+    F :: Array{FloatGPU, 1}
+    rho :: Array{FloatGPU, 1}
+    S :: Array{FloatGPU, 1}
+end
+
+
+function PlotCache(grid::Grids.Grid)
+    I = CuArrays.cuzeros((grid.Nr, grid.Nt))
+    F = zeros(FloatGPU, grid.Nr)
+    rho = zeros(FloatGPU, grid.Nr)
+    S = zeros(FloatGPU, grid.Nw)
+    return PlotCache(0., 0., 0., 0., 0., 0., 0., I, F, rho, S)
+end
+
+
+function plotcache_update!(pcache::PlotCache, grid::Grids.Grid,
+                           field::Fields.Field, plasma::Plasmas.Plasma)
+    pcache.I .= abs2.(field.E)
+
+    F = sum(pcache.I .* FloatGPU(grid.dt), dims=2)
+    pcache.F[:] = CuArrays.collect(F)[:, 1]
+
+    rho = plasma.rho[:, end]
+    pcache.rho[:] = CuArrays.collect(rho)
+
+    pcache.Fmax = Float64(maximum(F))
+    pcache.Imax = Float64(maximum(pcache.I))
+    pcache.rhomax = Float64(maximum(rho))
+    pcache.De = sum(rho .* grid.rdr) * 2. * pi
+    pcache.rfil = 2. * Fields.radius(grid.r, pcache.F)
+    pcache.rpl = 2. * Fields.radius(grid.r, pcache.rho)
+    pcache.W = sum(F .* grid.rdr) * 2. * pi
+    pcache.S = Fields.integral_power_spectrum(grid, field)
+    return nothing
+end
+
+
+# ******************************************************************************
 # PlotDAT
 # ******************************************************************************
 struct PlotVar
@@ -74,41 +123,16 @@ function PlotDAT(fname::String, unit::Units.Unit)
 end
 
 
-function writeDAT(plotdat::PlotDAT, z::Float64, grid::Grids.Grid,
-                  field::Fields.Field, plasma::Plasmas.Plasma)
+function writeDAT(plotdat::PlotDAT, z::Float64, pcache::PlotCache)
     fp = open(plotdat.fname, "a")
-
-    # z
-    write(fp, "  $(Formatting.fmt("18.12e", z)) ")
-
-    # Fmax
-    var = Fields.peak_fluence(grid, field)
-    write(fp, "$(Formatting.fmt("18.12e", var)) ")
-
-    # Imax
-    var = Fields.peak_intensity(field)
-    write(fp, "$(Formatting.fmt("18.12e", var)) ")
-
-    # Nemax
-    var = Plasmas.peak_plasma_density(plasma)
-    write(fp, "$(Formatting.fmt("18.12e", var)) ")
-
-    # De
-    var = Plasmas.linear_plasma_density(grid, plasma)
-    write(fp, "$(Formatting.fmt("18.12e", var)) ")
-
-    # rfil
-    var = Fields.beam_radius(grid, field)
-    write(fp, "$(Formatting.fmt("18.12e", var)) ")
-
-    # rpl
-    var = Plasmas.plasma_radius(grid, plasma)
-    write(fp, "$(Formatting.fmt("18.12e", var)) ")
-
-    # W
-    var = Fields.energy(grid, field)
-    write(fp, "$(Formatting.fmt("18.12e", var)) ")
-
+    write(fp, "  $(Formatting.fmt("18.12e", z)) ")   # z
+    write(fp, "$(Formatting.fmt("18.12e", pcache.Fmax)) ")   # Fmax
+    write(fp, "$(Formatting.fmt("18.12e", pcache.Imax)) ")   # Imax
+    write(fp, "$(Formatting.fmt("18.12e", pcache.rhomax)) ")   # Nemax
+    write(fp, "$(Formatting.fmt("18.12e", pcache.De)) ")   # De
+    write(fp, "$(Formatting.fmt("18.12e", pcache.rfil)) ")   # rfil
+    write(fp, "$(Formatting.fmt("18.12e", pcache.rpl)) ")   # rpl
+    write(fp, "$(Formatting.fmt("18.12e", pcache.W)) ")   # W
     write(fp, "\n")
     close(fp)
 end
@@ -195,7 +219,7 @@ end
 
 
 function writeHDF_zdata(plothdf::PlotHDF, z::Float64, grid::Grids.Grid,
-                        field::Fields.Field, plasma::Plasmas.Plasma)
+                        pcache::PlotCache)
     plothdf.iz = plothdf.iz + 1
     iz = plothdf.iz
 
@@ -220,9 +244,9 @@ function writeHDF_zdata(plothdf::PlotHDF, z::Float64, grid::Grids.Grid,
     end
     data = group_zdat[data_name]
     # HDF5.set_dims!(data, (iz, grid.Nr))
-    # data[iz, :] = Fields.fluence(grid, field)
+    # data[iz, :] = pcache.F
     HDF5.set_dims!(data, (grid.Nr, iz))
-    data[:, iz] = Fields.fluence(grid, field)
+    data[:, iz] = pcache.F
 
     data_name = "Nezx"
     if ! HDF5.exists(group_zdat, data_name)
@@ -233,9 +257,9 @@ function writeHDF_zdata(plothdf::PlotHDF, z::Float64, grid::Grids.Grid,
     end
     data = group_zdat[data_name]
     # HDF5.set_dims!(data, (iz, grid.Nr))
-    # data[iz, :] = plasma.rho_end
+    # data[iz, :] = pcache.rho
     HDF5.set_dims!(data, (grid.Nr, iz))
-    data[:, iz] = plasma.rho_end
+    data[:, iz] = pcache.rho
 
     data_name = "iSzf"
     if ! HDF5.exists(group_zdat, data_name)
@@ -246,9 +270,9 @@ function writeHDF_zdata(plothdf::PlotHDF, z::Float64, grid::Grids.Grid,
     end
     data = group_zdat[data_name]
     # HDF5.set_dims!(data, (iz, grid.Nw))
-    # data[iz, :] = Fields.integral_power_spectrum(grid, field)
+    # data[iz, :] = pcache.S
     HDF5.set_dims!(data, (grid.Nw, iz))
-    data[:, iz] = Fields.integral_power_spectrum(grid, field)
+    data[:, iz] = pcache.S
 
     HDF5.close(fp)
 end

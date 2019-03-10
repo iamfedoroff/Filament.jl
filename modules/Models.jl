@@ -196,7 +196,7 @@ end
 
 
 function adaptive_dz(model::Model, AdaptLevel::Float64, I::Float64,
-                     rho::FloatGPU)
+                     rho::Float64)
     if model.keys["KERR"] != 0
         dz_kerr = model.phi_kerr / I * AdaptLevel
     else
