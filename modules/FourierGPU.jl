@@ -277,4 +277,17 @@ function convolution2_kernel(Sr, Hw)
 end
 
 
+"""
+Return the Discrete Fourier Transform sample frequencies (for usage with
+rfft, irfft).
+https://github.com/numpy/numpy/blob/v1.15.0/numpy/fft/helper.py#L173-L221
+"""
+function rfftfreq(n::Int64, d::Float64)
+    val = 1. / (n * d)
+    N = n // 2
+    results = Array(0:N)
+    return results * val
+end
+
+
 end

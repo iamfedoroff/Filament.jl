@@ -19,8 +19,9 @@ module Input
     # Modules and variables available in input files:
     import FFTW
 
+    import FourierGPU
+
     import PyCall
-    numpy_fft = PyCall.pyimport("numpy.fft")
     scipy_constants = PyCall.pyimport("scipy.constants")
     C0 = scipy_constants.c   # speed of light in vacuum
 

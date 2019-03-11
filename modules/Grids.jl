@@ -79,8 +79,7 @@ function Grid(rmax, Nr, tmin, tmax, Nt)
     t = range(tmin, tmax, length=Nt)   # temporal coordinates
     dt = t[2] - t[1]   # temporal step
 
-    numpy_fft = PyCall.pyimport("numpy.fft")
-    f = numpy_fft.rfftfreq(Nt, dt)   # temporal frequency
+    f = FourierGPU.rfftfreq(Nt, dt)   # temporal frequency
     Nf = length(f)   # length of temporal frequency array
     df = f[2] - f[1]   # temporal frequency step
     fc = 0.5 / dt   # temporal Nyquist frequency
