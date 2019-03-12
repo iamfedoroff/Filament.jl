@@ -19,7 +19,7 @@ module Input
     # Modules and variables available in input files:
     import FFTW
 
-    import FourierGPU
+    import Fourier
 
     import PyCall
     scipy_constants = PyCall.pyimport("scipy.constants")

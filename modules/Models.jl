@@ -4,6 +4,7 @@ using TimerOutputs
 import CuArrays
 import CUDAnative
 import CUDAdrv
+import FFTW
 
 import PyCall
 
@@ -14,7 +15,6 @@ import Media
 import Plasmas
 import Hankel
 import Fourier
-import FourierGPU
 import RungeKuttas
 import Guards
 
@@ -156,18 +156,15 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     Hraman = @. medium.raman_response((grid.t - tshift) * unit.t)
     Hraman = Hraman * grid.dt * unit.t
 
-    if abs(1. - sum(Hraman)) > 1e-6
-        print("WARNING: The integral of Raman response function should be" *
-              " normalized to 1.\n")
+    if abs(1. - sum(Hraman)) > 1e-3
+        println("WARNING: The integral of Raman response function should be" *
+                " normalized to 1.")
     end
 
     Tguard = convert(Array{ComplexF64, 1}, CuArrays.collect(guard.T))
     @. Hraman = Hraman * Tguard   # temporal filter
-    # ifftshift code is taken from AbstractFFTs.jl source:
-    # https://github.com/JuliaMath/AbstractFFTs.jl/blob/master/src/definitions.jl
-    ifftshift(x) = circshift(x, div.([size(x)...],-2))
-    Hraman = ifftshift(Hraman)
-    Hramanw = Fourier.rfft1d(grid.FT, Hraman)   # time -> frequency
+    Hraman = Fourier.ifftshift(Hraman)
+    Hramanw = FFTW.rfft(Hraman)   # time -> frequency
 
     Hramanw = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, Hramanw))
 
@@ -222,7 +219,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
                    out::CuArrays.CuArray{ComplexGPU, 2})
         fill!(out, FloatGPU(0.))
 
-        FourierGPU.hilbert2!(grid.FTGPU, S, model.Ec)   # spectrum real to signal analytic
+        Fourier.hilbert2!(grid.FT, S, model.Ec)   # spectrum real to signal analytic
         @inbounds @. model.Er = real(model.Ec)
 
         # Kerr nonlinearity:
@@ -233,7 +230,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
                 @inbounds @. model.Ftmp = FloatGPU(3. / 4.) * abs2(model.Ec) * model.Er
             end
             Guards.apply_spatio_temporal_filter!(model.guard, model.Ftmp)
-            FourierGPU.rfft2!(grid.FTGPU, model.Ftmp, model.Stmp)   # time -> frequency
+            Fourier.rfft2!(grid.FT, model.Ftmp, model.Stmp)   # time -> frequency
             @inbounds @. out = out + model.Rk * model.Stmp
         end
 
@@ -244,10 +241,10 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
             else
                 @inbounds @. model.Ftmp = FloatGPU(3. / 4.) * abs2(model.Ec)
             end
-            FourierGPU.convolution2!(grid.FTGPU, model.Hramanw, model.Ftmp)
+            Fourier.convolution2!(grid.FT, model.Hramanw, model.Ftmp)
             @inbounds @. model.Ftmp = model.Ftmp * model.Er
             Guards.apply_spatio_temporal_filter!(model.guard, model.Ftmp)
-            FourierGPU.rfft2!(grid.FTGPU, model.Ftmp, model.Stmp)   # time -> frequency
+            Fourier.rfft2!(grid.FT, model.Ftmp, model.Stmp)   # time -> frequency
             @inbounds @. out = out + model.Rr * model.Stmp
         end
 
@@ -255,7 +252,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
         if model.keys["PLASMA"] != 0
             @inbounds @. model.Ftmp = plasma.rho * model.Er
             Guards.apply_spatio_temporal_filter!(model.guard, model.Ftmp)
-            FourierGPU.rfft2!(grid.FTGPU, model.Ftmp, model.Stmp)   # time -> frequency
+            Fourier.rfft2!(grid.FT, model.Ftmp, model.Stmp)   # time -> frequency
             update_out!(out, model.Rp, model.Stmp)   # out = out + Rp * Stmp
         end
 
@@ -269,7 +266,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
             inverse!(model.Ftmp)
             @inbounds @. model.Ftmp = plasma.Kdrho * model.Ftmp * model.Er
             Guards.apply_spatio_temporal_filter!(model.guard, model.Ftmp)
-            FourierGPU.rfft2!(grid.FTGPU, model.Ftmp, model.Stmp)   # time -> frequency
+            Fourier.rfft2!(grid.FT, model.Ftmp, model.Stmp)   # time -> frequency
             update_out!(out, model.Ra, model.Stmp)   # out = out + Ra * Stmp
         end
 
@@ -298,7 +295,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
     # Field -> temporal spectrum -----------------------------------------------
     @timeit timer "field -> spectr" begin
-        FourierGPU.rfft2!(grid.FTGPU, field.E, field.S)
+        Fourier.rfft2!(grid.FT, field.E, field.S)
     end
 
     # Nonlinear propagator -----------------------------------------------------
@@ -319,7 +316,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
     # Temporal spectrum -> field -----------------------------------------------
     @timeit timer "spectr -> field" begin
-        FourierGPU.hilbert2!(grid.FTGPU, field.S, field.E)   # spectrum real to signal analytic
+        Fourier.hilbert2!(grid.FT, field.S, field.E)   # spectrum real to signal analytic
     end
     @timeit timer "sp-temp filter" begin
         Guards.apply_spatio_temporal_filter!(model.guard, field.E)

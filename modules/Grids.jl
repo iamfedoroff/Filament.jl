@@ -6,7 +6,6 @@ import PyCall
 
 import Hankel
 import Fourier
-import FourierGPU
 
 const FloatGPU = Float32
 
@@ -49,7 +48,6 @@ struct Grid
     Nlam :: Int64
 
     FT :: Fourier.FourierTransform
-    FTGPU :: FourierGPU.FourierTransform
 end
 
 
@@ -79,7 +77,7 @@ function Grid(rmax, Nr, tmin, tmax, Nt)
     t = range(tmin, tmax, length=Nt)   # temporal coordinates
     dt = t[2] - t[1]   # temporal step
 
-    f = FourierGPU.rfftfreq(Nt, dt)   # temporal frequency
+    f = Fourier.rfftfreq(Nt, dt)   # temporal frequency
     Nf = length(f)   # length of temporal frequency array
     df = f[2] - f[1]   # temporal frequency step
     fc = 0.5 / dt   # temporal Nyquist frequency
@@ -101,12 +99,11 @@ function Grid(rmax, Nr, tmin, tmax, Nt)
     # dlam = lam[3] - lam[2]   # wavelength step
     # lamc = 0.5 / self.dlam   # Nyquist wavelength (need check!)
 
-    FT = Fourier.FourierTransform(Nt, dt)   # Fourier transform
-    FTGPU = FourierGPU.FourierTransform(Nr, Nt)   # Fourier transform for GPU
+    FT = Fourier.FourierTransform(Nr, Nt)   # Fourier transform
 
     return Grid(geometry, rmax, Nr, tmin, tmax, Nt,
                 HT, r, dr, rdr, dr_mean, v, k, dk_mean, kc,
-                t, dt, f, Nf, df, fc, w, Nw, dw, wc, lam, Nlam, FT, FTGPU)
+                t, dt, f, Nf, df, fc, w, Nw, dw, wc, lam, Nlam, FT)
 end
 
 

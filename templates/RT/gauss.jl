@@ -27,7 +27,7 @@ function initial_condition(r, t, ru, tu, Iu)
     f = 2.   # [m] focal distance
     n0 = 1.   # refractive index
     wu = 1. / tu
-    w = 2. * pi * FourierGPU.rfftfreq(Nt, t[2] - t[1])
+    w = 2. * pi * Fourier.rfftfreq(Nt, t[2] - t[1])
     for i=1:Nr
         Et = real(E[i, :])
         Ew = FFTW.rfft(Et)

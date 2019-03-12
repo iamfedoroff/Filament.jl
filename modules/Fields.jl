@@ -8,7 +8,6 @@ import PyCall
 import Units
 import Grids
 import Fourier
-import FourierGPU
 
 const FloatGPU = Float32
 const ComplexGPU = ComplexF32
@@ -34,13 +33,12 @@ function Field(unit::Units.Unit, grid::Grids.Grid, lam0::Float64,
     w0 = 2. * pi * f0
 
     E = initial_condition(grid.r, grid.t, unit.r, unit.t, unit.I)
-    for i=1:grid.Nr
-        E[i, :] = Fourier.signal_real_to_signal_analytic(grid.FT, real(E[i, :]))
-    end
     E = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, E))
 
     S = CuArrays.cuzeros(ComplexGPU, (grid.Nr, grid.Nw))
-    FourierGPU.rfft2!(grid.FTGPU, E, S)
+    Fourier.rfft2!(grid.FT, E, S)   # time -> frequency
+
+    Fourier.hilbert2!(grid.FT, S, E)   # spectrum real to signal analytic
 
     return Field(lam0, f0, w0, E, S)
 end
