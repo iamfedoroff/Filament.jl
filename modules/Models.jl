@@ -212,7 +212,7 @@ end
 
 
 function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
-               plasma::Plasmas.Plasma, model::Model, timer::TimerOutput)
+               plasma::Plasmas.Plasma, model::Model)
 
 
     function func!(S::CuArrays.CuArray{ComplexGPU, 2},
@@ -285,7 +285,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
 
     # Calculate plasma density -------------------------------------------------
-    @timeit timer "plasma" begin
+    @timeit "plasma" begin
         if (model.keys["PLASMA"] != 0) | (model.keys["ILOSSES"] != 0)
             Plasmas.free_charge(plasma, grid, field)
         end
@@ -294,12 +294,12 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     dz_gpu = FloatGPU(dz)
 
     # Field -> temporal spectrum -----------------------------------------------
-    @timeit timer "field -> spectr" begin
+    @timeit "field -> spectr" begin
         Fourier.rfft2!(grid.FT, field.E, field.S)
     end
 
     # Nonlinear propagator -----------------------------------------------------
-    @timeit timer "nonlinearities" begin
+    @timeit "nonlinearities" begin
         if (model.keys["KERR"] != 0) | (model.keys["PLASMA"] != 0) |
            (model.keys["ILOSSES"] != 0)
            RungeKuttas.RungeKutta_calc!(model.RK, field.S, dz_gpu, func!)
@@ -307,7 +307,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     end
 
     # Linear propagator --------------------------------------------------------
-    @timeit timer "linear" begin
+    @timeit "linear" begin
         Hankel.dht!(grid.HT, field.S)
         linear_propagator!(field.S, model.KZ, dz_gpu)   # S = S * exp(KZ * dz)
         Guards.apply_frequency_angular_filter!(model.guard, field.S)
@@ -315,10 +315,10 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     end
 
     # Temporal spectrum -> field -----------------------------------------------
-    @timeit timer "spectr -> field" begin
+    @timeit "spectr -> field" begin
         Fourier.hilbert2!(grid.FT, field.S, field.E)   # spectrum real to signal analytic
     end
-    @timeit timer "sp-temp filter" begin
+    @timeit "sp-temp filter" begin
         Guards.apply_spatio_temporal_filter!(model.guard, field.E)
     end
 

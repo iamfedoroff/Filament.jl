@@ -12,8 +12,6 @@ import Infos
 import WritePlots
 import Models
 
-const timer = TimerOutputs.TimerOutput()
-
 
 module Input
     # Modules and variables available in input files:
@@ -117,7 +115,7 @@ function main()
     dz_zdata = 0.5 * field.lam0
     znext_zdata = z + dz_zdata
 
-    @timeit timer "main loop" while z < Input.zmax
+    @timeit "main loop" while z < Input.zmax
 
         println("z=$(Formatting.fmt("18.12e", z))[zu] " *
                 "I=$(Formatting.fmt("18.12e", pcache.Imax))[Iu] " *
@@ -129,24 +127,24 @@ function main()
         dz = min(Input.dz_initial, Input.dz_plothdf, dz)
         z = z + dz
 
-        @timeit timer "zstep" begin
-            Models.zstep(dz, grid, field, plasma, model, timer)
+        @timeit "zstep" begin
+            Models.zstep(dz, grid, field, plasma, model)
         end
 
-        @timeit timer "plots" begin
+        @timeit "plots" begin
             # Update plot cache
-            @timeit timer "plot cache" begin
+            @timeit "plot cache" begin
                 WritePlots.plotcache_update!(pcache, grid, field, plasma)
             end
 
             # Write integral parameters to dat file
-            @timeit timer "writeDAT" begin
+            @timeit "writeDAT" begin
                 WritePlots.writeDAT(plotdat, z, pcache)
             end
 
             # Write field to hdf file
             if z >= znext_plothdf
-                @timeit timer "writeHDF" begin
+                @timeit "writeHDF" begin
                     WritePlots.writeHDF(plothdf, z, field)
                     znext_plothdf = znext_plothdf + Input.dz_plothdf
                 end
@@ -154,7 +152,7 @@ function main()
 
             # Write 1d field data to hdf file
             if z >= znext_zdata
-                @timeit timer "writeHDF_zdata" begin
+                @timeit "writeHDF_zdata" begin
                     WritePlots.writeHDF_zdata(plothdf, z, pcache)
                     znext_zdata = z + dz_zdata
                 end
@@ -170,7 +168,7 @@ function main()
 
     end
 
-    Infos.write_message(info, timer)
+    Infos.write_message(info, TimerOutputs.get_defaulttimer())
 
     etime = Dates.now()
     ttime = Dates.canonicalize(Dates.CompoundPeriod(etime - stime))
