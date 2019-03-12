@@ -138,13 +138,13 @@ function main()
             # Update plot cache
             @timeit "plot cache" begin
                 WritePlots.plotcache_update!(pcache, grid, field, plasma)
-                @timeit "sync" CUDAdrv.synchronize()
+                CUDAdrv.synchronize()
             end
 
             # Write integral parameters to dat file
             @timeit "writeDAT" begin
                 WritePlots.writeDAT(plotdat, z, pcache)
-                @timeit "sync" CUDAdrv.synchronize()
+                CUDAdrv.synchronize()
             end
 
             # Write field to hdf file
@@ -152,7 +152,7 @@ function main()
                 @timeit "writeHDF" begin
                     WritePlots.writeHDF(plothdf, z, field)
                     znext_plothdf = znext_plothdf + Input.dz_plothdf
-                    @timeit "sync" CUDAdrv.synchronize()
+                    CUDAdrv.synchronize()
                 end
             end
 
@@ -161,7 +161,7 @@ function main()
                 @timeit "writeHDF_zdata" begin
                     WritePlots.writeHDF_zdata(plothdf, z, pcache)
                     znext_zdata = z + dz_zdata
-                    @timeit "sync" CUDAdrv.synchronize()
+                    CUDAdrv.synchronize()
                 end
             end
         end

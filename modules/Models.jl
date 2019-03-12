@@ -288,8 +288,8 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     @timeit "plasma" begin
         if (model.keys["PLASMA"] != 0) | (model.keys["ILOSSES"] != 0)
             Plasmas.free_charge(plasma, grid, field)
+            CUDAdrv.synchronize()
         end
-        @timeit "sync" CUDAdrv.synchronize()
     end
 
     dz_gpu = FloatGPU(dz)
@@ -297,7 +297,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     # Field -> temporal spectrum -----------------------------------------------
     @timeit "field -> spectr" begin
         Fourier.rfft2!(grid.FT, field.E, field.S)
-        @timeit "sync" CUDAdrv.synchronize()
+        CUDAdrv.synchronize()
     end
 
     # Nonlinear propagator -----------------------------------------------------
@@ -305,8 +305,8 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
         if (model.keys["KERR"] != 0) | (model.keys["PLASMA"] != 0) |
            (model.keys["ILOSSES"] != 0)
            RungeKuttas.RungeKutta_calc!(model.RK, field.S, dz_gpu, func!)
+           CUDAdrv.synchronize()
        end
-       @timeit "sync" CUDAdrv.synchronize()
     end
 
     # Linear propagator --------------------------------------------------------
@@ -315,18 +315,18 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
         linear_propagator!(field.S, model.KZ, dz_gpu)   # S = S * exp(KZ * dz)
         Guards.apply_frequency_angular_filter!(model.guard, field.S)
         Hankel.idht!(grid.HT, field.S)
-        @timeit "sync" CUDAdrv.synchronize()
+        CUDAdrv.synchronize()
     end
 
     # Temporal spectrum -> field -----------------------------------------------
     @timeit "spectr -> field" begin
         Fourier.hilbert2!(grid.FT, field.S, field.E)   # spectrum real to signal analytic
-        @timeit "sync" CUDAdrv.synchronize()
+        CUDAdrv.synchronize()
     end
 
     @timeit "sp-temp filter" begin
         Guards.apply_spatio_temporal_filter!(model.guard, field.E)
-        @timeit "sync" CUDAdrv.synchronize()
+        CUDAdrv.synchronize()
     end
 
     return nothing
