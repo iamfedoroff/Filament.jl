@@ -60,13 +60,11 @@ module RungeKuttas
     function solve!(RK::RungeKutta2, u::CuArrays.CuArray{ComplexGPU, 2},
                     h::FloatGPU, func!::Function, p::Tuple)
         func!(RK.k1, u, p)
-        @inbounds @. RK.k1 = h * RK.k1
 
-        @inbounds @. RK.tmp = u + 2. / 3. * RK.k1
+        @. RK.tmp = u + h * 2. / 3. * RK.k1
         func!(RK.k2, RK.tmp, p)
-        @inbounds @. RK.k2 = h * RK.k2
 
-        @inbounds @. u = u + (RK.k1 + 3. * RK.k2) / 4.
+        @. u = u + h / 4. * (RK.k1 + 3. * RK.k2)
         return nothing
     end
 
@@ -74,17 +72,14 @@ module RungeKuttas
     function solve!(RK::RungeKutta3, u::CuArrays.CuArray{ComplexGPU, 2},
                     h::FloatGPU, func!::Function, p::Tuple)
         func!(RK.k1, u, p)
-        @inbounds @. RK.k1 = h * RK.k1
 
-        @inbounds @. RK.tmp = u + 0.5 * RK.k1
+        @. RK.tmp = u + h * 0.5 * RK.k1
         func!(RK.k2, RK.tmp, p)
-        @inbounds @. RK.k2 = h * RK.k2
 
-        @inbounds @. RK.tmp = u - RK.k1 + 2. * RK.k2
+        @. RK.tmp = u + h * (-1. * RK.k1 + 2. * RK.k2)
         func!(RK.k3, RK.tmp, p)
-        @inbounds @. RK.k3 = h * RK.k3
 
-        @inbounds @. u = u + (RK.k1 + 4. * RK.k2 + RK.k3) / 6.
+        @. u = u + h / 6. * (RK.k1 + 4. * RK.k2 + RK.k3)
         return nothing
     end
 
@@ -92,21 +87,17 @@ module RungeKuttas
     function solve!(RK::RungeKutta4, u::CuArrays.CuArray{ComplexGPU, 2},
                     h::FloatGPU, func!::Function, p::Tuple)
         func!(RK.k1, u, p)
-        @inbounds @. RK.k1 = h * RK.k1
 
-        @inbounds @. RK.tmp = u + 0.5 * RK.k1
+        @. RK.tmp = u + h * 0.5 * RK.k1
         func!(RK.k2, RK.tmp, p)
-        @inbounds @. RK.k2 = h * RK.k2
 
-        @inbounds @. RK.tmp = u + 0.5 * RK.k2
+        @. RK.tmp = u + h * 0.5 * RK.k2
         func!(RK.k3, RK.tmp, p)
-        @inbounds @. RK.k3 = h * RK.k3
 
-        @inbounds @. RK.tmp = u + RK.k3
+        @. RK.tmp = u + h * RK.k3
         func!(RK.k4, RK.tmp, p)
-        @inbounds @. RK.k4 = h * RK.k4
 
-        @inbounds @. u = u + (RK.k1 + 2. * RK.k2 + 2. * RK.k3 + RK.k4) / 6.
+        @. u = u + h / 6. * (RK.k1 + 2. * RK.k2 + 2. * RK.k3 + RK.k4)
         return nothing
     end
 
