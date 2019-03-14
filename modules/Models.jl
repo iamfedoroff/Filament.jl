@@ -45,9 +45,8 @@ struct Model
                 RungeKuttas.RungeKutta4}
     keys :: Dict
 
-    Ec :: CuArrays.CuArray{ComplexGPU, 2}
-    Er :: CuArrays.CuArray{FloatGPU, 2}
     Ftmp :: CuArrays.CuArray{FloatGPU, 2}
+    Etmp :: CuArrays.CuArray{ComplexGPU, 2}
     Stmp :: CuArrays.CuArray{ComplexGPU, 2}
 end
 
@@ -182,13 +181,12 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     Ra = CuArrays.cu(convert(Array{ComplexGPU, 1}, Ra))
 
     # Temporary arrays:
-    Ec = CuArrays.cuzeros(ComplexGPU, (grid.Nr, grid.Nt))
-    Er = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
     Ftmp = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
+    Etmp = CuArrays.cuzeros(ComplexGPU, (grid.Nr, grid.Nt))
     Stmp = CuArrays.cuzeros(ComplexGPU, (grid.Nr, grid.Nw))
 
     return Model(KZ, QZ, Rk, Rr, Hramanw, Rp, Ra, phi_kerr, phi_plasma, guard,
-                 RK, keys, Ec, Er, Ftmp, Stmp)
+                 RK, keys, Ftmp, Etmp, Stmp)
 end
 
 
@@ -220,38 +218,37 @@ function func!(dS::CuArrays.CuArray{ComplexGPU, 2},
 
     fill!(dS, FloatGPU(0.))
 
-    Fourier.hilbert2!(grid.FT, S, model.Ec)   # spectrum real to signal analytic
-    @inbounds @. model.Er = real(model.Ec)
+    Fourier.hilbert2!(grid.FT, S, model.Etmp)   # spectrum real to signal analytic
 
     # Kerr nonlinearity:
     if model.keys["KERR"] != 0
         if model.keys["THG"] != 0
-            @inbounds @. model.Ftmp = model.Er * model.Er * model.Er
+            @. model.Ftmp = real(model.Etmp)^3
         else
-            @inbounds @. model.Ftmp = FloatGPU(3. / 4.) * abs2(model.Ec) * model.Er
+            @. model.Ftmp = FloatGPU(3. / 4.) * abs2(model.Etmp) * real(model.Etmp)
         end
         Guards.apply_spatio_temporal_filter!(model.guard, model.Ftmp)
         Fourier.rfft2!(grid.FT, model.Ftmp, model.Stmp)   # time -> frequency
-        @inbounds @. dS = dS + model.Rk * model.Stmp
+        @. dS = dS + model.Rk * model.Stmp
     end
 
     # Stimulated Raman nonlinearity:
     if model.keys["RAMAN"] != 0
         if model.keys["RTHG"] != 0
-            @inbounds @. model.Ftmp = model.Er * model.Er
+            @. model.Ftmp = real(model.Etmp)^2
         else
-            @inbounds @. model.Ftmp = FloatGPU(3. / 4.) * abs2(model.Ec)
+            @. model.Ftmp = FloatGPU(3. / 4.) * abs2(model.Etmp)
         end
         Fourier.convolution2!(grid.FT, model.Hramanw, model.Ftmp)
-        @inbounds @. model.Ftmp = model.Ftmp * model.Er
+        @. model.Ftmp = model.Ftmp * real(model.Etmp)
         Guards.apply_spatio_temporal_filter!(model.guard, model.Ftmp)
         Fourier.rfft2!(grid.FT, model.Ftmp, model.Stmp)   # time -> frequency
-        @inbounds @. dS = dS + model.Rr * model.Stmp
+        @. dS = dS + model.Rr * model.Stmp
     end
 
     # Plasma nonlinearity:
     if model.keys["PLASMA"] != 0
-        @inbounds @. model.Ftmp = plasma.rho * model.Er
+        @. model.Ftmp = plasma.rho * real(model.Etmp)
         Guards.apply_spatio_temporal_filter!(model.guard, model.Ftmp)
         Fourier.rfft2!(grid.FT, model.Ftmp, model.Stmp)   # time -> frequency
         update_dS!(dS, model.Rp, model.Stmp)   # dS = dS + Rp * Stmp
@@ -260,12 +257,12 @@ function func!(dS::CuArrays.CuArray{ComplexGPU, 2},
     # Losses due to multiphoton ionization:
     if model.keys["ILOSSES"] != 0
         if model.keys["IONARG"] != 0
-            @inbounds @. model.Ftmp = abs2(model.Ec)
+            @. model.Ftmp = abs2(model.Etmp)
         else
-            @inbounds @. model.Ftmp = model.Er * model.Er
+            @. model.Ftmp = real(model.Etmp)^2
         end
         inverse!(model.Ftmp)
-        @inbounds @. model.Ftmp = plasma.Kdrho * model.Ftmp * model.Er
+        @. model.Ftmp = plasma.Kdrho * model.Ftmp * real(model.Etmp)
         Guards.apply_spatio_temporal_filter!(model.guard, model.Ftmp)
         Fourier.rfft2!(grid.FT, model.Ftmp, model.Stmp)   # time -> frequency
         update_dS!(dS, model.Ra, model.Stmp)   # dS = dS + Ra * Stmp
@@ -273,10 +270,10 @@ function func!(dS::CuArrays.CuArray{ComplexGPU, 2},
 
     # Nonparaxiality:
     if model.keys["QPARAXIAL"] != 0
-        @inbounds @. dS = -1im * model.QZ * dS
+        @. dS = -1im * model.QZ * dS
     else
         Hankel.dht!(grid.HT, dS)
-        @inbounds @. dS = -1im * model.QZ * dS
+        @. dS = -1im * model.QZ * dS
         Guards.apply_frequency_angular_filter!(model.guard, dS)
         Hankel.idht!(grid.HT, dS)
     end
@@ -456,11 +453,11 @@ function linear_propagator_kernel(S, KZ, dz)
         # complex arguments. To solve the issue, I use Euler's formula:
         #     exp(-1im * x) = (cos(xr) - 1im * sin(xr)) * exp(xi),
         # where xr = real(x) and xi = imag(x).
-        @inbounds xr = real(KZ[i, j]) * dz
-        @inbounds xi = imag(KZ[i, j]) * dz
+        xr = real(KZ[i, j]) * dz
+        xi = imag(KZ[i, j]) * dz
         expval = (CUDAnative.cos(xr) - ComplexGPU(1im) * CUDAnative.sin(xr)) *
                  CUDAnative.exp(xi)
-        @inbounds S[i, j] = S[i, j] * expval
+        S[i, j] = S[i, j] * expval
     end
     return nothing
 end
@@ -509,7 +506,7 @@ function update_dS_kernel(dS, R, S)
     for k=id:stride:Nr*Nw
         i = cartesian[k][1]
         j = cartesian[k][2]
-        @inbounds dS[i, j] = dS[i, j] + R[j] * S[i, j]
+        dS[i, j] = dS[i, j] + R[j] * S[i, j]
     end
     return nothing
 end
