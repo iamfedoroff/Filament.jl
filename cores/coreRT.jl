@@ -116,9 +116,11 @@ function main()
     dz_zdata = 0.5 * field.lam0
     znext_zdata = z + dz_zdata
 
+    zfirst = true
+
     CUDAdrv.synchronize()
 
-    @timeit "main loop" while z < Input.zmax
+    while z < Input.zmax
 
         println("z=$(Formatting.fmt("18.12e", z))[zu] " *
                 "I=$(Formatting.fmt("18.12e", pcache.Imax))[Iu] " *
@@ -171,6 +173,12 @@ function main()
             message = "Stop (Imax >= Istop): z=$(z)[zu], z=$(z * unit.z)[m]"
             Infos.write_message(info, message)
             break
+        end
+
+        # Exclude the first initialization step from timings
+        if zfirst
+            TimerOutputs.reset_timer!(TimerOutputs.get_defaulttimer())
+            zfirst = false
         end
 
     end
