@@ -140,8 +140,8 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     graman = medium.graman
 
     if RAMAN != 0
-        Rk = (1. - graman) * Rk
         Rr = graman * Rk
+        Rk = (1. - graman) * Rk
     else
         Rr = 0.
     end
