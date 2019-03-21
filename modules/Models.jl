@@ -17,6 +17,7 @@ import Hankel
 import Fourier
 import RungeKuttas
 import Guards
+import NonlinearResponses
 
 scipy_constants = PyCall.pyimport("scipy.constants")
 const C0 = scipy_constants.c   # speed of light in vacuum
@@ -33,11 +34,6 @@ const ComplexGPU = ComplexF32
 struct Model
     KZ :: CuArrays.CuArray{ComplexGPU, 2}
     QZ :: CuArrays.CuArray{ComplexGPU, 2}
-    Rk :: FloatGPU
-    Rr :: FloatGPU
-    Hramanw :: CuArrays.CuArray{ComplexGPU, 1}
-    Rp :: CuArrays.CuArray{ComplexGPU, 1}
-    Ra :: CuArrays.CuArray{ComplexGPU, 1}
     phi_kerr :: Float64
     phi_plasma :: Float64
     guard :: Guards.GuardFilter
@@ -48,6 +44,8 @@ struct Model
     Ftmp :: CuArrays.CuArray{FloatGPU, 2}
     Etmp :: CuArrays.CuArray{ComplexGPU, 2}
     Stmp :: CuArrays.CuArray{ComplexGPU, 2}
+
+    nonlinearities :: Tuple
 end
 
 
@@ -131,62 +129,26 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     QZ = CuArrays.cu(convert(Array{ComplexGPU, 2}, QZ))
 
     # Kerr nonlinearity --------------------------------------------------------
-    Rk = Rk_func(unit, field, medium)
     phi_kerr = phi_kerr_func(unit, field, medium)
 
-    # Stimulated Raman nonlinearity --------------------------------------------
-    RAMAN = keys["RAMAN"]
-
-    graman = medium.graman
-
-    if RAMAN != 0
-        Rr = graman * Rk
-        Rk = (1. - graman) * Rk
-    else
-        Rr = 0.
-    end
-
-    Rk = FloatGPU(Rk)
-    Rr = FloatGPU(Rr)
-
-    # For assymetric grids, where abs(tmin) != tmax, we need tshift to put H(t)
-    # into the grid center (see "circular convolution"):
-    tshift = grid.tmin + 0.5 * (grid.tmax - grid.tmin)
-    Hraman = @. medium.raman_response((grid.t - tshift) * unit.t)
-    Hraman = Hraman * grid.dt * unit.t
-
-    if abs(1. - sum(Hraman)) > 1e-3
-        println("WARNING: The integral of Raman response function should be" *
-                " normalized to 1.")
-    end
-
-    Tguard = convert(Array{ComplexF64, 1}, CuArrays.collect(guard.T))
-    @. Hraman = Hraman * Tguard   # temporal filter
-    Hraman = Fourier.ifftshift(Hraman)
-    Hramanw = FFTW.rfft(Hraman)   # time -> frequency
-
-    Hramanw = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, Hramanw))
-
     # Plasma nonlinearity ------------------------------------------------------
-    Rp = Rp_func(unit, grid, field, medium, plasma)
-    @. Rp = conj(Rp)
     phi_plasma = phi_kerr_func(unit, field, medium)
-
-    Rp = CuArrays.cu(convert(Array{ComplexGPU, 1}, Rp))
-
-    # Losses due to multiphoton ionization -------------------------------------
-    Ra = Ra_func(unit, grid, field, medium)
-    @. Ra = conj(Ra)
-
-    Ra = CuArrays.cu(convert(Array{ComplexGPU, 1}, Ra))
 
     # Temporary arrays:
     Ftmp = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
     Etmp = CuArrays.cuzeros(ComplexGPU, (grid.Nr, grid.Nt))
     Stmp = CuArrays.cuzeros(ComplexGPU, (grid.Nr, grid.Nw))
 
-    return Model(KZ, QZ, Rk, Rr, Hramanw, Rp, Ra, phi_kerr, phi_plasma, guard,
-                 RK, keys, Ftmp, Etmp, Stmp)
+
+    kerr = NonlinearResponses.Kerr(unit, grid, field, medium, keys)
+    raman = NonlinearResponses.Raman(unit, grid, field, medium, keys, guard)
+    current = NonlinearResponses.Plasma(unit, grid, field, medium, plasma)
+    mpilosses = NonlinearResponses.MPILosses(unit, grid, field, medium, plasma, keys)
+    nonlinearities = (kerr, raman, current, mpilosses)
+
+
+    return Model(KZ, QZ, phi_kerr, phi_plasma, guard,
+                 RK, keys, Ftmp, Etmp, Stmp, nonlinearities)
 end
 
 
@@ -214,58 +176,16 @@ function func!(dS::CuArrays.CuArray{ComplexGPU, 2},
                p::Tuple)
     grid = p[1]
     model = p[2]
-    plasma = p[3]
-
-    fill!(dS, FloatGPU(0.))
 
     Fourier.hilbert2!(grid.FT, S, model.Etmp)   # spectrum real to signal analytic
 
-    # Kerr nonlinearity:
-    if model.keys["KERR"] != 0
-        if model.keys["THG"] != 0
-            @. model.Ftmp = real(model.Etmp)^3
-        else
-            @. model.Ftmp = FloatGPU(3. / 4.) * abs2(model.Etmp) * real(model.Etmp)
-        end
-        Guards.apply_spatio_temporal_filter!(model.guard, model.Ftmp)
-        Fourier.rfft2!(grid.FT, model.Ftmp, model.Stmp)   # time -> frequency
-        @. dS = dS + model.Rk * model.Stmp
-    end
+    fill!(dS, FloatGPU(0.))
 
-    # Stimulated Raman nonlinearity:
-    if model.keys["RAMAN"] != 0
-        if model.keys["RTHG"] != 0
-            @. model.Ftmp = real(model.Etmp)^2
-        else
-            @. model.Ftmp = FloatGPU(3. / 4.) * abs2(model.Etmp)
-        end
-        Fourier.convolution2!(grid.FT, model.Hramanw, model.Ftmp)
-        @. model.Ftmp = model.Ftmp * real(model.Etmp)
+    for nonlinearity in model.nonlinearities
+        NonlinearResponses.calculate!(nonlinearity, model.Ftmp, model.Etmp)
         Guards.apply_spatio_temporal_filter!(model.guard, model.Ftmp)
         Fourier.rfft2!(grid.FT, model.Ftmp, model.Stmp)   # time -> frequency
-        @. dS = dS + model.Rr * model.Stmp
-    end
-
-    # Plasma nonlinearity:
-    if model.keys["PLASMA"] != 0
-        @. model.Ftmp = plasma.rho * real(model.Etmp)
-        Guards.apply_spatio_temporal_filter!(model.guard, model.Ftmp)
-        Fourier.rfft2!(grid.FT, model.Ftmp, model.Stmp)   # time -> frequency
-        update_dS!(dS, model.Rp, model.Stmp)   # dS = dS + Rp * Stmp
-    end
-
-    # Losses due to multiphoton ionization:
-    if model.keys["ILOSSES"] != 0
-        if model.keys["IONARG"] != 0
-            @. model.Ftmp = abs2(model.Etmp)
-        else
-            @. model.Ftmp = real(model.Etmp)^2
-        end
-        inverse!(model.Ftmp)
-        @. model.Ftmp = plasma.Kdrho * model.Ftmp * real(model.Etmp)
-        Guards.apply_spatio_temporal_filter!(model.guard, model.Ftmp)
-        Fourier.rfft2!(grid.FT, model.Ftmp, model.Stmp)   # time -> frequency
-        update_dS!(dS, model.Ra, model.Stmp)   # dS = dS + Ra * Stmp
+        update_dS!(dS, nonlinearity.Rnl, model.Stmp)   # dS = dS + Ra * Stmp
     end
 
     # Nonparaxiality:
@@ -304,7 +224,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     @timeit "nonlinearity" begin
         if (model.keys["KERR"] != 0) | (model.keys["PLASMA"] != 0) |
            (model.keys["ILOSSES"] != 0)
-           p = (grid, model, plasma)
+           p = (grid, model)
            RungeKuttas.solve!(model.RK, field.S, dz_gpu, func!, p)
            CUDAdrv.synchronize()
        end
@@ -331,49 +251,6 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     end
 
     return nothing
-end
-
-
-function Rk_func(unit::Units.Unit, field::Fields.Field, medium::Media.Medium)
-    n0 = real(Media.refractive_index(medium, field.w0))
-    Eu = Units.E(unit, n0)
-    chi3 = Media.chi3_func(medium, field.w0)
-    R = EPS0 * chi3 * Eu^3
-    return R
-end
-
-
-function Rp_func(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
-                 medium::Media.Medium, plasma::Plasmas.Plasma)
-    n0 = real(Media.refractive_index(medium, field.w0))
-    Eu = Units.E(unit, n0)
-    nuc = plasma.nuc
-    MR = plasma.mr * ME   # reduced mass of electron and hole (effective mass)
-    R = zeros(ComplexF64, grid.Nw)
-    for i=1:grid.Nw
-        if grid.w[i] != 0.
-            R[i] = 1im / (grid.w[i] * unit.w) *
-                   QE^2 / MR / (nuc - 1im * (grid.w[i] * unit.w)) *
-                   unit.rho * Eu
-        end
-    end
-    return R
-end
-
-
-function Ra_func(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
-                 medium::Media.Medium)
-    n0 = real(Media.refractive_index(medium, field.w0))
-    Eu = Units.E(unit, n0)
-
-    R = zeros(ComplexF64, grid.Nw)
-    for i=1:grid.Nw
-        if grid.w[i] != 0.
-            R[i] = 1im / (grid.w[i] * unit.w) *
-                   HBAR * field.w0 * unit.rho / (unit.t * Eu)
-        end
-    end
-    return R
 end
 
 
@@ -463,31 +340,9 @@ function linear_propagator_kernel(S, KZ, dz)
 end
 
 
-function inverse!(F)
-    N1, N2 = size(F)
-    dev = CUDAnative.CuDevice(0)
-    MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
-    nth = min(N1 * N2, MAX_THREADS_PER_BLOCK)
-    nbl = Int(ceil(N1 * N2 / nth))
-    @CUDAnative.cuda blocks=nbl threads=nth inverse_kernel(F)
-    return nothing
-end
-
-function inverse_kernel(F)
-    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
-    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
-    N1, N2 = size(F)
-    for k=id:stride:N1*N2
-        if F[k] >= FloatGPU(1e-30)
-            F[k] = FloatGPU(1.) / F[k]
-        else
-            F[k] = FloatGPU(0.)
-        end
-    end
-    return nothing
-end
-
-function update_dS!(dS, R, S)
+function update_dS!(dS::CuArrays.CuArray{ComplexGPU, 2},
+                    R::CuArrays.CuArray{ComplexGPU, 1},
+                    S::CuArrays.CuArray{ComplexGPU, 2})
     N1, N2 = size(S)
     dev = CUDAnative.CuDevice(0)
     MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
