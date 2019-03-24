@@ -34,7 +34,7 @@ function init_raman(unit, grid, field, medium, plasma, args)
 
     p = (RTHG, Hramanw, grid.FT)
 
-    return NonlinearResponses.NonlinearResponse(Rnl, calculate_raman, p)
+    return Rnl, calculate_raman, p
 end
 
 

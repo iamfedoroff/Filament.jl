@@ -15,7 +15,7 @@ function init_cubic(unit, grid, field, medium, plasma, args)
 
     p = (THG, )
 
-    return NonlinearResponses.NonlinearResponse(Rnl, calculate_cubic, p)
+    return Rnl, calculate_cubic, p
 end
 
 

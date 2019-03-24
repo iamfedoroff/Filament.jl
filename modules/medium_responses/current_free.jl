@@ -21,7 +21,7 @@ function init_current_free(unit, grid, field, medium, plasma, args)
 
     p = (plasma.rho, )
 
-    return NonlinearResponses.NonlinearResponse(Rnl, calculate_current_free, p)
+    return Rnl, calculate_current_free, p
 end
 
 

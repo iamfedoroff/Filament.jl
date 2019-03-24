@@ -51,7 +51,7 @@ end
 
 function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
                medium::Media.Medium, plasma::Plasmas.Plasma, keys::Dict,
-               iresponses)
+               dict_responses)
     # Guards -------------------------------------------------------------------
     rguard_width = keys["rguard_width"]
     tguard_width = keys["tguard_width"]
@@ -135,9 +135,10 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
 
     responses = []
     # responses = Array{NonlinearResponses.NonlinearResponse}(undef, 1)
-    for iresponse in iresponses
-        init = iresponse["init"]
-        response = init(unit, grid, field, medium, plasma, iresponse)
+    for dict_response in dict_responses
+        init = dict_response["init"]
+        Rnl, calc, p = init(unit, grid, field, medium, plasma, dict_response)
+        response = NonlinearResponses.NonlinearResponse(Rnl, calc, p)
         push!(responses, response)
     end
 

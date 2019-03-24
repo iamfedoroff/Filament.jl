@@ -24,7 +24,6 @@ module Input
     import Fourier
     import Units
     import Media
-    import NonlinearResponses
 
     import PyCall
     scipy_constants = PyCall.pyimport("scipy.constants")

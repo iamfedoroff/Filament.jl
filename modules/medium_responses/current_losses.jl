@@ -20,7 +20,7 @@ function init_current_losses(unit, grid, field, medium, plasma, args)
 
     p = (IONARG, plasma.Kdrho)
 
-    return NonlinearResponses.NonlinearResponse(Rnl, calculate_current_losses, p)
+    return Rnl, calculate_current_losses, p
 end
 
 
