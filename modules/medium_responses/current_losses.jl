@@ -1,9 +1,11 @@
 # ******************************************************************************
 # Losses due to multiphoton ionization
 # ******************************************************************************
-function MPILosses(unit, grid, field, medium, plasma, keys)
-    n0 = real(Media.refractive_index(medium, field.w0))
-    Eu = Units.E(unit, n0)
+function init_current_losses(unit, grid, field, medium, plasma, args)
+    IONARG = args["IONARG"]
+
+    n0 = Media.refractive_index(medium, field.w0)
+    Eu = Units.E(unit, real(n0))
 
     Rnl = zeros(ComplexF64, grid.Nw)
     for i=1:grid.Nw
@@ -16,15 +18,15 @@ function MPILosses(unit, grid, field, medium, plasma, keys)
     @. Rnl = conj(Rnl)
     Rnl = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, Rnl))
 
-    p = (keys["IONARG"], plasma.Kdrho)
+    p = (IONARG, plasma.Kdrho)
 
-    return NonlinearResponse(Rnl, func_mpilosses, p)
+    return NonlinearResponses.NonlinearResponse(Rnl, calculate_current_losses, p)
 end
 
 
-function func_mpilosses(F::CuArrays.CuArray{FloatGPU, 2},
-                        E::CuArrays.CuArray{ComplexGPU, 2},
-                        p::Tuple)
+function calculate_current_losses(F::CuArrays.CuArray{FloatGPU, 2},
+                                  E::CuArrays.CuArray{ComplexGPU, 2},
+                                  p::Tuple)
     IONARG = p[1]
     Kdrho = p[2]
     if IONARG != 0
@@ -37,7 +39,7 @@ function func_mpilosses(F::CuArrays.CuArray{FloatGPU, 2},
 end
 
 
-function inverse!(F)
+function inverse!(F::CuArrays.CuArray{FloatGPU, 2})
     N1, N2 = size(F)
     dev = CUDAnative.CuDevice(0)
     MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)

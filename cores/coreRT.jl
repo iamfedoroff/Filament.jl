@@ -16,13 +16,28 @@ import Models
 
 module Input
     # Modules and variables available in input files:
+    import CUDAnative
+    import CuArrays
+    import CUDAdrv
     import FFTW
 
     import Fourier
+    import Units
+    import Media
+    import NonlinearResponses
 
     import PyCall
     scipy_constants = PyCall.pyimport("scipy.constants")
-    C0 = scipy_constants.c   # speed of light in vacuum
+    const C0 = scipy_constants.c   # speed of light in vacuum
+    const EPS0 = scipy_constants.epsilon_0   # the electric constant (vacuum permittivity) [F/m]
+    const QE = scipy_constants.e   # elementary charge [C]
+    const ME = scipy_constants.m_e   # electron mass [kg]
+    const HBAR = scipy_constants.hbar   # the Planck constant (divided by 2*pi) [J*s]
+
+    const FloatGPU = Float32
+    const ComplexGPU = ComplexF32
+
+    const DEFPATH = joinpath(@__DIR__, "..", "modules", "medium_responses")
 
     # Read input file and change current working directory:
     file_input = abspath(ARGS[1])
@@ -104,7 +119,8 @@ function main()
         "rguard_width" => Input.rguard_width,
         "tguard_width" => Input.tguard_width, "kguard" => Input.kguard,
         "wguard" => Input.wguard, "RKORDER" => Input.RKORDER)
-    model = Models.Model(unit, grid, field, medium, plasma, keys)
+    model = Models.Model(unit, grid, field, medium, plasma, keys,
+                         Input.responses)
 
     # **************************************************************************
     # Main loop

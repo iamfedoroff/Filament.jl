@@ -36,10 +36,4 @@ module NonlinearResponses
         return nothing
     end
 
-
-    include("./responses/cubic.jl")
-    include("./responses/raman.jl")
-    include("./responses/plasma.jl")
-    include("./responses/mpi_losses.jl")
-
 end

@@ -1,9 +1,9 @@
 # ******************************************************************************
 # Plasma nonlinearity
 # ******************************************************************************
-function Plasma(unit, grid, field, medium, plasma)
-    n0 = real(Media.refractive_index(medium, field.w0))
-    Eu = Units.E(unit, n0)
+function init_current_free(unit, grid, field, medium, plasma, args)
+    n0 = Media.refractive_index(medium, field.w0)
+    Eu = Units.E(unit, real(n0))
     nuc = plasma.nuc
     MR = plasma.mr * ME   # reduced mass of electron and hole (effective mass)
 
@@ -21,13 +21,13 @@ function Plasma(unit, grid, field, medium, plasma)
 
     p = (plasma.rho, )
 
-    return NonlinearResponse(Rnl, func_plasma, p)
+    return NonlinearResponses.NonlinearResponse(Rnl, calculate_current_free, p)
 end
 
 
-function func_plasma(F::CuArrays.CuArray{FloatGPU, 2},
-                     E::CuArrays.CuArray{ComplexGPU, 2},
-                     p::Tuple)
+function calculate_current_free(F::CuArrays.CuArray{FloatGPU, 2},
+                                E::CuArrays.CuArray{ComplexGPU, 2},
+                                p::Tuple)
     rho = p[1]
     @. F = rho * real(E)
     return nothing

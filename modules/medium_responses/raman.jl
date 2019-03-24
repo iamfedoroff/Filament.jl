@@ -1,15 +1,15 @@
 # ******************************************************************************
-# Stimulated Raman nonlinearity
+# Stimulated Raman response
 # ******************************************************************************
-function Raman(unit, grid, field, medium, keys, guard)
-    n0 = real(Media.refractive_index(medium, field.w0))
-    Eu = Units.E(unit, n0)
-    chi3 = Media.chi3_func(medium, field.w0)
-    Rk = EPS0 * chi3 * Eu^3
+function init_raman(unit, grid, field, medium, plasma, args)
+    RTHG = args["RTHG"]
+    n2 = args["n2"]
+    raman_response = args["raman_response"]
 
-    graman = medium.graman
-    Rr = graman * Rk
-    Rk = (1. - graman) * Rk   # Error!!!
+    n0 = Media.refractive_index(medium, field.w0)
+    Eu = Units.E(unit, real(n0))
+    chi3 = 4. / 3. * real(n0)^2 * EPS0 * C0 * n2
+    Rr = EPS0 * chi3 * Eu^3
 
     Rnl = CuArrays.cuzeros(ComplexGPU, grid.Nw)
     fill!(Rnl, FloatGPU(Rr))
@@ -17,7 +17,7 @@ function Raman(unit, grid, field, medium, keys, guard)
     # For assymetric grids, where abs(tmin) != tmax, we need tshift to put
     # H(t) into the grid center (see "circular convolution"):
     tshift = grid.tmin + 0.5 * (grid.tmax - grid.tmin)
-    Hraman = @. medium.raman_response((grid.t - tshift) * unit.t)
+    Hraman = @. raman_response((grid.t - tshift) * unit.t)
     Hraman = Hraman * grid.dt * unit.t
 
     if abs(1. - sum(Hraman)) > 1e-3
@@ -25,22 +25,22 @@ function Raman(unit, grid, field, medium, keys, guard)
                 " normalized to 1.")
     end
 
-    Tguard = convert(Array{ComplexF64, 1}, CuArrays.collect(guard.T))
-    @. Hraman = Hraman * Tguard   # temporal filter
+    # Tguard = convert(Array{ComplexF64, 1}, CuArrays.collect(guard.T))
+    # @. Hraman = Hraman * Tguard   # temporal filter
     Hraman = Fourier.ifftshift(Hraman)
     Hramanw = FFTW.rfft(Hraman)   # time -> frequency
 
     Hramanw = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, Hramanw))
 
-    p = (keys["RTHG"], Hramanw, grid.FT)
+    p = (RTHG, Hramanw, grid.FT)
 
-    return NonlinearResponse(Rnl, func_raman, p)
+    return NonlinearResponses.NonlinearResponse(Rnl, calculate_raman, p)
 end
 
 
-function func_raman(F::CuArrays.CuArray{FloatGPU, 2},
-                    E::CuArrays.CuArray{ComplexGPU, 2},
-                    p::Tuple)
+function calculate_raman(F::CuArrays.CuArray{FloatGPU, 2},
+                         E::CuArrays.CuArray{ComplexGPU, 2},
+                         p::Tuple)
     THG = p[1]
     Hramanw = p[2]
     FT = p[3]

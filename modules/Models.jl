@@ -45,12 +45,13 @@ struct Model
     Etmp :: CuArrays.CuArray{ComplexGPU, 2}
     Stmp :: CuArrays.CuArray{ComplexGPU, 2}
 
-    nonlinearities :: Tuple
+    responses #:: Array{NonlinearResponses.NonlinearResponse, 1}
 end
 
 
 function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
-               medium::Media.Medium, plasma::Plasmas.Plasma, keys::Dict)
+               medium::Media.Medium, plasma::Plasmas.Plasma, keys::Dict,
+               iresponses)
     # Guards -------------------------------------------------------------------
     rguard_width = keys["rguard_width"]
     tguard_width = keys["tguard_width"]
@@ -128,27 +129,25 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
 
     QZ = CuArrays.cu(convert(Array{ComplexGPU, 2}, QZ))
 
-    # Kerr nonlinearity --------------------------------------------------------
+    # Nonlinear responses ------------------------------------------------------
     phi_kerr = phi_kerr_func(unit, field, medium)
-
-    # Plasma nonlinearity ------------------------------------------------------
     phi_plasma = phi_kerr_func(unit, field, medium)
 
-    # Temporary arrays:
+    responses = []
+    # responses = Array{NonlinearResponses.NonlinearResponse}(undef, 1)
+    for iresponse in iresponses
+        init = iresponse["init"]
+        response = init(unit, grid, field, medium, plasma, iresponse)
+        push!(responses, response)
+    end
+
+    # Temporary arrays ---------------------------------------------------------
     Ftmp = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
     Etmp = CuArrays.cuzeros(ComplexGPU, (grid.Nr, grid.Nt))
     Stmp = CuArrays.cuzeros(ComplexGPU, (grid.Nr, grid.Nw))
 
-
-    kerr = NonlinearResponses.Kerr(unit, grid, field, medium, keys)
-    raman = NonlinearResponses.Raman(unit, grid, field, medium, keys, guard)
-    current = NonlinearResponses.Plasma(unit, grid, field, medium, plasma)
-    mpilosses = NonlinearResponses.MPILosses(unit, grid, field, medium, plasma, keys)
-    nonlinearities = (kerr, raman, current, mpilosses)
-
-
     return Model(KZ, QZ, phi_kerr, phi_plasma, guard,
-                 RK, keys, Ftmp, Etmp, Stmp, nonlinearities)
+                 RK, keys, Ftmp, Etmp, Stmp, responses)
 end
 
 
@@ -171,7 +170,7 @@ function adaptive_dz(model::Model, AdaptLevel::Float64, I::Float64,
 end
 
 
-function func!(dS::CuArrays.CuArray{ComplexGPU, 2},
+function rkfunc!(dS::CuArrays.CuArray{ComplexGPU, 2},
                S::CuArrays.CuArray{ComplexGPU, 2},
                p::Tuple)
     grid = p[1]
@@ -181,11 +180,11 @@ function func!(dS::CuArrays.CuArray{ComplexGPU, 2},
 
     fill!(dS, FloatGPU(0.))
 
-    for nonlinearity in model.nonlinearities
-        NonlinearResponses.calculate!(nonlinearity, model.Ftmp, model.Etmp)
+    for response in model.responses
+        NonlinearResponses.calculate!(response, model.Ftmp, model.Etmp)
         Guards.apply_spatio_temporal_filter!(model.guard, model.Ftmp)
         Fourier.rfft2!(grid.FT, model.Ftmp, model.Stmp)   # time -> frequency
-        update_dS!(dS, nonlinearity.Rnl, model.Stmp)   # dS = dS + Ra * Stmp
+        update_dS!(dS, response.Rnl, model.Stmp)   # dS = dS + Ra * Stmp
     end
 
     # Nonparaxiality:
@@ -225,7 +224,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
         if (model.keys["KERR"] != 0) | (model.keys["PLASMA"] != 0) |
            (model.keys["ILOSSES"] != 0)
            p = (grid, model)
-           RungeKuttas.solve!(model.RK, field.S, dz_gpu, func!, p)
+           RungeKuttas.solve!(model.RK, field.S, dz_gpu, rkfunc!, p)
            CUDAdrv.synchronize()
        end
     end

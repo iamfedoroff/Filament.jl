@@ -1,3 +1,6 @@
+# ******************************************************************************
+# Linear response
+# ******************************************************************************
 function permittivity(w)
     # E.R. Peck and K. Reeder "Dispersion of Air" JOSA, 62, 958 (1972)
     if w == 0.
@@ -20,7 +23,29 @@ function permeability(w)
 end
 
 
+# ******************************************************************************
+# Nonlinear response
+# ******************************************************************************
+# DEFPATH - default path for directory with media responses
+
+graman = 0.5   # fraction of stimulated Raman contribution
+
+# Cubic ------------------------------------------------------------------------
+include(joinpath(DEFPATH, "cubic.jl"))
+
+THG = 1   # switch for third harmonic generation: 1 - E^3, 0 - abs(E)^2*E
+
 n2 = 1e-23   # [m**2/W] nonlinear index
+
+cubic = Dict("init" => init_cubic,
+             "THG" => THG,
+             "n2" => graman * n2)
+
+
+# Raman ------------------------------------------------------------------------
+include(joinpath(DEFPATH, "raman.jl"))
+
+RTHG = 1   # switch for third harmonic generation (similar to THG)
 
 
 function raman_response(t)
@@ -38,7 +63,35 @@ function raman_response(t)
 end
 
 
-graman = 0.5   # fraction of stimulated Raman contribution
+raman = Dict("init" => init_raman,
+             "RTHG" => RTHG,
+             "n2" => (1. - graman) * n2,
+             "raman_response" => raman_response)
+
+
+# Free current -----------------------------------------------------------------
+include(joinpath(DEFPATH, "current_free.jl"))
+
+current_free = Dict("init" => init_current_free)
+
+
+# Multiphoton absorption -------------------------------------------------------
+include(joinpath(DEFPATH, "current_losses.jl"))
+
+IONARG = 1   # switch for the ionization rate argument: 1 - abs(E), 0 - real(E)
+
+current_losses = Dict("init" => init_current_losses,
+                      "IONARG" => IONARG)
+
+
+# List of nonlinear responses incuded to the model:
+responses = [cubic, raman, current_free, current_losses]
+
+
+# ******************************************************************************
+# Kinetic equation for electron density
+# ******************************************************************************
+AVALANCHE = 1   # switch for avalanche ionization
 
 rho0 = 2.5e25   # [1/m**3] neutrals density [https://en.wikipedia.org/wiki/Number_density]
 nuc = 5e12   # [1/s] collision frequency [Sprangle, PRE, 69, 066415 (2004)]
