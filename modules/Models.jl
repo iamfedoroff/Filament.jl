@@ -131,7 +131,7 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
 
     # Nonlinear responses ------------------------------------------------------
     phi_kerr = phi_kerr_func(unit, field, medium)
-    phi_plasma = phi_kerr_func(unit, field, medium)
+    phi_plasma = phi_plasma_func(unit, field, medium, plasma)
 
     responses = []
     # responses = Array{NonlinearResponses.NonlinearResponse}(undef, 1)
@@ -283,12 +283,13 @@ end
 
 
 """Plasma phase factor for adaptive z step."""
-function phi_plasma(unit::Units.Unit, field::Fields.Field, medium::Media.Medium)
+function phi_plasma_func(unit::Units.Unit, field::Fields.Field,
+                         medium::Media.Medium, plasma::Plasmas.Plasma)
     w0 = field.w0
     k0 = Media.k_func(medium, w0)
-    nuc = medium.nuc
+    nuc = plasma.nuc
     mu = medium.permeability(w0)
-    MR = medium.mr * ME   # reduced mass of electron and hole (effective mass)
+    MR = plasma.mr * ME   # reduced mass of electron and hole (effective mass)
     Rp0 = 0.5 * MU0 * mu * w0 / (nuc - 1im * w0) * QE^2 / MR * unit.rho * unit.z
 
     if real(Rp0) != 0.
