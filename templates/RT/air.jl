@@ -91,6 +91,7 @@ responses = [cubic, raman, current_free, current_losses]
 # ******************************************************************************
 # Kinetic equation for electron density
 # ******************************************************************************
+IONARG = 1   # switch for the ionization rate argument: 1 - abs(E), 0 - real(E)
 AVALANCHE = 1   # switch for avalanche ionization
 
 rho0 = 2.5e25   # [1/m**3] neutrals density [https://en.wikipedia.org/wiki/Number_density]

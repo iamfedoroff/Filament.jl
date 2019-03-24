@@ -112,9 +112,6 @@ function main()
     # **************************************************************************
     keys = Dict(
         "KPARAXIAL" => Input.KPARAXIAL, "QPARAXIAL" => Input.QPARAXIAL,
-        "KERR" => Input.KERR, "THG" => Input.THG, "RAMAN" => Input.RAMAN,
-        "RTHG" => Input.RTHG, "PLASMA" => Input.PLASMA,
-        "ILOSSES" => Input.ILOSSES, "IONARG" => Input.IONARG,
         "rguard_width" => Input.rguard_width,
         "tguard_width" => Input.tguard_width, "kguard" => Input.kguard,
         "wguard" => Input.wguard, "RKORDER" => Input.RKORDER)

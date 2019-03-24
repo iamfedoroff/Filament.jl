@@ -154,13 +154,13 @@ end
 
 function adaptive_dz(model::Model, AdaptLevel::Float64, I::Float64,
                      rho::Float64)
-    if model.keys["KERR"] != 0
+    if ! isempty(model.responses)
         dz_kerr = model.phi_kerr / I * AdaptLevel
     else
         dz_kerr = Inf
     end
 
-    if (model.keys["PLASMA"] != 0) & (rho != 0.)
+    if (! isempty(model.responses)) & (rho != 0.)
         dz_plasma = model.phi_plasma / rho * AdaptLevel
     else
         dz_plasma = Inf
@@ -172,8 +172,8 @@ end
 
 
 function rkfunc!(dS::CuArrays.CuArray{ComplexGPU, 2},
-               S::CuArrays.CuArray{ComplexGPU, 2},
-               p::Tuple)
+                 S::CuArrays.CuArray{ComplexGPU, 2},
+                 p::Tuple)
     grid = p[1]
     model = p[2]
 
@@ -206,7 +206,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
                plasma::Plasmas.Plasma, model::Model)
     # Calculate plasma density -------------------------------------------------
     @timeit "plasma" begin
-        if (model.keys["PLASMA"] != 0) | (model.keys["ILOSSES"] != 0)
+        if ! isempty(plasma.components)
             Plasmas.free_charge(plasma, grid, field)
             CUDAdrv.synchronize()
         end
@@ -222,8 +222,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
 
     # Nonlinearity -------------------------------------------------------------
     @timeit "nonlinearity" begin
-        if (model.keys["KERR"] != 0) | (model.keys["PLASMA"] != 0) |
-           (model.keys["ILOSSES"] != 0)
+        if ! isempty(model.responses)
            p = (grid, model)
            RungeKuttas.solve!(model.RK, field.S, dz_gpu, rkfunc!, p)
            CUDAdrv.synchronize()
