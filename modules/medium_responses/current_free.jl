@@ -21,13 +21,13 @@ function init_current_free(unit, grid, field, medium, plasma, args)
 
     p = (plasma.rho, )
 
-    return Rnl, calculate_current_free, p
+    return Rnl, calc_current_free, p
 end
 
 
-function calculate_current_free(F::CuArrays.CuArray{FloatGPU, 2},
-                                E::CuArrays.CuArray{ComplexGPU, 2},
-                                p::Tuple)
+function calc_current_free(F::CuArrays.CuArray{FloatGPU, 2},
+                           E::CuArrays.CuArray{ComplexGPU, 2},
+                           p::Tuple)
     rho = p[1]
     @. F = rho * real(E)
     return nothing

@@ -1,6 +1,6 @@
-# ******************************************************************************
+# ------------------------------------------------------------------------------
 # Linear response
-# ******************************************************************************
+# ------------------------------------------------------------------------------
 function permittivity(w)
     # E.R. Peck and K. Reeder "Dispersion of Air" JOSA, 62, 958 (1972)
     if w == 0.
@@ -23,31 +23,26 @@ function permeability(w)
 end
 
 
-# ******************************************************************************
+# ------------------------------------------------------------------------------
 # Nonlinear response
-# ******************************************************************************
+# ------------------------------------------------------------------------------
 # DEFPATH - default path for directory with media responses
 
 graman = 0.5   # fraction of stimulated Raman contribution
 
-# Cubic ------------------------------------------------------------------------
-include(joinpath(DEFPATH, "cubic.jl"))
-
-THG = 1   # switch for third harmonic generation: 1 - E^3, 0 - abs(E)^2*E
-
 n2 = 1e-23   # [m**2/W] nonlinear index
 
-cubic = Dict("init" => init_cubic,
-             "THG" => THG,
-             "n2" => graman * n2)
+# Cubic nonlinearity -----------------------------------------------------------
+include(joinpath(DEFPATH, "cubic.jl"))
+
+cubic = Dict(
+    "init" => init_cubic,   # initialization function
+    "THG" => true,   # switch for third harmonic generation
+    "n2" => graman * 1e-23,   # [m**2/W] nonlinear index
+    )
 
 
-# Raman ------------------------------------------------------------------------
-include(joinpath(DEFPATH, "raman.jl"))
-
-RTHG = 1   # switch for third harmonic generation (similar to THG)
-
-
+# Stimulated Raman effect ------------------------------------------------------
 function raman_response(t)
     # M. Mlejnek, E.M. Wright, J.V. Moloney "Dynamic spatial replenishment of
     # femtosecond pulses propagating in air" Opt. Lett., 23, 382 (1998)
@@ -63,34 +58,40 @@ function raman_response(t)
 end
 
 
-raman = Dict("init" => init_raman,
-             "RTHG" => RTHG,
-             "n2" => (1. - graman) * n2,
-             "raman_response" => raman_response)
+include(joinpath(DEFPATH, "raman.jl"))
+
+raman = Dict(
+    "init" => init_raman,   # initialization function
+    "THG" => true,   # switch for third harmonic generation
+    "n2" => (1. - graman) * 1e-23,   # [m**2/W] nonlinear index
+    "raman_response" => raman_response,   # response function
+    )
 
 
 # Free current -----------------------------------------------------------------
 include(joinpath(DEFPATH, "current_free.jl"))
 
-current_free = Dict("init" => init_current_free)
+current_free = Dict(
+    "init" => init_current_free,   # initialization function
+    )
 
 
 # Multiphoton absorption -------------------------------------------------------
 include(joinpath(DEFPATH, "current_losses.jl"))
 
-IONARG = 1   # switch for the ionization rate argument: 1 - abs(E), 0 - real(E)
-
-current_losses = Dict("init" => init_current_losses,
-                      "IONARG" => IONARG)
+current_losses = Dict(
+    "init" => init_current_losses,   # initialization function
+    "IONARG" => 1,   # switch for the ionization rate argument: 1 - abs(E), 0 - real(E)
+    )
 
 
 # List of nonlinear responses incuded to the model:
 responses = [cubic, raman, current_free, current_losses]
 
 
-# ******************************************************************************
+# ------------------------------------------------------------------------------
 # Kinetic equation for electron density
-# ******************************************************************************
+# ------------------------------------------------------------------------------
 IONARG = 1   # switch for the ionization rate argument: 1 - abs(E), 0 - real(E)
 AVALANCHE = 1   # switch for avalanche ionization
 

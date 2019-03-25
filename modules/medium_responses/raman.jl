@@ -2,7 +2,7 @@
 # Stimulated Raman response
 # ******************************************************************************
 function init_raman(unit, grid, field, medium, plasma, args)
-    RTHG = args["RTHG"]
+    THG = args["THG"]
     n2 = args["n2"]
     raman_response = args["raman_response"]
 
@@ -32,23 +32,34 @@ function init_raman(unit, grid, field, medium, plasma, args)
 
     Hramanw = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, Hramanw))
 
-    p = (RTHG, Hramanw, grid.FT)
+    p = (Hramanw, grid.FT)
 
-    return Rnl, calculate_raman, p
+    if THG
+        calc = calc_raman
+    else
+        calc = calc_raman_nothg
+    end
+
+    return Rnl, calc, p
 end
 
 
-function calculate_raman(F::CuArrays.CuArray{FloatGPU, 2},
-                         E::CuArrays.CuArray{ComplexGPU, 2},
-                         p::Tuple)
-    THG = p[1]
-    Hramanw = p[2]
-    FT = p[3]
-    if THG != 0
-        @. F = real(E)^2
-    else
-        @. F = FloatGPU(3. / 4.) * abs2(E)
-    end
+function calc_raman(F::CuArrays.CuArray{FloatGPU, 2},
+                    E::CuArrays.CuArray{ComplexGPU, 2},
+                    p::Tuple)
+    Hramanw, FT = p
+    @. F = real(E)^2
+    Fourier.convolution2!(FT, Hramanw, F)
+    @. F = F * real(E)
+    return nothing
+end
+
+
+function calc_raman_nothg(F::CuArrays.CuArray{FloatGPU, 2},
+                          E::CuArrays.CuArray{ComplexGPU, 2},
+                          p::Tuple)
+    Hramanw, FT = p
+    @. F = FloatGPU(3. / 4.) * abs2(E)
     Fourier.convolution2!(FT, Hramanw, F)
     @. F = F * real(E)
     return nothing

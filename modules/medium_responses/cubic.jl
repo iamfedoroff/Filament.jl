@@ -1,5 +1,5 @@
 # ******************************************************************************
-# Cubic response
+# Cubic nonlinear response
 # ******************************************************************************
 function init_cubic(unit, grid, field, medium, plasma, args)
     THG = args["THG"]
@@ -13,20 +13,29 @@ function init_cubic(unit, grid, field, medium, plasma, args)
     Rnl = CuArrays.cuzeros(ComplexGPU, grid.Nw)
     fill!(Rnl, FloatGPU(Rk))
 
-    p = (THG, )
+    p = ()
 
-    return Rnl, calculate_cubic, p
+    if THG
+        calc = calc_cubic
+    else
+        calc = calc_cubic_nothg
+    end
+
+    return Rnl, calc, p
 end
 
 
-function calculate_cubic(F::CuArrays.CuArray{FloatGPU, 2},
-                         E::CuArrays.CuArray{ComplexGPU, 2},
-                         p::Tuple)
-    THG = p[1]
-    if THG != 0
-        @. F = real(E)^3
-    else
-        @. F = FloatGPU(3. / 4.) * abs2(E) * real(E)
-    end
+function calc_cubic(F::CuArrays.CuArray{FloatGPU, 2},
+                    E::CuArrays.CuArray{ComplexGPU, 2},
+                    p::Tuple)
+    @. F = real(E)^3
+    return nothing
+end
+
+
+function calc_cubic_nothg(F::CuArrays.CuArray{FloatGPU, 2},
+                          E::CuArrays.CuArray{ComplexGPU, 2},
+                          p::Tuple)
+    @. F = FloatGPU(3. / 4.) * abs2(E) * real(E)
     return nothing
 end

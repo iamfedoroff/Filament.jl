@@ -18,22 +18,33 @@ function init_current_losses(unit, grid, field, medium, plasma, args)
     @. Rnl = conj(Rnl)
     Rnl = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, Rnl))
 
-    p = (IONARG, plasma.Kdrho)
+    p = (plasma.Kdrho, )
 
-    return Rnl, calculate_current_losses, p
+    if IONARG == 1
+        calc = calc_current_losses_abs2
+    else
+        calc = calc_current_losses_real
+    end
+
+    return Rnl, calc, p
 end
 
 
-function calculate_current_losses(F::CuArrays.CuArray{FloatGPU, 2},
+function calc_current_losses_abs2(F::CuArrays.CuArray{FloatGPU, 2},
                                   E::CuArrays.CuArray{ComplexGPU, 2},
                                   p::Tuple)
-    IONARG = p[1]
-    Kdrho = p[2]
-    if IONARG != 0
-        @. F = abs2(E)
-    else
-        @. F = real(E)^2
-    end
+    Kdrho = p[1]
+    @. F = abs2(E)
+    inverse!(F)
+    @. F = Kdrho * F * real(E)
+end
+
+
+function calc_current_losses_real(F::CuArrays.CuArray{FloatGPU, 2},
+                                  E::CuArrays.CuArray{ComplexGPU, 2},
+                                  p::Tuple)
+    Kdrho = p[1]
+    @. F = real(E)^2
     inverse!(F)
     @. F = Kdrho * F * real(E)
 end
