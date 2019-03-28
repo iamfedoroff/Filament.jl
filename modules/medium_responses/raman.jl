@@ -9,10 +9,8 @@ function init_raman(unit, grid, field, medium, plasma, args)
     n0 = Media.refractive_index(medium, field.w0)
     Eu = Units.E(unit, real(n0))
     chi3 = 4. / 3. * real(n0)^2 * EPS0 * C0 * n2
-    Rr = EPS0 * chi3 * Eu^3
-
-    Rnl = CuArrays.cuzeros(ComplexGPU, grid.Nw)
-    fill!(Rnl, FloatGPU(Rr))
+    Rnl = EPS0 * chi3 * Eu^3
+    Rnl = FloatGPU(Rnl)
 
     # For assymetric grids, where abs(tmin) != tmax, we need tshift to put
     # H(t) into the grid center (see "circular convolution"):

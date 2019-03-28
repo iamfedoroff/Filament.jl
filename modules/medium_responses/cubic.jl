@@ -8,10 +8,8 @@ function init_cubic(unit, grid, field, medium, plasma, args)
     n0 = Media.refractive_index(medium, field.w0)
     Eu = Units.E(unit, real(n0))
     chi3 = 4. / 3. * real(n0)^2 * EPS0 * C0 * n2
-    Rk = EPS0 * chi3 * Eu^3
-
-    Rnl = CuArrays.cuzeros(ComplexGPU, grid.Nw)
-    fill!(Rnl, FloatGPU(Rk))
+    Rnl = EPS0 * chi3 * Eu^3
+    Rnl = FloatGPU(Rnl)
 
     p = ()
 

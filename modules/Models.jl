@@ -341,6 +341,14 @@ end
 
 
 function update_dS!(dS::CuArrays.CuArray{ComplexGPU, 2},
+                    R::FloatGPU,
+                    S::CuArrays.CuArray{ComplexGPU, 2})
+    @. dS = dS + R * S
+    return nothing
+end
+
+
+function update_dS!(dS::CuArrays.CuArray{ComplexGPU, 2},
                     R::CuArrays.CuArray{ComplexGPU, 1},
                     S::CuArrays.CuArray{ComplexGPU, 2})
     N1, N2 = size(S)

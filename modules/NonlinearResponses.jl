@@ -24,8 +24,8 @@ module NonlinearResponses
     const ComplexGPU = ComplexF32
 
 
-    struct NonlinearResponse
-        Rnl :: CuArrays.CuArray{ComplexGPU, 1}
+    struct NonlinearResponse{T}
+        Rnl :: T
         func :: Function
         p :: Tuple
     end
