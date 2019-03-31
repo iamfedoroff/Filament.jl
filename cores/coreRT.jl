@@ -73,8 +73,7 @@ function main()
     # **************************************************************************
     # Read the medium file and prepare medium and plasma
     # **************************************************************************
-    medium = Media.Medium(Input.permittivity, Input.permeability, Input.n2,
-                          Input.raman_response, Input.graman)
+    medium = Media.Medium(Input.permittivity, Input.permeability, Input.n2)
 
     keys = Dict("IONARG" => Input.IONARG, "AVALANCHE" => Input.AVALANCHE)
     plasma = Plasmas.Plasma(unit, grid, field, medium, Input.rho0, Input.nuc,
