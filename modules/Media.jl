@@ -1,6 +1,6 @@
 module Media
 
-import ForwardDiff
+# import ForwardDiff
 
 import PyCall
 
@@ -40,21 +40,26 @@ end
 
 function k1_func(medium, w)
     func(w) = k_func(medium, w)
-    k1 = ForwardDiff.derivative(func, w)
+    # k1 = ForwardDiff.derivative(func, w)
+    k1 = derivative(func, w, 1)
     return k1
 end
 
 
 function k2_func(medium, w)
-    func(w) = k1_func(medium, w)
-    k2 = ForwardDiff.derivative(func, w)
+    # func(w) = k1_func(medium, w)
+    # k2 = ForwardDiff.derivative(func, w)
+    func(w) = k_func(medium, w)
+    k2 = derivative(func, w, 2)
     return k2
 end
 
 
 function k3_func(medium, w)
-    func(w) = k2_func(medium, w)
-    k3 = ForwardDiff.derivative(func, w)
+    # func(w) = k2_func(medium, w)
+    # k3 = ForwardDiff.derivative(func, w)
+    func(w) = k_func(medium, w)
+    k3 = derivative(func, w, 3)
     return k3
 end
 
@@ -158,6 +163,41 @@ function selffocusing_length(medium, w, a0, P)
         zf = Inf
     end
     return zf
+end
+
+
+"""
+N-th derivative of a function f at a point x.
+
+The derivative is found using five-point stencil:
+    http://en.wikipedia.org/wiki/Five-point_stencil
+Additional info:
+    http://en.wikipedia.org/wiki/Finite_difference_coefficients
+"""
+function derivative(f::Function, x::Float64, n::Int64)
+    if x == 0.
+        h = 0.01
+    else
+        h = 0.001 * x
+    end
+
+    if n == 1
+        res = (f(x - 2. * h) - 8. * f(x - h) + 8. * f(x + h) - f(x + 2. * h)) /
+              (12. * h)
+    elseif n == 2
+        res = (- f(x - 2. * h) + 16. * f(x - h) - 30. * f(x) + 16. * f(x + h) -
+                 f(x + 2. * h)) / (12. * h^2)
+    elseif n == 3
+        res = (- f(x - 2. * h) + 2. * f(x - h) - 2. * f(x + h) +
+                 f(x + 2. * h)) / (2. * h^3)
+    elseif n == 4
+        res = (f(x - 2. * h) - 4. * f(x - h) + 6. * f(x) - 4. * f(x + h) +
+               f(x + 2. * h)) / (h^4)
+    else
+        println("ERROR: Wrong derivative order.")
+        exit()
+    end
+    return res
 end
 
 
