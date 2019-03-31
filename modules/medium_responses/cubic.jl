@@ -34,6 +34,6 @@ end
 function calc_cubic_nothg(F::CuArrays.CuArray{FloatGPU, 2},
                           E::CuArrays.CuArray{ComplexGPU, 2},
                           p::Tuple)
-    @. F = FloatGPU(3. / 4.) * abs2(E) * real(E)
+    @. F = 3 / 4 * abs2(E) * real(E)
     return nothing
 end
