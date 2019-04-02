@@ -174,15 +174,16 @@ end
 function rkfunc!(dS::CuArrays.CuArray{ComplexGPU, 2},
                  S::CuArrays.CuArray{ComplexGPU, 2},
                  p::Tuple)
-    grid = p[1]
-    model = p[2]
+    z = p[1]
+    grid = p[2]
+    model = p[3]
 
     Fourier.hilbert2!(grid.FT, S, model.Etmp)   # spectrum real to signal analytic
 
     fill!(dS, FloatGPU(0.))
 
     for response in model.responses
-        NonlinearResponses.calculate!(response, model.Ftmp, model.Etmp)
+        NonlinearResponses.calculate!(response, z, model.Ftmp, model.Etmp)
         Guards.apply_spatio_temporal_filter!(model.guard, model.Ftmp)
         Fourier.rfft2!(grid.FT, model.Ftmp, model.Stmp)   # time -> frequency
         update_dS!(dS, response.Rnl, model.Stmp)   # dS = dS + Ra * Stmp
@@ -202,7 +203,7 @@ function rkfunc!(dS::CuArrays.CuArray{ComplexGPU, 2},
 end
 
 
-function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
+function zstep(z::Float64, dz::Float64, grid::Grids.Grid, field::Fields.Field,
                plasma::Plasmas.Plasma, model::Model)
     # Calculate plasma density -------------------------------------------------
     @timeit "plasma" begin
@@ -223,7 +224,7 @@ function zstep(dz::Float64, grid::Grids.Grid, field::Fields.Field,
     # Nonlinearity -------------------------------------------------------------
     @timeit "nonlinearity" begin
         if ! isempty(model.responses)
-           p = (grid, model)
+           p = (copy(z), grid, model)   # there is an error without copy()
            RungeKuttas.solve!(model.RK, field.S, dz_gpu, rkfunc!, p)
            CUDAdrv.synchronize()
        end

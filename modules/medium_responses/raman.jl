@@ -42,7 +42,8 @@ function init_raman(unit, grid, field, medium, plasma, args)
 end
 
 
-function calc_raman(F::CuArrays.CuArray{FloatGPU, 2},
+function calc_raman(z::Float64,
+                    F::CuArrays.CuArray{FloatGPU, 2},
                     E::CuArrays.CuArray{ComplexGPU, 2},
                     p::Tuple)
     Hramanw, FT = p
@@ -53,7 +54,8 @@ function calc_raman(F::CuArrays.CuArray{FloatGPU, 2},
 end
 
 
-function calc_raman_nothg(F::CuArrays.CuArray{FloatGPU, 2},
+function calc_raman_nothg(z::Float64,
+                          F::CuArrays.CuArray{FloatGPU, 2},
                           E::CuArrays.CuArray{ComplexGPU, 2},
                           p::Tuple)
     Hramanw, FT = p

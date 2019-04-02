@@ -23,7 +23,8 @@ function init_cubic(unit, grid, field, medium, plasma, args)
 end
 
 
-function calc_cubic(F::CuArrays.CuArray{FloatGPU, 2},
+function calc_cubic(z::Float64,
+                    F::CuArrays.CuArray{FloatGPU, 2},
                     E::CuArrays.CuArray{ComplexGPU, 2},
                     p::Tuple)
     @. F = real(E)^3
@@ -31,7 +32,8 @@ function calc_cubic(F::CuArrays.CuArray{FloatGPU, 2},
 end
 
 
-function calc_cubic_nothg(F::CuArrays.CuArray{FloatGPU, 2},
+function calc_cubic_nothg(z::Float64,
+                          F::CuArrays.CuArray{FloatGPU, 2},
                           E::CuArrays.CuArray{ComplexGPU, 2},
                           p::Tuple)
     @. F = 3 / 4 * abs2(E) * real(E)

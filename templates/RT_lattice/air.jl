@@ -86,10 +86,23 @@ current_losses = Dict(
 
 
 # Lattice ----------------------------------------------------------------------
-function refractive_index_perturbation(r, ru)
+# The perturbation of the linear refractive index dn(r, z) is given by
+#     dn(r, z) = dnr(r) * dnz(z),
+# where dnr and dnz define the shape of the perturbation along r and z
+# coordinates, respectively.
+#
+function dnr_func(r, ru)
     A = -1e-6   # amplitude of the perturbation
     ar = 100e-6   # [m] radius of the perturbation
     return @. A * exp(-(r * ru)^2 / ar^2)
+end
+
+
+function dnz_func(z, zu)
+    zstart = 1.5   # [m] distance z where the perturbation starts
+    zend = 2.5   # [m] distance z where the perturbation ends
+    az = 0.5 * (zend - zstart)
+    return exp(-((z * zu - (zstart + az)) / az)^10)
 end
 
 
@@ -97,7 +110,8 @@ include("lattice.jl")
 
 lattice = Dict(
     "init" => init_lattice,
-    "refractive_index_perturbation" => refractive_index_perturbation,
+    "dnr_func" => dnr_func,
+    "dnz_func" => dnz_func,
     )
 
 

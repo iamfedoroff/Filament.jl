@@ -25,7 +25,8 @@ function init_current_free(unit, grid, field, medium, plasma, args)
 end
 
 
-function calc_current_free(F::CuArrays.CuArray{FloatGPU, 2},
+function calc_current_free(z::Float64,
+                           F::CuArrays.CuArray{FloatGPU, 2},
                            E::CuArrays.CuArray{ComplexGPU, 2},
                            p::Tuple)
     rho = p[1]

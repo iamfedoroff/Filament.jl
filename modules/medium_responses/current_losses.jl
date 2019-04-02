@@ -30,7 +30,8 @@ function init_current_losses(unit, grid, field, medium, plasma, args)
 end
 
 
-function calc_current_losses_abs2(F::CuArrays.CuArray{FloatGPU, 2},
+function calc_current_losses_abs2(z::Float64,
+                                  F::CuArrays.CuArray{FloatGPU, 2},
                                   E::CuArrays.CuArray{ComplexGPU, 2},
                                   p::Tuple)
     Kdrho = p[1]
@@ -40,7 +41,8 @@ function calc_current_losses_abs2(F::CuArrays.CuArray{FloatGPU, 2},
 end
 
 
-function calc_current_losses_real(F::CuArrays.CuArray{FloatGPU, 2},
+function calc_current_losses_real(z::Float64,
+                                  F::CuArrays.CuArray{FloatGPU, 2},
                                   E::CuArrays.CuArray{ComplexGPU, 2},
                                   p::Tuple)
     Kdrho = p[1]

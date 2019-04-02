@@ -31,8 +31,8 @@ module NonlinearResponses
     end
 
 
-    function calculate!(nresp::NonlinearResponse, F, E)
-        nresp.func(F, E, nresp.p)
+    function calculate!(nresp::NonlinearResponse, z, F, E)
+        nresp.func(z, F, E, nresp.p)
         return nothing
     end
 

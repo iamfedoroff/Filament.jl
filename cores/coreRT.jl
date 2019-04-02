@@ -145,7 +145,7 @@ function main()
         z = z + dz
 
         @timeit "zstep" begin
-            Models.zstep(dz, grid, field, plasma, model)
+            Models.zstep(z, dz, grid, field, plasma, model)
         end
 
         @timeit "plots" begin
