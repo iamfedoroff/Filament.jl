@@ -94,7 +94,7 @@ current_losses = Dict(
 function dnr_func(r, ru)
     A = -1e-6   # amplitude of the perturbation
     ar = 100e-6   # [m] radius of the perturbation
-    return @. A * exp(-(r * ru)^2 / ar^2)
+    return A * exp(-(r * ru)^2 / ar^2)
 end
 
 

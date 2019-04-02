@@ -15,7 +15,7 @@ function init_lattice(unit, grid, field, medium, plasma, args)
     @. Rnl = conj(Rnl)
     Rnl = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, Rnl))
 
-    dnr = dnr_func(grid.r, unit.r)
+    dnr = @. dnr_func(grid.r, unit.r)
     dnr = CuArrays.CuArray(convert(Array{FloatGPU, 1}, dnr))
 
     p = (dnr, dnz_func, unit.z)
