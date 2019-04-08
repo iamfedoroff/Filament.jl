@@ -44,8 +44,7 @@ end
 
 function Plasma(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
                 medium::Media.Medium, rho0::Float64, nuc::Float64, mr::Float64,
-                components_dict::Array{Dict{String, Any}, 1},
-                keys)
+                components_dict::Array, keys::Dict)
 
     Ncomp = length(components_dict)
     components = Array{PlasmaComponents.Component}(undef, Ncomp)
@@ -71,14 +70,19 @@ function Plasma(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     frho0s = zeros(Ncomp)
     Ks = zeros(Ncomp)
     Wavas = zeros(Ncomp)
-    tfxs = zeros((Ncomp, length(components[1].tf.x)))
-    tfys = zeros((Ncomp, length(components[1].tf.y)))
-    for i=1:Ncomp
-        frho0s[i] = components[i].frho0
-        Ks[i] = components[i].K
-        Wavas[i] = components[i].Wava
-        @. tfxs[i, :] = components[i].tf.x
-        @. tfys[i, :] = components[i].tf.y
+    if ! isempty(components)
+        tfxs = zeros((Ncomp, length(components[1].tf.x)))
+        tfys = zeros((Ncomp, length(components[1].tf.y)))
+        for i=1:Ncomp
+            frho0s[i] = components[i].frho0
+            Ks[i] = components[i].K
+            Wavas[i] = components[i].Wava
+            @. tfxs[i, :] = components[i].tf.x
+            @. tfys[i, :] = components[i].tf.y
+        end
+    else
+        tfxs = zeros((Ncomp, 0))
+        tfys = zeros((Ncomp, 0))
     end
     frho0s = CuArrays.CuArray(convert(Array{FloatGPU, 1}, frho0s))
     Ks = CuArrays.CuArray(convert(Array{FloatGPU, 1}, Ks))
