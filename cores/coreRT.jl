@@ -125,7 +125,7 @@ function main()
 
     znext_plothdf = z + Input.dz_plothdf
 
-    dz_zdata = 0.5 * field.lam0
+    dz_zdata = 0.5 * field.lam0 / unit.z
     znext_zdata = z + dz_zdata
 
     zfirst = true
