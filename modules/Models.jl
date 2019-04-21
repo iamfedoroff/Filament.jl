@@ -212,6 +212,7 @@ function zstep(z::Float64, dz::Float64, grid::Grids.Grid, field::Fields.Field,
         end
     end
 
+    z_gpu = FloatGPU(z)
     dz_gpu = FloatGPU(dz)
 
     # Field -> temporal spectrum -----------------------------------------------
@@ -223,7 +224,7 @@ function zstep(z::Float64, dz::Float64, grid::Grids.Grid, field::Fields.Field,
     # Nonlinearity -------------------------------------------------------------
     @timeit "nonlinearity" begin
         if ! isempty(model.responses)
-           p = (copy(z), grid, model)   # there is an error without copy()
+           p = (z_gpu, grid, model)
            RungeKuttas.solve!(model.RK, field.S, dz_gpu, rkfunc!, p)
            CUDAdrv.synchronize()
        end

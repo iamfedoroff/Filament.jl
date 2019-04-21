@@ -30,10 +30,10 @@ function init_current_losses(unit, grid, field, medium, plasma, args)
 end
 
 
-function calc_current_losses_abs2(z::Float64,
-                                  F::CuArrays.CuArray{FloatGPU, 2},
-                                  E::CuArrays.CuArray{ComplexGPU, 2},
-                                  p::Tuple)
+function calc_current_losses_abs2(z::T,
+                                  F::CuArrays.CuArray{T},
+                                  E::CuArrays.CuArray{Complex{T}},
+                                  p::Tuple) where T
     Kdrho = p[1]
     @. F = abs2(E)
     inverse!(F)
@@ -41,10 +41,10 @@ function calc_current_losses_abs2(z::Float64,
 end
 
 
-function calc_current_losses_real(z::Float64,
-                                  F::CuArrays.CuArray{FloatGPU, 2},
-                                  E::CuArrays.CuArray{ComplexGPU, 2},
-                                  p::Tuple)
+function calc_current_losses_real(z::T,
+                                  F::CuArrays.CuArray{T},
+                                  E::CuArrays.CuArray{Complex{T}},
+                                  p::Tuple) where T
     Kdrho = p[1]
     @. F = real(E)^2
     inverse!(F)
@@ -52,12 +52,12 @@ function calc_current_losses_real(z::Float64,
 end
 
 
-function inverse!(F::CuArrays.CuArray{FloatGPU, 2})
-    N1, N2 = size(F)
+function inverse!(F::CuArrays.CuArray{T}) where T
+    N = length(F)
     dev = CUDAnative.CuDevice(0)
     MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
-    nth = min(N1 * N2, MAX_THREADS_PER_BLOCK)
-    nbl = Int(ceil(N1 * N2 / nth))
+    nth = min(N, MAX_THREADS_PER_BLOCK)
+    nbl = Int(ceil(N / nth))
     @CUDAnative.cuda blocks=nbl threads=nth inverse_kernel(F)
     return nothing
 end
@@ -66,12 +66,12 @@ end
 function inverse_kernel(F)
     id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
     stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
-    N1, N2 = size(F)
-    for k=id:stride:N1*N2
-        if F[k] >= FloatGPU(1e-30)
-            F[k] = FloatGPU(1.) / F[k]
+    N = length(F)
+    for k=id:stride:N
+        if F[k] >= 1e-30
+            F[k] = 1 / F[k]
         else
-            F[k] = FloatGPU(0.)
+            F[k] = 0
         end
     end
     return nothing

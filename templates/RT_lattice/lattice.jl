@@ -24,10 +24,10 @@ function init_lattice(unit, grid, field, medium, plasma, args)
 end
 
 
-function calc_lattice(z::Float64,
-                      F::CuArrays.CuArray{FloatGPU, 2},
-                      E::CuArrays.CuArray{ComplexGPU, 2},
-                      p::Tuple)
+function calc_lattice(z::T,
+                      F::CuArrays.CuArray{T},
+                      E::CuArrays.CuArray{Complex{T}},
+                      p::Tuple) where T
     dnr = p[1]
     dnz_func = p[2]
     zu = p[3]

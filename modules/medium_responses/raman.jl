@@ -42,10 +42,10 @@ function init_raman(unit, grid, field, medium, plasma, args)
 end
 
 
-function calc_raman(z::Float64,
-                    F::CuArrays.CuArray{FloatGPU, 2},
-                    E::CuArrays.CuArray{ComplexGPU, 2},
-                    p::Tuple)
+function calc_raman(z::T,
+                    F::CuArrays.CuArray{T},
+                    E::CuArrays.CuArray{Complex{T}},
+                    p::Tuple) where T
     Hramanw, FT = p
     @. F = real(E)^2
     Fourier.convolution2!(FT, Hramanw, F)
@@ -54,10 +54,10 @@ function calc_raman(z::Float64,
 end
 
 
-function calc_raman_nothg(z::Float64,
-                          F::CuArrays.CuArray{FloatGPU, 2},
-                          E::CuArrays.CuArray{ComplexGPU, 2},
-                          p::Tuple)
+function calc_raman_nothg(z::T,
+                          F::CuArrays.CuArray{T},
+                          E::CuArrays.CuArray{Complex{T}},
+                          p::Tuple) where T
     Hramanw, FT = p
     @. F = FloatGPU(3. / 4.) * abs2(E)
     Fourier.convolution2!(FT, Hramanw, F)

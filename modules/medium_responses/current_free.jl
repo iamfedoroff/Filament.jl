@@ -25,10 +25,10 @@ function init_current_free(unit, grid, field, medium, plasma, args)
 end
 
 
-function calc_current_free(z::Float64,
-                           F::CuArrays.CuArray{FloatGPU, 2},
-                           E::CuArrays.CuArray{ComplexGPU, 2},
-                           p::Tuple)
+function calc_current_free(z::T,
+                           F::CuArrays.CuArray{T},
+                           E::CuArrays.CuArray{Complex{T}},
+                           p::Tuple) where T
     rho = p[1]
     @. F = rho * real(E)
     return nothing
