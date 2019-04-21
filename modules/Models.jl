@@ -232,7 +232,7 @@ function zstep(z::Float64, dz::Float64, grid::Grids.Grid, field::Fields.Field,
     # Linear propagator --------------------------------------------------------
     @timeit "linear" begin
         Hankel.dht!(grid.HT, field.S)
-        linear_propagator!(field.S, model.KZ, dz_gpu)   # S = S * exp(KZ * dz)
+        @. field.S = field.S * CUDAnative.exp(-1im * model.KZ * dz_gpu)
         Guards.apply_frequency_angular_filter!(model.guard, field.S)
         Hankel.idht!(grid.HT, field.S)
         CUDAdrv.synchronize()
@@ -308,38 +308,6 @@ function phi_plasma_func(unit::Units.Unit, field::Fields.Field,
 end
 
 
-function linear_propagator!(S, KZ, dz)
-    N1, N2 = size(S)
-    dev = CUDAnative.CuDevice(0)
-    MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
-    nth = min(N1 * N2, MAX_THREADS_PER_BLOCK)
-    nbl = Int(ceil(N1 * N2 / nth))
-    @CUDAnative.cuda blocks=nbl threads=nth linear_propagator_kernel(S, KZ, dz)
-end
-
-
-function linear_propagator_kernel(S, KZ, dz)
-    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
-    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
-    N1, N2 = size(S)
-    cartesian = CartesianIndices((N1, N2))
-    for k=id:stride:N1*N2
-        i = cartesian[k][1]
-        j = cartesian[k][2]
-        # Unfortunately, "CUDAnative.exp(x)" function does not work with
-        # complex arguments. To solve the issue, I use Euler's formula:
-        #     exp(-1im * x) = (cos(xr) - 1im * sin(xr)) * exp(xi),
-        # where xr = real(x) and xi = imag(x).
-        xr = real(KZ[i, j]) * dz
-        xi = imag(KZ[i, j]) * dz
-        expval = (CUDAnative.cos(xr) - ComplexGPU(1im) * CUDAnative.sin(xr)) *
-                 CUDAnative.exp(xi)
-        S[i, j] = S[i, j] * expval
-    end
-    return nothing
-end
-
-
 function update_dS!(dS::CuArrays.CuArray{ComplexGPU, 2},
                     R::FloatGPU,
                     S::CuArrays.CuArray{ComplexGPU, 2})
@@ -372,6 +340,16 @@ function update_dS_kernel(dS, R, S)
         dS[i, j] = dS[i, j] + R[j] * S[i, j]
     end
     return nothing
+end
+
+
+"""
+Complex version of CUDAnative.exp function. Adapted from
+https://discourse.julialang.org/t/base-function-in-cuda-kernels/21866/4
+"""
+@inline function CUDAnative.exp(x::Complex{T}) where T
+    scale = CUDAnative.exp(x.re)
+    return Complex{T}(scale * CUDAnative.cos(x.im), scale * CUDAnative.sin(x.im))
 end
 
 
