@@ -37,8 +37,7 @@ struct Model
     phi_kerr :: Float64
     phi_plasma :: Float64
     guard :: Guards.GuardFilter
-    RK :: Union{RungeKuttas.RungeKutta2, RungeKuttas.RungeKutta3,
-                RungeKuttas.RungeKutta4}
+    RK :: RungeKuttas.RungeKutta
     keys :: Dict
 
     Ftmp :: CuArrays.CuArray{FloatGPU, 2}
@@ -62,7 +61,7 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
 
     # Runge-Kutta --------------------------------------------------------------
     RKORDER = keys["RKORDER"]
-    RK = RungeKuttas.RungeKutta(RKORDER, grid.Nr, grid.Nw)
+    RK = RungeKuttas.RungeKutta(RKORDER, ComplexGPU, grid.Nr, grid.Nw)
 
     # Linear propagator --------------------------------------------------------
     KPARAXIAL = keys["KPARAXIAL"]
