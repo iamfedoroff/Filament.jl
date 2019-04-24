@@ -24,8 +24,8 @@ end
 
 
 function calc_cubic(z::T,
-                    F::CuArrays.CuArray{T},
-                    E::CuArrays.CuArray{Complex{T}},
+                    F::CuArrays.CuArray{T, 2},
+                    E::CuArrays.CuArray{Complex{T}, 2},
                     p::Tuple) where T
     @. F = real(E)^3
     return nothing
@@ -33,8 +33,17 @@ end
 
 
 function calc_cubic_nothg(z::T,
-                          F::CuArrays.CuArray{T},
-                          E::CuArrays.CuArray{Complex{T}},
+                          F::CuArrays.CuArray{Complex{T}, 1},
+                          E::CuArrays.CuArray{Complex{T}, 1},
+                          p::Tuple) where T
+    @. F = 3 / 4 * abs2(E) * E
+    return nothing
+end
+
+
+function calc_cubic_nothg(z::T,
+                          F::CuArrays.CuArray{T, 2},
+                          E::CuArrays.CuArray{Complex{T}, 2},
                           p::Tuple) where T
     @. F = 3 / 4 * abs2(E) * real(E)
     return nothing

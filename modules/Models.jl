@@ -31,7 +31,24 @@ const FloatGPU = Float32
 const ComplexGPU = ComplexF32
 
 
-struct Model
+abstract type Model end
+
+
+struct ModelR <: Model
+    KZ :: CuArrays.CuArray{ComplexGPU, 1}
+    QZ :: CuArrays.CuArray{ComplexGPU, 1}
+    phi_kerr :: Float64
+    guard :: Guards.GuardFilter
+    RK :: RungeKuttas.RungeKutta
+    keys :: Dict
+
+    Ftmp :: CuArrays.CuArray{ComplexGPU, 1}
+
+    responses #:: Array{NonlinearResponses.NonlinearResponse, 1}
+end
+
+
+struct ModelRT <: Model
     KZ :: CuArrays.CuArray{ComplexGPU, 2}
     QZ :: CuArrays.CuArray{ComplexGPU, 2}
     phi_kerr :: Float64
@@ -45,6 +62,73 @@ struct Model
     Stmp :: CuArrays.CuArray{ComplexGPU, 2}
 
     responses #:: Array{NonlinearResponses.NonlinearResponse, 1}
+end
+
+
+function Model(unit::Units.UnitR, grid::Grids.GridR, field::Fields.FieldR,
+               medium::Media.Medium, keys::Dict, dict_responses)
+    # Guards -------------------------------------------------------------------
+    rguard_width = keys["rguard_width"]
+    kguard = keys["kguard"]
+    guard = Guards.GuardFilter(unit, grid, field.w0, medium, rguard_width,
+                               kguard)
+
+    # Runge-Kutta --------------------------------------------------------------
+    RKORDER = keys["RKORDER"]
+    RK = RungeKuttas.RungeKutta(RKORDER, ComplexGPU, grid.Nr)
+
+    # Linear propagator --------------------------------------------------------
+    KPARAXIAL = keys["KPARAXIAL"]
+
+    beta = Media.beta_func(medium, field.w0)
+    if KPARAXIAL != 0
+        KZ = @. beta - (grid.k * unit.k)^2 / (2. * beta)
+    else
+        KZ = @. sqrt(beta^2 - (grid.k * unit.k)^2 + 0im)
+    end
+    @. KZ = KZ * unit.z
+    @. KZ = conj(KZ)
+    KZ = CuArrays.cu(convert(Array{ComplexGPU, 1}, KZ))
+
+    # Nonlinear propagator -----------------------------------------------------
+    QPARAXIAL = keys["QPARAXIAL"]
+
+    n0 = real(Media.refractive_index(medium, field.w0))
+    Eu = Units.E(unit, n0)
+    mu = medium.permeability(field.w0)
+
+    Qfactor = MU0 * mu * field.w0^2 / 2. * unit.z / Eu
+
+    QZ = zeros(ComplexF64, grid.Nr)
+    if QPARAXIAL != 0
+        @. QZ = Qfactor / beta
+    else
+        for i=1:grid.Nr
+            kzi = sqrt(beta^2 - (grid.k[i] * unit.k)^2 + 0im)
+            if kzi != 0.
+                QZ[i] = Qfactor / kzi
+            end
+        end
+    end
+    @. QZ = conj(QZ)
+    QZ = CuArrays.cu(convert(Array{ComplexGPU, 1}, QZ))
+
+    # Nonlinear responses ------------------------------------------------------
+    phi_kerr = phi_kerr_func(unit, field, medium)
+
+    responses = []
+    # responses = Array{NonlinearResponses.NonlinearResponse}(undef, 1)
+    for dict_response in dict_responses
+        init = dict_response["init"]
+        Rnl, calc, p = init(unit, grid, field, medium, 0, dict_response)
+        response = NonlinearResponses.NonlinearResponse(Rnl, calc, p)
+        push!(responses, response)
+    end
+
+    # Temporary arrays ---------------------------------------------------------
+    Ftmp = CuArrays.cuzeros(ComplexGPU, grid.Nr)
+
+    return ModelR(KZ, QZ, phi_kerr, guard, RK, keys, Ftmp, responses)
 end
 
 
@@ -146,12 +230,22 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     Etmp = CuArrays.cuzeros(ComplexGPU, (grid.Nr, grid.Nt))
     Stmp = CuArrays.cuzeros(ComplexGPU, (grid.Nr, grid.Nw))
 
-    return Model(KZ, QZ, phi_kerr, phi_plasma, guard,
-                 RK, keys, Ftmp, Etmp, Stmp, responses)
+    return ModelRT(KZ, QZ, phi_kerr, phi_plasma, guard,
+                   RK, keys, Ftmp, Etmp, Stmp, responses)
 end
 
 
-function adaptive_dz(model::Model, AdaptLevel::Float64, I::Float64,
+function adaptive_dz(model::ModelR, AdaptLevel::Float64, I::Float64)
+    if ! isempty(model.responses)
+        dz_kerr = model.phi_kerr / I * AdaptLevel
+    else
+        dz_kerr = Inf
+    end
+    return dz_kerr
+end
+
+
+function adaptive_dz(model::ModelRT, AdaptLevel::Float64, I::Float64,
                      rho::Float64)
     if ! isempty(model.responses)
         dz_kerr = model.phi_kerr / I * AdaptLevel
@@ -167,6 +261,35 @@ function adaptive_dz(model::Model, AdaptLevel::Float64, I::Float64,
 
     dz = min(dz_kerr, dz_plasma)
     return dz
+end
+
+
+function rkfunc!(dE::CuArrays.CuArray{ComplexGPU, 1},
+                 E::CuArrays.CuArray{ComplexGPU, 1},
+                 p::Tuple)
+    z = p[1]
+    grid = p[2]
+    model = p[3]
+
+    fill!(dE, ComplexGPU(0.))
+
+    for response in model.responses
+        NonlinearResponses.calculate!(response, z, model.Ftmp, E)
+        Guards.apply_spatial_filter!(model.guard, model.Ftmp)
+        @. dE = dE + response.Rnl * model.Ftmp
+    end
+
+    # Nonparaxiality:
+    if model.keys["QPARAXIAL"] != 0
+        @. dE = -1im * model.QZ * dE
+    else
+        Hankel.dht!(grid.HT, dE)
+        @. dE = -1im * model.QZ * dE
+        Guards.apply_angular_filter!(model.guard, dE)
+        Hankel.idht!(grid.HT, dE)
+    end
+
+    return nothing
 end
 
 
@@ -202,8 +325,40 @@ function rkfunc!(dS::CuArrays.CuArray{ComplexGPU, 2},
 end
 
 
-function zstep(z::Float64, dz::Float64, grid::Grids.Grid, field::Fields.Field,
-               plasma::Plasmas.Plasma, model::Model)
+function zstep(z::Float64, dz::Float64, grid::Grids.GridR, field::Fields.FieldR,
+               model::ModelR)
+    z_gpu = FloatGPU(z)
+    dz_gpu = FloatGPU(dz)
+
+    # Nonlinearity -------------------------------------------------------------
+    @timeit "nonlinearity" begin
+        if ! isempty(model.responses)
+           p = (z_gpu, grid, model)
+           RungeKuttas.solve!(model.RK, field.E, dz_gpu, rkfunc!, p)
+           CUDAdrv.synchronize()
+       end
+    end
+
+    # Linear propagator --------------------------------------------------------
+    @timeit "linear" begin
+        Hankel.dht!(grid.HT, field.E)
+        @. field.E = field.E * CUDAnative.exp(-1im * model.KZ * dz_gpu)
+        Guards.apply_angular_filter!(model.guard, field.E)
+        Hankel.idht!(grid.HT, field.E)
+        CUDAdrv.synchronize()
+    end
+
+    @timeit "spatial filter" begin
+        Guards.apply_spatial_filter!(model.guard, field.E)
+        CUDAdrv.synchronize()
+    end
+
+    return nothing
+end
+
+
+function zstep(z::Float64, dz::Float64, grid::Grids.GridRT,
+               field::Fields.FieldRT, plasma::Plasmas.Plasma, model::ModelRT)
     # Calculate plasma density -------------------------------------------------
     @timeit "plasma" begin
         if ! isempty(plasma.components)

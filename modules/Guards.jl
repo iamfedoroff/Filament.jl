@@ -12,21 +12,48 @@ const FloatGPU = Float32
 const ComplexGPU = ComplexF32
 
 
-struct GuardFilter
-    R :: CuArrays.CuArray{FloatGPU, 1}
-    T :: CuArrays.CuArray{FloatGPU, 1}
-    W :: CuArrays.CuArray{FloatGPU, 1}
-    K :: CuArrays.CuArray{FloatGPU, 2}
-    nthreadsNt :: Int64
-    nthreadsNrNt :: Int64
-    nthreadsNrNw :: Int64
-    nblocksNt :: Int64
-    nblocksNrNt :: Int64
-    nblocksNrNw :: Int64
+abstract type GuardFilter end
+
+
+struct GuardFilterR{T} <: GuardFilter
+    R :: CuArrays.CuArray{T, 1}
+    K :: CuArrays.CuArray{T, 1}
 end
 
 
-function GuardFilter(unit::Units.Unit, grid::Grids.Grid, medium::Media.Medium,
+struct GuardFilterRT{T} <: GuardFilter
+    R :: CuArrays.CuArray{T, 1}
+    T :: CuArrays.CuArray{T, 1}
+    W :: CuArrays.CuArray{T, 1}
+    K :: CuArrays.CuArray{T, 2}
+    nthreadsNt :: Int
+    nthreadsNrNt :: Int
+    nthreadsNrNw :: Int
+    nblocksNt :: Int
+    nblocksNrNt :: Int
+    nblocksNrNw :: Int
+end
+
+
+function GuardFilter(unit::Units.UnitR, grid::Grids.GridR, w0::Float64,
+                     medium::Media.Medium,
+                     rguard_width::Float64, kguard::Float64)
+    # Spatial guard filter:
+    Rguard = guard_window(grid.r, rguard_width, mode="right")
+    Rguard = CuArrays.cu(convert(Array{FloatGPU, 1}, Rguard))
+
+    # Angular guard filter:
+    k0 = Media.k_func.(Ref(medium), w0)
+    kmax = k0 * sind(kguard)
+    Kguard = @. exp(-((grid.k * unit.k)^2 / kmax^2)^20)
+    Kguard = CuArrays.cu(convert(Array{FloatGPU, 1}, Kguard))
+
+    return GuardFilterR(Rguard, Kguard)
+end
+
+
+function GuardFilter(unit::Units.UnitRT, grid::Grids.GridRT,
+                     medium::Media.Medium,
                      rguard_width::Float64, tguard_width::Float64,
                      kguard::Float64, wguard::Float64)
     # Spatial guard filter:
@@ -66,9 +93,9 @@ function GuardFilter(unit::Units.Unit, grid::Grids.Grid, medium::Media.Medium,
     nblocksNrNt = Int(ceil(grid.Nr * grid.Nt / nthreadsNrNt))
     nblocksNrNw = Int(ceil(grid.Nr * grid.Nw / nthreadsNrNw))
 
-    return GuardFilter(Rguard, Tguard, Wguard, Kguard,
-                       nthreadsNt, nthreadsNrNt, nthreadsNrNw,
-                       nblocksNt, nblocksNrNt, nblocksNrNw)
+    return GuardFilterRT(Rguard, Tguard, Wguard, Kguard,
+                         nthreadsNt, nthreadsNrNt, nthreadsNrNw,
+                         nblocksNt, nblocksNrNt, nblocksNrNw)
 end
 
 
@@ -138,6 +165,20 @@ function guard_window(x::Array{Float64, 1}, guard_width::Float64; mode="both")
         end
     end
     return guard
+end
+
+
+function apply_spatial_filter!(guard::GuardFilterR,
+                               E::CuArrays.CuArray{Complex{T}, 1}) where T
+    @. E = E * guard.R
+    return nothing
+end
+
+
+function apply_angular_filter!(guard::GuardFilterR,
+                               E::CuArrays.CuArray{Complex{T}, 1}) where T
+    @. E = E * guard.K
+    return nothing
 end
 
 

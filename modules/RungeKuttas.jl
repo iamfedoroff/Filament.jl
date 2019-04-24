@@ -30,7 +30,7 @@ struct RungeKutta4{T} <: RungeKutta
 end
 
 
-function RungeKutta(order::Integer, T::Type, ndims::Integer...)
+function RungeKutta(order::Int, T::Type, ndims::Int...)
     if order == 2
         k1 = CuArrays.cuzeros(T, ndims)
         k2 = CuArrays.cuzeros(T, ndims)

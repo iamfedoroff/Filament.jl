@@ -2,26 +2,47 @@ module Grids
 
 import CuArrays
 
-import PyCall
-
 import Hankel
 import Fourier
 
-const FloatGPU = Float32
-
+import PyCall
 scipy_constants = PyCall.pyimport("scipy.constants")
 const C0 = scipy_constants.c   # speed of light in vacuum
 
+const FloatGPU = Float32
 
-struct Grid
+
+abstract type Grid end
+
+
+struct GridR <: Grid
     geometry :: String
 
     rmax :: Float64
-    Nr :: Int64
+    Nr :: Int
+
+    HT :: Hankel.HankelTransform
+
+    r :: Array{Float64, 1}
+    dr :: Array{Float64, 1}
+    rdr :: CuArrays.CuArray{FloatGPU, 1}
+    dr_mean :: Float64
+    v :: Array{Float64, 1}
+    k :: Array{Float64, 1}
+    dk_mean :: Float64
+    kc :: Float64
+end
+
+
+struct GridRT <: Grid
+    geometry :: String
+
+    rmax :: Float64
+    Nr :: Int
 
     tmin :: Float64
     tmax :: Float64
-    Nt :: Int64
+    Nt :: Int
 
     HT :: Hankel.HankelTransform
 
@@ -37,17 +58,45 @@ struct Grid
     t :: Array{Float64, 1}
     dt :: Float64
     f :: Array{Float64, 1}
-    Nf :: Int64
+    Nf :: Int
     df :: Float64
     fc :: Float64
     w :: Array{Float64, 1}
-    Nw :: Int64
+    Nw :: Int
     dw :: Float64
     wc :: Float64
     lam :: Array{Float64, 1}
-    Nlam :: Int64
+    Nlam :: Int
 
     FT :: Fourier.FourierTransform
+end
+
+
+function Grid(rmax, Nr)
+    geometry = "R"
+
+    HT = Hankel.HankelTransform(rmax, Nr, 1)   # Hankel transform
+
+    r = HT.r   # radial coordinates
+
+    # steps for radial coordinate:
+    dr = zeros(Nr)
+    for i=1:Nr
+        dr[i] = step(i, r)
+    end
+
+    rdr = r .* dr   # for calculation of spatial integrals
+    rdr = CuArrays.CuArray(convert(Array{FloatGPU, 1}, rdr))
+
+    dr_mean = sum(diff(r)) / length(diff(r))   # spatial step
+
+    v = HT.v   # spatial frequency
+    k = 2. * pi * v   # spatial angular frequency
+    dk_mean = sum(diff(k)) / length(diff(k))   # spatial frequency step
+    kc = 2. * pi * 0.5 / dr_mean   # spatial Nyquist frequency
+
+    return GridR(geometry, rmax, Nr,
+                 HT, r, dr, rdr, dr_mean, v, k, dk_mean, kc)
 end
 
 
@@ -101,14 +150,14 @@ function Grid(rmax, Nr, tmin, tmax, Nt)
 
     FT = Fourier.FourierTransform(Nr, Nt)   # Fourier transform
 
-    return Grid(geometry, rmax, Nr, tmin, tmax, Nt,
-                HT, r, dr, rdr, dr_mean, v, k, dk_mean, kc,
-                t, dt, f, Nf, df, fc, w, Nw, dw, wc, lam, Nlam, FT)
+    return GridRT(geometry, rmax, Nr, tmin, tmax, Nt,
+                  HT, r, dr, rdr, dr_mean, v, k, dk_mean, kc,
+                  t, dt, f, Nf, df, fc, w, Nw, dw, wc, lam, Nlam, FT)
 end
 
 
 """Calculates step dx for a specific index i on a nonuniform grid x."""
-function step(i::Int64, x::Array{Float64, 1})
+function step(i::Int, x::Array{Float64, 1})
     Nx = length(x)
     if i == 1
         dx = x[2] - x[1]

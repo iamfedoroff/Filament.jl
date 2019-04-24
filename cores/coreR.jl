@@ -21,8 +21,8 @@ function main()
     # **************************************************************************
     # Prepare units and grid
     # **************************************************************************
-    unit = Units.Unit(Input.ru, Input.zu, Input.tu, Input.Iu, Input.rhou)
-    grid = Grids.Grid(Input.rmax, Input.Nr, Input.tmin, Input.tmax, Input.Nt)
+    unit = Units.Unit(Input.ru, Input.zu, Input.Iu)
+    grid = Grids.Grid(Input.rmax, Input.Nr)
 
     # **************************************************************************
     # Prepare field
@@ -34,11 +34,6 @@ function main()
     # Prepare medium and plasma
     # **************************************************************************
     medium = Media.Medium(Input.permittivity, Input.permeability, Input.n2)
-
-    keys = Dict("IONARG" => Input.IONARG, "AVALANCHE" => Input.AVALANCHE)
-    plasma = Plasmas.Plasma(unit, grid, field, medium, Input.rho0, Input.nuc,
-                            Input.mr, Input.components, keys)
-    Plasmas.free_charge(plasma, grid, field)
 
     # **************************************************************************
     # Prepare output files
@@ -56,7 +51,7 @@ function main()
                       unit, grid, field, medium)
 
     pdata = WritePlots.PlotVarData(unit, grid)
-    WritePlots.pdata_update!(pdata, grid, field, plasma)
+    WritePlots.pdata_update!(pdata, grid, field)
 
     file_plotdat = joinpath(prefix_dir, string(prefix_name, "plot.dat"))
     plotdat = WritePlots.PlotDAT(file_plotdat, unit, pdata)
@@ -65,18 +60,16 @@ function main()
     file_plothdf = joinpath(prefix_dir, string(prefix_name, "plot.h5"))
     plothdf = WritePlots.PlotHDF(file_plothdf, unit, grid)
     WritePlots.writeHDF(plothdf, z, field)
-    WritePlots.writeHDF_zdata(plothdf, z, pdata)
 
-    # **************************************************************************
+        # **************************************************************************
     # Prepare model
     # **************************************************************************
     keys = Dict(
         "KPARAXIAL" => Input.KPARAXIAL, "QPARAXIAL" => Input.QPARAXIAL,
-        "rguard_width" => Input.rguard_width,
-        "tguard_width" => Input.tguard_width, "kguard" => Input.kguard,
-        "wguard" => Input.wguard, "RKORDER" => Input.RKORDER)
-    model = Models.Model(unit, grid, field, medium, plasma, keys,
-                         Input.responses)
+        "rguard_width" => Input.rguard_width, "kguard" => Input.kguard,
+        "RKORDER" => Input.RKORDER)
+
+    model = Models.Model(unit, grid, field, medium, keys, Input.responses)
 
     # **************************************************************************
     # Main loop
@@ -85,9 +78,6 @@ function main()
 
     znext_plothdf = z + Input.dz_plothdf
 
-    dz_zdata = 0.5 * field.lam0 / unit.z
-    znext_zdata = z + dz_zdata
-
     zfirst = true
 
     CUDAdrv.synchronize()
@@ -95,23 +85,21 @@ function main()
     while z < Input.zmax
 
         println("z=$(Formatting.fmt("18.12e", z))[zu] " *
-                "I=$(Formatting.fmt("18.12e", pdata.Imax))[Iu] " *
-                "rho=$(Formatting.fmt("18.12e", pdata.rhomax))[rhou]")
+                "I=$(Formatting.fmt("18.12e", pdata.Imax))[Iu] ")
 
         # Adaptive z step
-        dz = Models.adaptive_dz(model, Input.dzAdaptLevel, pdata.Imax,
-                                pdata.rhomax)
+        dz = Models.adaptive_dz(model, Input.dzAdaptLevel, pdata.Imax)
         dz = min(Input.dz_initial, Input.dz_plothdf, dz)
         z = z + dz
 
         @timeit "zstep" begin
-            Models.zstep(z, dz, grid, field, plasma, model)
+            Models.zstep(z, dz, grid, field, model)
         end
 
         @timeit "plots" begin
             # Update plot cache
             @timeit "plot cache" begin
-                WritePlots.pdata_update!(pdata, grid, field, plasma)
+                WritePlots.pdata_update!(pdata, grid, field)
                 CUDAdrv.synchronize()
             end
 
@@ -126,15 +114,6 @@ function main()
                 @timeit "writeHDF" begin
                     WritePlots.writeHDF(plothdf, z, field)
                     znext_plothdf = znext_plothdf + Input.dz_plothdf
-                    CUDAdrv.synchronize()
-                end
-            end
-
-            # Write 1d field data to hdf file
-            if z >= znext_zdata
-                @timeit "writeHDF_zdata" begin
-                    WritePlots.writeHDF_zdata(plothdf, z, pdata)
-                    znext_zdata = z + dz_zdata
                     CUDAdrv.synchronize()
                 end
             end
