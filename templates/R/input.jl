@@ -12,6 +12,8 @@ zu = 1.   # [m] unit of space in z direction
 Iu = 1e12 * 1e4   # [W/m**2] unit of intensity
 
 # Grid -------------------------------------------------------------------------
+geometry = "R"   # grid geometry (R, T, RT, XY, XYT)
+
 rmax = 10.   # [ru] area in spatial domain
 Nr = 2000  # number of points in spatial domain
 

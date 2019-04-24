@@ -14,6 +14,8 @@ Iu = 1e12 * 1e4   # [W/m**2] unit of intensity
 rhou = 2.5e25   # [1/m**3] unit of plasma density
 
 # Grid -------------------------------------------------------------------------
+geometry = "RT"   # grid geometry (R, T, RT, XY, XYT)
+
 rmax = 10.   # [ru] area in spatial domain
 Nr = 500  # number of points in spatial domain
 

@@ -37,4 +37,24 @@ include(file_initial_condition)
 file_medium = abspath(file_medium)
 include(file_medium)
 
+if geometry == "R"
+    p_unit = (ru, zu, Iu)
+    p_grid = (rmax, Nr)
+elseif geometry == "T"
+    println("T geometry is not implemented yet.")
+    exit()
+elseif geometry == "RT"
+    p_unit = (ru, zu, tu, Iu, rhou)
+    p_grid = (rmax, Nr, tmin, tmax, Nt)
+elseif geometry == "XY"
+    println("XY geometry is not implemented yet.")
+    exit()
+elseif geometry == "XYT"
+    println("XYT geometry is not implemented yet.")
+    exit()
+else
+    println("ERROR: Wrong grid geometry.")
+    exit()
+end
+
 end
