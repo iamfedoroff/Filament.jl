@@ -38,7 +38,7 @@ struct ModelR <: Model
     KZ :: CuArrays.CuArray{ComplexGPU, 1}
     QZ :: CuArrays.CuArray{ComplexGPU, 1}
     phi_kerr :: Float64
-    guard :: Guards.GuardFilter
+    guard :: Guards.Guard
     RK :: RungeKuttas.RungeKutta
     keys :: Dict
 
@@ -53,7 +53,7 @@ struct ModelRT <: Model
     QZ :: CuArrays.CuArray{ComplexGPU, 2}
     phi_kerr :: Float64
     phi_plasma :: Float64
-    guard :: Guards.GuardFilter
+    guard :: Guards.Guard
     RK :: RungeKuttas.RungeKutta
     keys :: Dict
 
@@ -68,10 +68,9 @@ end
 function Model(unit::Units.UnitR, grid::Grids.GridR, field::Fields.FieldR,
                medium::Media.Medium, keys::Dict, dict_responses)
     # Guards -------------------------------------------------------------------
-    rguard_width = keys["rguard_width"]
+    rguard = keys["rguard"]
     kguard = keys["kguard"]
-    guard = Guards.GuardFilter(unit, grid, field.w0, medium, rguard_width,
-                               kguard)
+    guard = Guards.Guard(unit, grid, field.w0, medium, rguard, kguard)
 
     # Runge-Kutta --------------------------------------------------------------
     RKORDER = keys["RKORDER"]
@@ -136,12 +135,11 @@ function Model(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
                medium::Media.Medium, plasma::Plasmas.Plasma, keys::Dict,
                dict_responses)
     # Guards -------------------------------------------------------------------
-    rguard_width = keys["rguard_width"]
-    tguard_width = keys["tguard_width"]
+    rguard = keys["rguard"]
+    tguard = keys["tguard"]
     kguard = keys["kguard"]
     wguard = keys["wguard"]
-    guard = Guards.GuardFilter(unit, grid, medium,
-                               rguard_width, tguard_width, kguard, wguard)
+    guard = Guards.Guard(unit, grid, medium, rguard, tguard, kguard, wguard)
 
     # Runge-Kutta --------------------------------------------------------------
     RKORDER = keys["RKORDER"]

@@ -12,20 +12,20 @@ const FloatGPU = Float32
 const ComplexGPU = ComplexF32
 
 
-abstract type GuardFilter end
+abstract type Guard end
 
 
-struct GuardFilterR{T} <: GuardFilter
+struct GuardR{T} <: Guard
     R :: CuArrays.CuArray{T, 1}
     K :: CuArrays.CuArray{T, 1}
 end
 
 
-struct GuardFilterRT{T} <: GuardFilter
+struct GuardRT{T} <: Guard
     R :: CuArrays.CuArray{T, 1}
+    K :: CuArrays.CuArray{T, 2}
     T :: CuArrays.CuArray{T, 1}
     W :: CuArrays.CuArray{T, 1}
-    K :: CuArrays.CuArray{T, 2}
     nthreadsNt :: Int
     nthreadsNrNt :: Int
     nthreadsNrNw :: Int
@@ -35,11 +35,10 @@ struct GuardFilterRT{T} <: GuardFilter
 end
 
 
-function GuardFilter(unit::Units.UnitR, grid::Grids.GridR, w0::Float64,
-                     medium::Media.Medium,
-                     rguard_width::Float64, kguard::Float64)
+function Guard(unit::Units.UnitR, grid::Grids.GridR, w0::Float64,
+               medium::Media.Medium, rguard::Float64, kguard::Float64)
     # Spatial guard filter:
-    Rguard = guard_window(grid.r, rguard_width, mode="right")
+    Rguard = guard_window(grid.r, rguard, mode="right")
     Rguard = CuArrays.cu(convert(Array{FloatGPU, 1}, Rguard))
 
     # Angular guard filter:
@@ -48,20 +47,19 @@ function GuardFilter(unit::Units.UnitR, grid::Grids.GridR, w0::Float64,
     Kguard = @. exp(-((grid.k * unit.k)^2 / kmax^2)^20)
     Kguard = CuArrays.cu(convert(Array{FloatGPU, 1}, Kguard))
 
-    return GuardFilterR(Rguard, Kguard)
+    return GuardR(Rguard, Kguard)
 end
 
 
-function GuardFilter(unit::Units.UnitRT, grid::Grids.GridRT,
-                     medium::Media.Medium,
-                     rguard_width::Float64, tguard_width::Float64,
-                     kguard::Float64, wguard::Float64)
+function Guard(unit::Units.UnitRT, grid::Grids.GridRT, medium::Media.Medium,
+               rguard::Float64, tguard::Float64, kguard::Float64,
+               wguard::Float64)
     # Spatial guard filter:
-    Rguard = guard_window(grid.r, rguard_width, mode="right")
+    Rguard = guard_window(grid.r, rguard, mode="right")
     Rguard = CuArrays.cu(convert(Array{FloatGPU, 1}, Rguard))
 
     # Temporal guard filter:
-    Tguard = guard_window(grid.t, tguard_width, mode="both")
+    Tguard = guard_window(grid.t, tguard, mode="both")
     Tguard = CuArrays.cu(convert(Array{FloatGPU, 1}, Tguard))
 
     # Frequency guard filter:
@@ -93,9 +91,9 @@ function GuardFilter(unit::Units.UnitRT, grid::Grids.GridRT,
     nblocksNrNt = Int(ceil(grid.Nr * grid.Nt / nthreadsNrNt))
     nblocksNrNw = Int(ceil(grid.Nr * grid.Nw / nthreadsNrNw))
 
-    return GuardFilterRT(Rguard, Tguard, Wguard, Kguard,
-                         nthreadsNt, nthreadsNrNt, nthreadsNrNw,
-                         nblocksNt, nblocksNrNt, nblocksNrNw)
+    return GuardRT(Rguard, Kguard, Tguard, Wguard,
+                   nthreadsNt, nthreadsNrNt, nthreadsNrNw,
+                   nblocksNt, nblocksNrNt, nblocksNrNw)
 end
 
 
@@ -168,49 +166,22 @@ function guard_window(x::Array{Float64, 1}, guard_width::Float64; mode="both")
 end
 
 
-function apply_spatial_filter!(guard::GuardFilterR,
+function apply_spatial_filter!(guard::Guard,
                                E::CuArrays.CuArray{Complex{T}, 1}) where T
     @. E = E * guard.R
     return nothing
 end
 
 
-function apply_angular_filter!(guard::GuardFilterR,
+function apply_angular_filter!(guard::Guard,
                                E::CuArrays.CuArray{Complex{T}, 1}) where T
     @. E = E * guard.K
     return nothing
 end
 
 
-function apply_temporal_filter!(guard::GuardFilter,
-                                E::CuArrays.CuArray{FloatGPU, 1})
-    nth = guard.nthreadsNt
-    nbl = guard.nblocksNt
-    @CUDAnative.cuda blocks=nbl threads=nth apply_temporal_filter_kernel(E, guard.T)
-end
-
-
-function apply_temporal_filter_kernel(E, T)
-    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
-    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
-    N = length(E)
-    for i=id:stride:N
-        @inbounds E[i] = E[i] * T[i]
-    end
-    return nothing
-end
-
-
-function apply_spatio_temporal_filter!(guard::GuardFilter,
-                                       E::CuArrays.CuArray{FloatGPU, 2})
-    nth = guard.nthreadsNrNt
-    nbl = guard.nblocksNrNt
-    @CUDAnative.cuda blocks=nbl threads=nth apply_spatio_temporal_filter_kernel(E, guard.R, guard.T)
-end
-
-
-function apply_spatio_temporal_filter!(guard::GuardFilter,
-                                       E::CuArrays.CuArray{ComplexGPU, 2})
+function apply_spatio_temporal_filter!(guard::Guard,
+                                       E::CuArrays.CuArray{T, 2}) where T
     nth = guard.nthreadsNrNt
     nbl = guard.nblocksNrNt
     @CUDAnative.cuda blocks=nbl threads=nth apply_spatio_temporal_filter_kernel(E, guard.R, guard.T)
@@ -231,8 +202,8 @@ function apply_spatio_temporal_filter_kernel(E, R, T)
 end
 
 
-function apply_frequency_angular_filter!(guard::GuardFilter,
-                                         S::CuArrays.CuArray{ComplexGPU, 2})
+function apply_frequency_angular_filter!(guard::Guard,
+                                         S::CuArrays.CuArray{Complex{T}, 2}) where T
     nth = guard.nthreadsNrNw
     nbl = guard.nblocksNrNw
     @CUDAnative.cuda blocks=nbl threads=nth apply_frequency_angular_filter_kernel(S, guard.W, guard.K)
