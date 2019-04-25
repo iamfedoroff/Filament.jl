@@ -21,29 +21,27 @@ const FloatGPU = Float32
 const ComplexGPU = ComplexF32
 
 
-struct HankelTransform
+struct HankelTransform{T}
     R :: Float64
-    Nr :: Int64
-    Nt :: Int64
+    Nr :: Int
     r :: Array{Float64, 1}
     v :: Array{Float64, 1}
-    T :: CuArrays.CuArray{ComplexGPU, 2}
-    RJ :: CuArrays.CuArray{FloatGPU, 1}
-    JV :: CuArrays.CuArray{FloatGPU, 1}
-    VJ :: CuArrays.CuArray{FloatGPU, 1}
-    JR :: CuArrays.CuArray{FloatGPU, 1}
-    DM1 :: CuArrays.CuArray{ComplexGPU, 1}
-    DM2 :: CuArrays.CuArray{ComplexGPU, 2}
-    nthreads :: Int64
-    nblocks :: Int64
-    nthreads2 :: Int64
-    nblocks2 :: Int64
+    TT :: CuArrays.CuArray{T, 2}
+    RJ :: CuArrays.CuArray{T, 1}
+    JV :: CuArrays.CuArray{T, 1}
+    VJ :: CuArrays.CuArray{T, 1}
+    JR :: CuArrays.CuArray{T, 1}
+    DM :: CuArrays.CuArray{Complex{T}}
+    nthreads :: Int
+    nblocks :: Int
 end
 
 
-function HankelTransform(R::Float64, Nr::Int64, Nt::Int64, p::Int64=0)
-    scipy_special = PyCall.pyimport("scipy.special")
-    jn_zeros = scipy_special.jn_zeros(p, Nr + 1)
+function HankelTransform(R::Float64, ndims::Int...; p::Int=0)
+    Nr = ndims[1]
+
+    spec = PyCall.pyimport("scipy.special")
+    jn_zeros = spec.jn_zeros(p, Nr + 1)
     a = jn_zeros[1:end-1]
     aNp1 = jn_zeros[end]
 
@@ -55,12 +53,12 @@ function HankelTransform(R::Float64, Nr::Int64, Nt::Int64, p::Int64=0)
 
     S = 2. * pi * R * V
 
-    T = zeros((Nr, Nr))
+    TT = zeros((Nr, Nr))
     for i=1:Nr
         for j=1:Nr
-            T[i, j] = 2. * SpecialFunctions.besselj(p, a[i] * a[j] / S) /
-                      abs(SpecialFunctions.besselj(p + 1, a[i])) /
-                      abs(SpecialFunctions.besselj(p + 1, a[j])) / S
+            TT[i, j] = 2. * SpecialFunctions.besselj(p, a[i] * a[j] / S) /
+                       abs(SpecialFunctions.besselj(p + 1, a[i])) /
+                       abs(SpecialFunctions.besselj(p + 1, a[j])) / S
         end
     end
 
@@ -72,27 +70,44 @@ function HankelTransform(R::Float64, Nr::Int64, Nt::Int64, p::Int64=0)
     # GPU:
     CuArrays.allowscalar(false)   # disable slow fallback methods
 
-    T = CuArrays.cu(convert(Array{ComplexGPU, 2}, T))
-    RJ = CuArrays.cu(convert(Array{FloatGPU, 1}, RJ))
-    JV = CuArrays.cu(convert(Array{FloatGPU, 1}, JV))
-    VJ = CuArrays.cu(convert(Array{FloatGPU, 1}, VJ))
-    JR = CuArrays.cu(convert(Array{FloatGPU, 1}, JR))
-    DM1 = CuArrays.cuzeros(ComplexGPU, Nr)
-    DM2 = CuArrays.cuzeros(ComplexGPU, (Nr, Nt))
+    TT = CuArrays.CuArray(convert(Array{FloatGPU, 2}, TT))
+    RJ = CuArrays.CuArray(convert(Array{FloatGPU, 1}, RJ))
+    JV = CuArrays.CuArray(convert(Array{FloatGPU, 1}, JV))
+    VJ = CuArrays.CuArray(convert(Array{FloatGPU, 1}, VJ))
+    JR = CuArrays.CuArray(convert(Array{FloatGPU, 1}, JR))
+    DM = CuArrays.cuzeros(ComplexGPU, ndims)
 
     dev = CUDAnative.CuDevice(0)
     MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
-    nthreads = min(Nr, MAX_THREADS_PER_BLOCK)
-    nblocks = Int(ceil(Nr / nthreads))
-    nthreads2 = min(Nr * Nt, MAX_THREADS_PER_BLOCK)
-    nblocks2 = Int(ceil(Nr * Nt / nthreads2))
+    NN = length(DM)
+    nthreads = min(NN, MAX_THREADS_PER_BLOCK)
+    nblocks = Int(ceil(NN / nthreads))
 
-    return HankelTransform(R, Nr, Nt, r, v, T, RJ, JV, VJ, JR, DM1, DM2,
-                           nthreads, nblocks, nthreads2, nblocks2)
+    return HankelTransform(R, Nr, r, v, TT, RJ, JV, VJ, JR, DM, nthreads, nblocks)
 end
 
 
-function kernel1D_1(RJorVJ, f)
+function dht!(ht::HankelTransform, f::CuArrays.CuArray{T}) where T
+    nth = ht.nthreads
+    nbl = ht.nblocks
+    @CUDAnative.cuda blocks=nbl threads=nth kernel1(ht.RJ, f)
+    @CUDAnative.cuda blocks=nbl threads=nth kernel2(ht.DM, ht.TT, f)
+    @CUDAnative.cuda blocks=nbl threads=nth kernel3(ht.DM, ht.JV, f)
+    return nothing
+end
+
+
+function idht!(ht::HankelTransform, f::CuArrays.CuArray{T}) where T
+    nth = ht.nthreads
+    nbl = ht.nblocks
+    @CUDAnative.cuda blocks=nbl threads=nth kernel1(ht.VJ, f)
+    @CUDAnative.cuda blocks=nbl threads=nth kernel2(ht.DM, ht.TT, f)
+    @CUDAnative.cuda blocks=nbl threads=nth kernel3(ht.DM, ht.JR, f)
+    return nothing
+end
+
+
+function kernel1(RJorVJ, f::CUDAnative.CuDeviceArray{T, 1}) where T
     id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
     stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
     N = length(f)
@@ -103,7 +118,7 @@ function kernel1D_1(RJorVJ, f)
 end
 
 
-function kernel2D_1(RJorVJ, f)
+function kernel1(RJorVJ, f::CUDAnative.CuDeviceArray{T, 2}) where T
     id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
     stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
     N1, N2 = size(f)
@@ -117,21 +132,21 @@ function kernel2D_1(RJorVJ, f)
 end
 
 
-function kernel1D_2(DM, T, f)
+function kernel2(DM, TT, f::CUDAnative.CuDeviceArray{T, 1}) where T
     id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
     stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
     N = length(f)
     for i=id:stride:N
         @inbounds DM[i] = ComplexGPU(0)
         for k=1:N
-            @inbounds DM[i] = DM[i] + T[i, k] * f[k]
+            @inbounds DM[i] = DM[i] + TT[i, k] * f[k]
         end
     end
     return nothing
 end
 
 
-function kernel2D_2(DM, T, f)
+function kernel2(DM, TT, f::CUDAnative.CuDeviceArray{T, 2}) where T
     id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
     stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
     N1, N2 = size(f)
@@ -141,14 +156,14 @@ function kernel2D_2(DM, T, f)
         j = cartesian[k][2]
         @inbounds DM[i, j] = ComplexGPU(0)
         for m=1:N1
-            @inbounds DM[i, j] = DM[i, j] + T[i, m] * f[m, j]
+            @inbounds DM[i, j] = DM[i, j] + TT[i, m] * f[m, j]
         end
     end
     return nothing
 end
 
 
-function kernel1D_3(DM, JVorJR, f)
+function kernel3(DM, JVorJR, f::CUDAnative.CuDeviceArray{T, 1}) where T
     id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
     stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
     N = length(f)
@@ -159,7 +174,7 @@ function kernel1D_3(DM, JVorJR, f)
 end
 
 
-function kernel2D_3(DM, JVorJR, f)
+function kernel3(DM, JVorJR, f::CUDAnative.CuDeviceArray{T, 2}) where T
     id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
     stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
     N1, N2 = size(f)
@@ -170,74 +185,6 @@ function kernel2D_3(DM, JVorJR, f)
         @inbounds f[i, j] = DM[i, j] * JVorJR[i]
     end
     return nothing
-end
-
-
-function dht!(ht::HankelTransform, f::CuArrays.CuArray{ComplexGPU, 1})
-    nth = ht.nthreads
-    nbl = ht.nblocks
-    @CUDAnative.cuda blocks=nbl threads=nth kernel1D_1(ht.RJ, f)
-    @CUDAnative.cuda blocks=nbl threads=nth kernel1D_2(ht.DM1, ht.T, f)
-    @CUDAnative.cuda blocks=nbl threads=nth kernel1D_3(ht.DM1, ht.JV, f)
-    return nothing
-end
-
-
-function dht(ht::HankelTransform, f::CuArrays.CuArray{ComplexGPU, 1})
-    fout = copy(f)
-    dht!(ht, fout)
-    return fout
-end
-
-
-function dht!(ht::HankelTransform, f::CuArrays.CuArray{ComplexGPU, 2})
-    nth = ht.nthreads2
-    nbl = ht.nblocks2
-    @CUDAnative.cuda blocks=nbl threads=nth kernel2D_1(ht.RJ, f)
-    @CUDAnative.cuda blocks=nbl threads=nth kernel2D_2(ht.DM2, ht.T, f)
-    @CUDAnative.cuda blocks=nbl threads=nth kernel2D_3(ht.DM2, ht.JV, f)
-    return nothing
-end
-
-
-function dht(ht::HankelTransform, f::CuArrays.CuArray{ComplexGPU, 2})
-    fout = copy(f)
-    dht!(ht, fout)
-    return fout
-end
-
-
-function idht!(ht::HankelTransform, f::CuArrays.CuArray{ComplexGPU, 1})
-    nth = ht.nthreads
-    nbl = ht.nblocks
-    @CUDAnative.cuda blocks=nbl threads=nth kernel1D_1(ht.VJ, f)
-    @CUDAnative.cuda blocks=nbl threads=nth kernel1D_2(ht.DM1, ht.T, f)
-    @CUDAnative.cuda blocks=nbl threads=nth kernel1D_3(ht.DM1, ht.JR, f)
-    return nothing
-end
-
-
-function idht(ht::HankelTransform, f::CuArrays.CuArray{ComplexGPU, 1})
-    fout = copy(f)
-    idht!(ht, fout)
-    return fout
-end
-
-
-function idht!(ht::HankelTransform, f::CuArrays.CuArray{ComplexGPU, 2})
-    nth = ht.nthreads2
-    nbl = ht.nblocks2
-    @CUDAnative.cuda blocks=nbl threads=nth kernel2D_1(ht.VJ, f)
-    @CUDAnative.cuda blocks=nbl threads=nth kernel2D_2(ht.DM2, ht.T, f)
-    @CUDAnative.cuda blocks=nbl threads=nth kernel2D_3(ht.DM2, ht.JR, f)
-    return nothing
-end
-
-
-function idht(ht::HankelTransform, f::CuArrays.CuArray{ComplexGPU, 2})
-    fout = copy(f)
-    idht!(ht, fout)
-    return fout
 end
 
 

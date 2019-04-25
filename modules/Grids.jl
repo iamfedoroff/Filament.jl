@@ -75,7 +75,7 @@ end
 function Grid(rmax, Nr)
     geometry = "R"
 
-    HT = Hankel.HankelTransform(rmax, Nr, 1)   # Hankel transform
+    HT = Hankel.HankelTransform(rmax, Nr)   # Hankel transform
 
     r = HT.r   # radial coordinates
 
