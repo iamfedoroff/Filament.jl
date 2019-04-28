@@ -33,18 +33,18 @@ end
 
 
 function calc_cubic_nothg(z::T,
-                          F::CuArrays.CuArray{Complex{T}, 1},
-                          E::CuArrays.CuArray{Complex{T}, 1},
+                          F::CuArrays.CuArray{T, 2},
+                          E::CuArrays.CuArray{Complex{T}, 2},
                           p::Tuple) where T
-    @. F = 3 / 4 * abs2(E) * E
+    @. F = 3 / 4 * abs2(E) * real(E)
     return nothing
 end
 
 
 function calc_cubic_nothg(z::T,
-                          F::CuArrays.CuArray{T, 2},
-                          E::CuArrays.CuArray{Complex{T}, 2},
+                          F::CuArrays.CuArray{Complex{T}},
+                          E::CuArrays.CuArray{Complex{T}},
                           p::Tuple) where T
-    @. F = 3 / 4 * abs2(E) * real(E)
+    @. F = 3 / 4 * abs2(E) * E
     return nothing
 end

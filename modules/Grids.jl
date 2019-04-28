@@ -72,6 +72,35 @@ struct GridRT <: Grid
 end
 
 
+struct GridXY <: Grid
+    geometry :: String
+
+    xmin :: Float64
+    xmax :: Float64
+    Nx :: Int
+
+    ymin :: Float64
+    ymax :: Float64
+    Ny :: Int
+
+    x :: Array{Float64, 1}
+    dx :: Float64
+    kx :: Array{Float64, 1}
+    Nkx :: Int
+    dkx :: Float64
+    kxc :: Float64
+
+    y :: Array{Float64, 1}
+    dy :: Float64
+    ky :: Array{Float64, 1}
+    Nky :: Int
+    dky :: Float64
+    kyc :: Float64
+
+    FT :: Fourier.FourierTransform
+end
+
+
 function Grid(rmax, Nr)
     geometry = "R"
 
@@ -148,11 +177,37 @@ function Grid(rmax, Nr, tmin, tmax, Nt)
     # dlam = lam[3] - lam[2]   # wavelength step
     # lamc = 0.5 / self.dlam   # Nyquist wavelength (need check!)
 
-    FT = Fourier.FourierTransform(Nr, Nt)   # Fourier transform
+    FT = Fourier.FourierTransformRT(Nr, Nt)   # Fourier transform
 
     return GridRT(geometry, rmax, Nr, tmin, tmax, Nt,
                   HT, r, dr, rdr, dr_mean, v, k, dk_mean, kc,
                   t, dt, f, Nf, df, fc, w, Nw, dw, wc, lam, Nlam, FT)
+end
+
+
+function Grid(xmin, xmax, Nx, ymin, ymax, Ny)
+    geometry = "XY"
+
+    x = range(xmin, xmax, length=Nx)   # x spatial coordinates
+    dx = x[2] - x[1]   # x spatial step
+
+    y = range(ymin, ymax, length=Ny)   # y spatial coordinates
+    dy = y[2] - y[1]   # y spatial step
+
+    kx = 2. * pi * Fourier.fftfreq(Nx, dx)   # x angular spatial frequency
+    Nkx = length(kx)
+    dkx = kx[2] - kx[1]   # x angular spatial frequency step
+    kxc = 2. * pi * 0.5 / dkx   # x angular spatial Nyquist frequency
+
+    ky = 2. * pi * Fourier.fftfreq(Ny, dy)   # y angular spatial frequency
+    Nky = length(ky)
+    dky = ky[2] - ky[1]   # y angular spatial frequency step
+    kyc = 2. * pi * 0.5 / dky   # y angular spatial Nyquist frequency
+
+    FT = Fourier.FourierTransformXY(Nx, Ny)   # Fourier transform
+
+    return GridXY(geometry, xmin, xmax, Nx, ymin, ymax, Ny,
+                  x, dx, kx, Nkx, dkx, kxc, y, dy, ky, Nky, dky, kyc, FT)
 end
 
 

@@ -35,6 +35,16 @@ struct GuardRT{T} <: Guard
 end
 
 
+struct GuardXY{T} <: Guard
+    X :: CuArrays.CuArray{T, 1}
+    Y :: CuArrays.CuArray{T, 1}
+    KX :: CuArrays.CuArray{T, 1}
+    KY :: CuArrays.CuArray{T, 1}
+    nthreads :: Int
+    nblocks :: Int
+end
+
+
 function Guard(unit::Units.UnitR, grid::Grids.GridR, w0::Float64,
                medium::Media.Medium, rguard::Float64, kguard::Float64)
     # Spatial guard filter:
@@ -94,6 +104,36 @@ function Guard(unit::Units.UnitRT, grid::Grids.GridRT, medium::Media.Medium,
     return GuardRT(Rguard, Kguard, Tguard, Wguard,
                    nthreadsNt, nthreadsNrNt, nthreadsNrNw,
                    nblocksNt, nblocksNrNt, nblocksNrNw)
+end
+
+
+function Guard(unit::Units.UnitXY, grid::Grids.GridXY, w0::Float64,
+               medium::Media.Medium, xguard::Float64, yguard::Float64,
+               kxguard::Float64, kyguard::Float64)
+    # Spatial guard filters:
+    Xguard = guard_window(grid.x, xguard, mode="both")
+    Xguard = CuArrays.cu(convert(Array{FloatGPU, 1}, Xguard))
+
+    Yguard = guard_window(grid.y, yguard, mode="both")
+    Yguard = CuArrays.cu(convert(Array{FloatGPU, 1}, Yguard))
+
+    # Angular guard filters:
+    k0 = Media.k_func.(Ref(medium), w0)
+    kxmax = k0 * sind(kxguard)
+    kymax = k0 * sind(kyguard)
+
+    KXguard = @. exp(-((grid.kx * unit.kx)^2 / kxmax^2)^20)
+    KXguard = CuArrays.cu(convert(Array{FloatGPU, 1}, KXguard))
+
+    KYguard = @. exp(-((grid.ky * unit.ky)^2 / kymax^2)^20)
+    KYguard = CuArrays.cu(convert(Array{FloatGPU, 1}, KYguard))
+
+    dev = CUDAnative.CuDevice(0)
+    MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
+    nthreads = min(grid.Nx * grid.Ny, MAX_THREADS_PER_BLOCK)
+    nblocks = Int(ceil(grid.Nx * grid.Ny / nthreads))
+
+    return GuardXY(Xguard, Yguard, KXguard, KYguard, nthreads, nblocks)
 end
 
 
@@ -166,21 +206,53 @@ function guard_window(x::Array{Float64, 1}, guard_width::Float64; mode="both")
 end
 
 
-function apply_spatial_filter!(guard::Guard,
+function apply_spatial_filter!(guard::GuardR,
                                E::CuArrays.CuArray{Complex{T}, 1}) where T
     @. E = E * guard.R
     return nothing
 end
 
 
-function apply_angular_filter!(guard::Guard,
+function apply_spatial_filter!(guard::GuardXY,
+                               E::CuArrays.CuArray{Complex{T}, 2}) where T
+    nth = guard.nthreads
+    nbl = guard.nblocks
+    @CUDAnative.cuda blocks=nbl threads=nth apply_spatial_filter_kernel(E, guard.X, guard.Y)
+    return nothing
+end
+
+
+function apply_spatial_filter_kernel(E, X, Y)
+    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
+    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
+    Nx, Ny = size(E)
+    cartesian = CartesianIndices((Nx, Ny))
+    for k=id:stride:Nx*Ny
+        i = cartesian[k][1]
+        j = cartesian[k][2]
+        @inbounds E[i, j] = E[i, j] * X[i] * Y[j]
+    end
+    return nothing
+end
+
+
+function apply_angular_filter!(guard::GuardR,
                                E::CuArrays.CuArray{Complex{T}, 1}) where T
     @. E = E * guard.K
     return nothing
 end
 
 
-function apply_spatio_temporal_filter!(guard::Guard,
+function apply_angular_filter!(guard::GuardXY,
+                               E::CuArrays.CuArray{Complex{T}, 2}) where T
+    nth = guard.nthreads
+    nbl = guard.nblocks
+    @CUDAnative.cuda blocks=nbl threads=nth apply_spatial_filter_kernel(E, guard.KX, guard.KY)
+    return nothing
+end
+
+
+function apply_spatio_temporal_filter!(guard::GuardRT,
                                        E::CuArrays.CuArray{T, 2}) where T
     nth = guard.nthreadsNrNt
     nbl = guard.nblocksNrNt
@@ -202,7 +274,7 @@ function apply_spatio_temporal_filter_kernel(E, R, T)
 end
 
 
-function apply_frequency_angular_filter!(guard::Guard,
+function apply_frequency_angular_filter!(guard::GuardRT,
                                          S::CuArrays.CuArray{Complex{T}, 2}) where T
     nth = guard.nthreadsNrNw
     nbl = guard.nblocksNrNw

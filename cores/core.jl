@@ -81,17 +81,15 @@ function main()
     if occursin("T", grid.geometry)
         keys = Dict(
             "KPARAXIAL" => Input.KPARAXIAL, "QPARAXIAL" => Input.QPARAXIAL,
-            "rguard" => Input.rguard, "tguard" => Input.tguard,
-            "kguard" => Input.kguard, "wguard" => Input.wguard,
             "RKORDER" => Input.RKORDER)
         model = Models.Model(unit, grid, field, medium, plasma, keys,
-                             Input.responses)
+                             Input.p_guard, Input.responses)
     else
         keys = Dict(
             "KPARAXIAL" => Input.KPARAXIAL, "QPARAXIAL" => Input.QPARAXIAL,
-            "rguard" => Input.rguard, "kguard" => Input.kguard,
             "RKORDER" => Input.RKORDER)
-        model = Models.Model(unit, grid, field, medium, keys, Input.responses)
+        model = Models.Model(unit, grid, field, medium, keys, Input.p_guard,
+                             Input.responses)
     end
 
     # **************************************************************************

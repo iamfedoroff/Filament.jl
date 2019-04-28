@@ -54,14 +54,25 @@ mutable struct PlotVarDataRT <: PlotVarData
 end
 
 
+mutable struct PlotVarDataXY <: PlotVarData
+    plotvars :: Array{PlotVar, 1}
+    Imax :: Float64
+    ax :: Float64
+    ay :: Float64
+    P :: Float64
+    I :: Array{FloatGPU, 2}
+    Igpu :: CuArrays.CuArray{FloatGPU, 2}
+end
+
+
 function PlotVarData(unit::Units.UnitR, grid::Grids.GridR)
     plotvars = [
         PlotVar("Imax", "W/m2", unit.I),
         PlotVar("rfil", "m", unit.r),
-        PlotVar("P", "W", unit.I * unit.r^2),
+        PlotVar("P", "W", unit.r^2 * unit.I),
         ]
     I = zeros(FloatGPU, grid.Nr)
-    Igpu = CuArrays.cuzeros(grid.Nr)
+    Igpu = CuArrays.cuzeros(FloatGPU, grid.Nr)
     return PlotVarDataR(plotvars, 0., 0., 0., I, Igpu)
 end
 
@@ -74,13 +85,26 @@ function PlotVarData(unit::Units.UnitRT, grid::Grids.GridRT)
         PlotVar("De", "1/m", unit.r^2 * unit.rho),
         PlotVar("rfil", "m", unit.r),
         PlotVar("rpl", "m", unit.r),
-        PlotVar("W", "J", unit.I * unit.t * unit.r^2),
+        PlotVar("W", "J", unit.r^2 * unit.t * unit.I),
         ]
-    I = CuArrays.cuzeros((grid.Nr, grid.Nt))
+    I = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
     F = zeros(FloatGPU, grid.Nr)
     rho = zeros(FloatGPU, grid.Nr)
     S = zeros(FloatGPU, grid.Nw)
     return PlotVarDataRT(plotvars, 0., 0., 0., 0., 0., 0., 0., I, F, rho, S)
+end
+
+
+function PlotVarData(unit::Units.UnitXY, grid::Grids.GridXY)
+    plotvars = [
+        PlotVar("Imax", "W/m2", unit.I),
+        PlotVar("ax", "m", unit.x),
+        PlotVar("ay", "m", unit.y),
+        PlotVar("P", "W", unit.x * unit.y * unit.I),
+        ]
+    I = zeros(FloatGPU, (grid.Nx, grid.Ny))
+    Igpu = CuArrays.cuzeros(FloatGPU, (grid.Nx, grid.Ny))
+    return PlotVarDataXY(plotvars, 0., 0., 0., 0., I, Igpu)
 end
 
 
@@ -114,6 +138,19 @@ function pdata_update!(pdata::PlotVarDataRT, grid::Grids.GridRT,
     pdata.rpl = 2. * Grids.radius(grid.r, pdata.rho)
     pdata.W = sum(F .* grid.rdr) * 2. * pi
     pdata.S = Fields.integral_power_spectrum(grid, field)
+    return nothing
+end
+
+
+function pdata_update!(pdata::PlotVarDataXY, grid::Grids.GridXY,
+                       field::Fields.FieldXY)
+    pdata.Igpu .= abs2.(field.E)
+    pdata.I[:] = CuArrays.collect(pdata.Igpu)
+
+    pdata.Imax, imax = findmax(pdata.I)
+    pdata.ax = Grids.radius(grid.x, pdata.I[:, imax[2]])
+    pdata.ay = Grids.radius(grid.y, pdata.I[imax[1], :])
+    pdata.P = sum(pdata.Igpu) * grid.dx * grid.dy
     return nothing
 end
 
@@ -180,6 +217,18 @@ function writeDAT(plotdat::PlotDAT, z::Float64, pdata::PlotVarDataRT)
     write(fp, "$(Formatting.fmt("18.12e", pdata.rfil)) ")   # rfil
     write(fp, "$(Formatting.fmt("18.12e", pdata.rpl)) ")   # rpl
     write(fp, "$(Formatting.fmt("18.12e", pdata.W)) ")   # W
+    write(fp, "\n")
+    close(fp)
+end
+
+
+function writeDAT(plotdat::PlotDAT, z::Float64, pdata::PlotVarDataXY)
+    fp = open(plotdat.fname, "a")
+    write(fp, "  $(Formatting.fmt("18.12e", z)) ")   # z
+    write(fp, "$(Formatting.fmt("18.12e", pdata.Imax)) ")   # Imax
+    write(fp, "$(Formatting.fmt("18.12e", pdata.ax)) ")   # ax
+    write(fp, "$(Formatting.fmt("18.12e", pdata.ay)) ")   # ay
+    write(fp, "$(Formatting.fmt("18.12e", pdata.P)) ")   # P
     write(fp, "\n")
     close(fp)
 end
@@ -297,6 +346,48 @@ function PlotHDF(fname::String, unit::Units.UnitRT, grid::Grids.GridRT)
 end
 
 
+function PlotHDF(fname::String, unit::Units.UnitXY, grid::Grids.GridXY)
+    fp = HDF5.h5open(fname, "w")
+
+    HDF5.g_create(fp, GROUP_UNIT)
+    HDF5.g_create(fp, GROUP_GRID)
+    HDF5.g_create(fp, GROUP_FDAT)
+    HDF5.g_create(fp, GROUP_ZDAT)
+
+    # fp["version"] = PFVERSION
+
+    group_unit = fp[GROUP_UNIT]
+    group_unit["x"] = unit.x
+    group_unit["y"] = unit.y
+    group_unit["z"] = unit.z
+    group_unit["I"] = unit.I
+
+    group_grid = fp[GROUP_GRID]
+    # group_grid["geometry"] = grid.geometry
+    group_grid["xmin"] = grid.xmin
+    group_grid["xmax"] = grid.xmax
+    group_grid["Nx"] = grid.Nx
+    group_grid["ymin"] = grid.ymin
+    group_grid["ymax"] = grid.ymax
+    group_grid["Ny"] = grid.Ny
+
+    HDF5.close(fp)
+
+    # Write version and grid geometry which are compatable with h5py:
+    h5py = PyCall.pyimport("h5py")
+    fp = h5py.File(fname, "a")
+    fp.create_dataset("version", data=PFVERSION)
+    fp.create_dataset(GROUP_GRID * "/geometry", data=grid.geometry)
+    fp.close()
+
+    numplot = 0
+    previous_z = -Inf
+    iz = 0
+
+    return PlotHDF(fname, numplot, previous_z, iz)
+end
+
+
 function writeHDF(plothdf::PlotHDF, z::Float64, field::Fields.Field)
     if z == plothdf.previous_z
         return
@@ -310,7 +401,7 @@ function writeHDF(plothdf::PlotHDF, z::Float64, field::Fields.Field)
 
     fp = HDF5.h5open(plothdf.fname, "r+")
     group_fdat = fp[GROUP_FDAT]
-    write_field(group_fdat, dset, field.E)
+    write_field(group_fdat, dset, field)
     HDF5.attrs(group_fdat[dset])["z"] = z
     HDF5.close(fp)
 end
@@ -350,15 +441,20 @@ function writeHDF_zdata(plothdf::PlotHDF, z::Float64, pdata::PlotVarData)
 end
 
 
-function write_field(group, dataset, E::CuArrays.CuArray{Complex{T}, 1}) where T
-    writeComplexArray(group, dataset, CuArrays.collect(E))
+function write_field(group, dataset, field::Fields.FieldRT)
+    group[dataset] = CuArrays.collect(transpose(real.(field.E)))
     return nothing
 end
 
 
-function write_field(group, dataset, E::CuArrays.CuArray{Complex{T}, 2}) where T
-    # group[dataset] = CuArrays.collect(real.(E))
-    group[dataset] = CuArrays.collect(transpose(real.(E)))
+function write_field(group, dataset, field::Fields.FieldR)
+    writeComplexArray(group, dataset, CuArrays.collect(field.E))
+    return nothing
+end
+
+
+function write_field(group, dataset, field::Fields.FieldXY)
+    writeComplexArray(group, dataset, CuArrays.collect(transpose(field.E)))
     return nothing
 end
 

@@ -30,6 +30,16 @@ struct UnitRT <: Unit
 end
 
 
+struct UnitXY <: Unit
+    x :: Float64
+    y :: Float64
+    kx :: Float64
+    ky :: Float64
+    z :: Float64
+    I :: Float64
+end
+
+
 function Unit(ru::Float64, zu::Float64, Iu::Float64)
     ku = 1. / ru
     return UnitR(ru, ku, zu, Iu)
@@ -41,6 +51,13 @@ function Unit(ru::Float64, zu::Float64, tu::Float64, Iu::Float64, rhou::Float64)
     wu = 1. / tu
     lamu = tu
     return UnitRT(ru, ku, zu, tu, wu, lamu, Iu, rhou)
+end
+
+
+function Unit(xu::Float64, yu::Float64, zu::Float64, Iu::Float64)
+    kxu = 1. / xu
+    kyu = 1. / yu
+    return UnitXY(xu, yu, kxu, kyu, zu, Iu)
 end
 
 

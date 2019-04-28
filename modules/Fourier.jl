@@ -10,16 +10,19 @@ const FloatGPU = Float32
 const ComplexGPU = ComplexF32
 
 
-struct FourierTransform
-    Nr :: Int64
-    Nt :: Int64
-    Nw :: Int64
+abstract type FourierTransform end
 
-    Er2 :: CuArrays.CuArray{FloatGPU, 2}
-    Sc :: CuArrays.CuArray{ComplexGPU, 1}
-    Sc2 :: CuArrays.CuArray{ComplexGPU, 2}
-    Sr :: CuArrays.CuArray{ComplexGPU, 1}
-    Sr2 :: CuArrays.CuArray{ComplexGPU, 2}
+
+struct FourierTransformRT{T} <: FourierTransform
+    Nr :: Int
+    Nt :: Int
+    Nw :: Int
+
+    Er2 :: CuArrays.CuArray{T, 2}
+    Sc :: CuArrays.CuArray{Complex{T}, 1}
+    Sc2 :: CuArrays.CuArray{Complex{T}, 2}
+    Sr :: CuArrays.CuArray{Complex{T}, 1}
+    Sr2 :: CuArrays.CuArray{Complex{T}, 2}
 
     pifft :: FFTW.Plan
     pifft2 :: FFTW.Plan
@@ -28,18 +31,28 @@ struct FourierTransform
     pirfft :: FFTW.Plan
     pirfft2 :: FFTW.Plan
 
-    nthreadsNt :: Int64
-    nthreadsNw :: Int64
-    nblocksNt :: Int64
-    nblocksNw :: Int64
-    nthreadsNrNt :: Int64
-    nthreadsNrNw :: Int64
-    nblocksNrNt :: Int64
-    nblocksNrNw :: Int64
+    nthreadsNt :: Int
+    nthreadsNw :: Int
+    nblocksNt :: Int
+    nblocksNw :: Int
+    nthreadsNrNt :: Int
+    nthreadsNrNw :: Int
+    nblocksNrNt :: Int
+    nblocksNrNw :: Int
 end
 
 
-function FourierTransform(Nr::Int64, Nt::Int64)
+struct FourierTransformXY <: FourierTransform
+    Nx :: Int
+    Ny :: Int
+
+    pfft :: FFTW.Plan
+    pifft :: FFTW.Plan
+end
+
+
+
+function FourierTransformRT(Nr::Int, Nt::Int)
     CuArrays.allowscalar(false)   # disable slow fallback methods
 
     if iseven(Nt)
@@ -72,49 +85,74 @@ function FourierTransform(Nr::Int64, Nt::Int64)
     nthreadsNrNw = min(Nr * Nw, MAX_THREADS_PER_BLOCK)
     nblocksNrNw = Int(ceil(Nr * Nw / nthreadsNrNt))
 
-    return FourierTransform(Nr, Nt, Nw,
-                            Er2, Sc, Sc2, Sr, Sr2,
-                            pifft, pifft2, prfft, prfft2, pirfft, pirfft2,
-                            nthreadsNt, nthreadsNw, nblocksNt, nblocksNw,
-                            nthreadsNrNt, nthreadsNrNw, nblocksNrNt, nblocksNrNw)
+    return FourierTransformRT(Nr, Nt, Nw,
+                              Er2, Sc, Sc2, Sr, Sr2,
+                              pifft, pifft2, prfft, prfft2, pirfft, pirfft2,
+                              nthreadsNt, nthreadsNw, nblocksNt, nblocksNw,
+                              nthreadsNrNt, nthreadsNrNw, nblocksNrNt,
+                              nblocksNrNw)
+end
+
+
+function FourierTransformXY(Nx::Int, Ny::Int)
+    CuArrays.allowscalar(false)   # disable slow fallback methods
+
+    pfft = FFTW.plan_fft(CuArrays.cuzeros(ComplexGPU, (Nx, Ny)))
+    pifft = FFTW.plan_ifft(CuArrays.cuzeros(ComplexGPU, (Nx, Ny)))
+
+    return FourierTransformXY(Nx, Ny, pfft, pifft)
+end
+
+
+function fft!(FT::FourierTransformXY,
+              E::CuArrays.CuArray{Complex{T}, 2}) where T
+    LinearAlgebra.mul!(E, FT.pfft, E)   # space -> frequency
+    return nothing
+end
+
+
+function ifft!(FT::FourierTransformXY,
+               E::CuArrays.CuArray{Complex{T}, 2}) where T
+    LinearAlgebra.mul!(E, FT.pifft, E)   # space -> frequency
+    return nothing
 end
 
 
 function ifft!(FT::FourierTransform,
-               S::CuArrays.CuArray{ComplexGPU, 1},
-               E::CuArrays.CuArray{ComplexGPU, 1})
+               S::CuArrays.CuArray{Complex{T}, 1},
+               E::CuArrays.CuArray{Complex{T}, 1}) where T
     LinearAlgebra.mul!(E, FT.pifft, S)   # frequency -> time
     return nothing
 end
 
 
 function ifft2!(FT::FourierTransform,
-                S::CuArrays.CuArray{ComplexGPU, 2},
-                E::CuArrays.CuArray{ComplexGPU, 2})
+                S::CuArrays.CuArray{Complex{T}, 2},
+                E::CuArrays.CuArray{Complex{T}, 2}) where T
     LinearAlgebra.mul!(E, FT.pifft2, S)   # frequency -> time
     return nothing
 end
 
 
 function rfft!(FT::FourierTransform,
-               E::CuArrays.CuArray{FloatGPU, 1},
-               S::CuArrays.CuArray{ComplexGPU, 1})
+               E::CuArrays.CuArray{T, 1},
+               S::CuArrays.CuArray{Complex{T}, 1}) where T
     LinearAlgebra.mul!(S, FT.prfft, E)   # time -> frequency
     return nothing
 end
 
 
 function rfft2!(FT::FourierTransform,
-                E::CuArrays.CuArray{FloatGPU, 2},
-                S::CuArrays.CuArray{ComplexGPU, 2})
+                E::CuArrays.CuArray{T, 2},
+                S::CuArrays.CuArray{Complex{T}, 2}) where T
     LinearAlgebra.mul!(S, FT.prfft2, E)   # time -> frequency
     return nothing
 end
 
 
 function rfft2!(FT::FourierTransform,
-                E::CuArrays.CuArray{ComplexGPU, 2},
-                S::CuArrays.CuArray{ComplexGPU, 2})
+                E::CuArrays.CuArray{Complex{T}, 2},
+                S::CuArrays.CuArray{Complex{T}, 2}) where T
     nth = FT.nthreadsNrNt
     nbl = FT.nblocksNrNt
     @CUDAnative.cuda blocks=nbl threads=nth rfft2_kernel(E, FT.Er2)
@@ -138,16 +176,16 @@ end
 
 
 function irfft!(FT::FourierTransform,
-                S::CuArrays.CuArray{ComplexGPU, 1},
-                E::CuArrays.CuArray{FloatGPU, 1})
+                S::CuArrays.CuArray{Complex{T}, 1},
+                E::CuArrays.CuArray{T, 1}) where T
     LinearAlgebra.mul!(E, FT.pirfft, S)   # frequency -> time
     return nothing
 end
 
 
 function irfft2!(FT::FourierTransform,
-                 S::CuArrays.CuArray{ComplexGPU, 2},
-                 E::CuArrays.CuArray{FloatGPU, 2})
+                 S::CuArrays.CuArray{Complex{T}, 2},
+                 E::CuArrays.CuArray{T, 2}) where T
     LinearAlgebra.mul!(E, FT.pirfft2, S)   # frequency -> time
     return nothing
 end
@@ -159,8 +197,8 @@ Transforms the spectruum of a real signal into the complex analytic signal.
 WARNING: Needs test for odd N and low frequencies.
 """
 function hilbert!(FT::FourierTransform,
-                  Sr::CuArrays.CuArray{ComplexGPU, 1},
-                  Ec::CuArrays.CuArray{ComplexGPU, 1})
+                  Sr::CuArrays.CuArray{Complex{T}, 1},
+                  Ec::CuArrays.CuArray{Complex{T}, 1}) where T
     nth = FT.nthreadsNt
     nbl = FT.nblocksNt
     @CUDAnative.cuda blocks=nbl threads=nth hilbert_kernel(Sr, FT.Sc)
@@ -195,8 +233,8 @@ Transforms the spectruum of a real signal into the complex analytic signal.
 WARNING: Needs test for odd N and low frequencies.
 """
 function hilbert2!(FT::FourierTransform,
-                   Sr::CuArrays.CuArray{ComplexGPU, 2},
-                   Ec::CuArrays.CuArray{ComplexGPU, 2})
+                   Sr::CuArrays.CuArray{Complex{T}, 2},
+                   Ec::CuArrays.CuArray{Complex{T}, 2}) where T
     nth = FT.nthreadsNrNt
     nbl = FT.nblocksNrNt
     @CUDAnative.cuda blocks=nbl threads=nth hilbert2_kernel(Sr, FT.Sc2)
@@ -229,8 +267,8 @@ end
 
 
 function convolution!(FT::FourierTransform,
-                      Hw::CuArrays.CuArray{ComplexGPU, 1},
-                      x::CuArrays.CuArray{FloatGPU, 1})
+                      Hw::CuArrays.CuArray{Complex{T}, 1},
+                      x::CuArrays.CuArray{T, 1}) where T
     rfft!(FT, x, FT.Sr)
     nth = FT.nthreadsNw
     nbl = FT.nblocksNw
@@ -252,8 +290,8 @@ end
 
 
 function convolution2!(FT::FourierTransform,
-                       Hw::CuArrays.CuArray{ComplexGPU, 1},
-                       x::CuArrays.CuArray{FloatGPU, 2})
+                       Hw::CuArrays.CuArray{Complex{T}, 1},
+                       x::CuArrays.CuArray{T, 2}) where T
     rfft2!(FT, x, FT.Sr2)
     nth = FT.nthreadsNrNw
     nbl = FT.nblocksNrNw
@@ -278,13 +316,29 @@ end
 
 
 """
+Return the Discrete Fourier Transform sample frequencies.
+https://github.com/numpy/numpy/blob/v1.15.0/numpy/fft/helper.py#L124-L169
+"""
+function fftfreq(n::Int, d::Float64)
+    val = 1 / (n * d)
+    results = zeros(n)
+    N = Int(floor((n - 1) / 2)) + 1
+    p1 = Array(0:N-1)
+    results[1:N] = p1
+    p2 = Array(-Int(floor(n / 2)):-1)
+    results[N+1:end] = p2
+    return results * val
+end
+
+
+"""
 Return the Discrete Fourier Transform sample frequencies (for usage with
 rfft, irfft).
 https://github.com/numpy/numpy/blob/v1.15.0/numpy/fft/helper.py#L173-L221
 """
-function rfftfreq(n::Int64, d::Float64)
-    val = 1. / (n * d)
-    N = n // 2
+function rfftfreq(n::Int, d::Float64)
+    val = 1 / (n * d)
+    N = Int(floor(n / 2))
     results = Array(0:N)
     return results * val
 end

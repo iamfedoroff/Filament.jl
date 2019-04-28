@@ -40,15 +40,18 @@ include(file_medium)
 if geometry == "R"
     p_unit = (ru, zu, Iu)
     p_grid = (rmax, Nr)
+    p_guard = (rguard, kguard)
 elseif geometry == "T"
     println("T geometry is not implemented yet.")
     exit()
 elseif geometry == "RT"
     p_unit = (ru, zu, tu, Iu, rhou)
     p_grid = (rmax, Nr, tmin, tmax, Nt)
+    p_guard = (rguard, tguard, kguard, wguard)
 elseif geometry == "XY"
-    println("XY geometry is not implemented yet.")
-    exit()
+    p_unit = (xu, yu, zu, Iu)
+    p_grid = (xmin, xmax, Nx, ymin, ymax, Ny)
+    p_guard = (xguard, yguard, kxguard, kyguard)
 elseif geometry == "XYT"
     println("XYT geometry is not implemented yet.")
     exit()

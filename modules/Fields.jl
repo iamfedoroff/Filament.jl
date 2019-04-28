@@ -36,6 +36,14 @@ struct FieldRT <: Field
 end
 
 
+struct FieldXY <: Field
+    lam0 :: Float64
+    f0 :: Float64
+    w0 :: Float64
+    E :: CuArrays.CuArray{ComplexGPU, 2}
+end
+
+
 function Field(unit::Units.UnitR, grid::Grids.GridR, lam0::Float64,
                initial_condition::Function)
     f0 = C0 / lam0
@@ -61,6 +69,17 @@ function Field(unit::Units.UnitRT, grid::Grids.GridRT, lam0::Float64,
     Fourier.hilbert2!(grid.FT, S, E)   # spectrum real to signal analytic
 
     return FieldRT(lam0, f0, w0, E, S)
+end
+
+
+function Field(unit::Units.UnitXY, grid::Grids.GridXY, lam0::Float64,
+               initial_condition::Function)
+    f0 = C0 / lam0
+    w0 = 2. * pi * f0
+
+    E = initial_condition(grid.x, grid.y, unit.x, unit.y, unit.I)
+    E = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, E))
+    return FieldXY(lam0, f0, w0, E)
 end
 
 
@@ -128,6 +147,16 @@ function beam_radius(grid::Grids.GridRT, field::FieldRT)
 end
 
 
+function beam_radius(grid::Grids.GridXY, field::FieldXY)
+    I = abs2.(field.E)
+    I = CuArrays.collect(I)
+    Imax, imax = findmax(I)
+    ax = Grids.radius(grid.x, I[:, imax[2]])
+    ay = Grids.radius(grid.y, I[imax[1], :])
+    return sqrt(ax * ay)
+end
+
+
 """
 Temporal fluence:
     F(t) = 2 * pi * Int[|E(r, t)|^2 * r * dr],   [F(t)] = W
@@ -153,6 +182,11 @@ function peak_power(grid::Grids.GridRT, field::FieldRT)
     W = energy(grid, field)
     t0 = pulse_duration(grid, field)
     return W / t0 / sqrt(pi)
+end
+
+
+function peak_power(grid::Grids.GridXY, field::FieldXY)
+    return sum(abs2.(field.E)) * grid.dx * grid.dy
 end
 
 
