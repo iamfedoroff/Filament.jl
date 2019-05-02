@@ -1,7 +1,7 @@
 # ******************************************************************************
 # Stimulated Raman response
 # ******************************************************************************
-function init_raman(unit, grid, field, medium, plasma, args)
+function init_raman(unit, grid, field, medium, args)
     THG = args["THG"]
     n2 = args["n2"]
     raman_response = args["raman_response"]

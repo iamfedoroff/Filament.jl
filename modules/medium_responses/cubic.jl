@@ -1,7 +1,7 @@
 # ******************************************************************************
 # Cubic nonlinear response
 # ******************************************************************************
-function init_cubic(unit, grid, field, medium, plasma, args)
+function init_cubic(unit, grid, field, medium, args)
     THG = args["THG"]
     n2 = args["n2"]
 

@@ -33,6 +33,8 @@ struct FieldRT <: Field
     w0 :: Float64
     E :: CuArrays.CuArray{ComplexGPU, 2}
     S :: CuArrays.CuArray{ComplexGPU, 2}
+    rho :: CuArrays.CuArray{FloatGPU, 2}
+    Kdrho :: CuArrays.CuArray{FloatGPU, 2}
 end
 
 
@@ -68,7 +70,10 @@ function Field(unit::Units.UnitRT, grid::Grids.GridRT, lam0::Float64,
 
     Fourier.hilbert2!(grid.FT, S, E)   # spectrum real to signal analytic
 
-    return FieldRT(lam0, f0, w0, E, S)
+    rho = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
+    Kdrho = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
+
+    return FieldRT(lam0, f0, w0, E, S, rho, Kdrho)
 end
 
 

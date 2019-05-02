@@ -8,7 +8,7 @@ import Units
 import Grids
 import Fields
 import Media
-import Plasmas
+import PlasmaEquations
 import Infos
 import WritePlots
 import Models
@@ -31,15 +31,25 @@ function main()
     field = Fields.Field(unit, grid, Input.lam0, Input.initial_condition)
 
     # **************************************************************************
-    # Prepare medium and plasma
+    # Prepare medium
     # **************************************************************************
     medium = Media.Medium(Input.permittivity, Input.permeability, Input.n2)
 
+    # **************************************************************************
+    # Prepare model
+    # **************************************************************************
     if occursin("T", grid.geometry)
-        keys = Dict("IONARG" => Input.IONARG, "AVALANCHE" => Input.AVALANCHE)
-        plasma = Plasmas.Plasma(unit, grid, field, medium, Input.rho0,
-                                Input.nuc, Input.mr, Input.components, keys)
-        Plasmas.free_charge(plasma, grid, field)
+        keys = Dict(
+            "KPARAXIAL" => Input.KPARAXIAL, "QPARAXIAL" => Input.QPARAXIAL,
+            "RKORDER" => Input.RKORDER)
+        model = Models.Model(unit, grid, field, medium, keys, Input.p_guard,
+                             Input.responses, Input.plasma_equation)
+    else
+        keys = Dict(
+            "KPARAXIAL" => Input.KPARAXIAL, "QPARAXIAL" => Input.QPARAXIAL,
+            "RKORDER" => Input.RKORDER)
+        model = Models.Model(unit, grid, field, medium, keys, Input.p_guard,
+                             Input.responses)
     end
 
     # **************************************************************************
@@ -58,11 +68,7 @@ function main()
                       unit, grid, field, medium)
 
     pdata = WritePlots.PlotVarData(unit, grid)
-    if occursin("T", grid.geometry)
-        WritePlots.pdata_update!(pdata, grid, field, plasma)
-    else
-        WritePlots.pdata_update!(pdata, grid, field)
-    end
+    WritePlots.pdata_update!(pdata, grid, field)
 
     file_plotdat = joinpath(prefix_dir, string(prefix_name, "plot.dat"))
     plotdat = WritePlots.PlotDAT(file_plotdat, unit, pdata)
@@ -73,23 +79,6 @@ function main()
     WritePlots.writeHDF(plothdf, z, field)
     if occursin("T", grid.geometry)
         WritePlots.writeHDF_zdata(plothdf, z, pdata)
-    end
-
-    # **************************************************************************
-    # Prepare model
-    # **************************************************************************
-    if occursin("T", grid.geometry)
-        keys = Dict(
-            "KPARAXIAL" => Input.KPARAXIAL, "QPARAXIAL" => Input.QPARAXIAL,
-            "RKORDER" => Input.RKORDER)
-        model = Models.Model(unit, grid, field, medium, plasma, keys,
-                             Input.p_guard, Input.responses)
-    else
-        keys = Dict(
-            "KPARAXIAL" => Input.KPARAXIAL, "QPARAXIAL" => Input.QPARAXIAL,
-            "RKORDER" => Input.RKORDER)
-        model = Models.Model(unit, grid, field, medium, keys, Input.p_guard,
-                             Input.responses)
     end
 
     # **************************************************************************
@@ -130,21 +119,13 @@ function main()
         z = z + dz
 
         @timeit "zstep" begin
-            if occursin("T", grid.geometry)
-                Models.zstep(z, dz, grid, field, plasma, model)
-            else
-                Models.zstep(z, dz, grid, field, model)
-            end
+            Models.zstep(z, dz, grid, field, model)
         end
 
         @timeit "plots" begin
             # Update plot cache
             @timeit "plot cache" begin
-                if occursin("T", grid.geometry)
-                    WritePlots.pdata_update!(pdata, grid, field, plasma)
-                else
-                    WritePlots.pdata_update!(pdata, grid, field)
-                end
+                WritePlots.pdata_update!(pdata, grid, field)
                 CUDAdrv.synchronize()
             end
 

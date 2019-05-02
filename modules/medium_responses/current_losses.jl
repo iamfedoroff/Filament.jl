@@ -1,8 +1,8 @@
 # ******************************************************************************
 # Losses due to multiphoton ionization
 # ******************************************************************************
-function init_current_losses(unit, grid, field, medium, plasma, args)
-    IONARG = args["IONARG"]
+function init_current_losses(unit, grid, field, medium, args)
+    EREAL = args["EREAL"]
 
     n0 = Media.refractive_index(medium, field.w0)
     Eu = Units.E(unit, real(n0))
@@ -18,12 +18,12 @@ function init_current_losses(unit, grid, field, medium, plasma, args)
     @. Rnl = conj(Rnl)
     Rnl = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, Rnl))
 
-    p = (plasma.Kdrho, )
+    p = (field.Kdrho, )
 
-    if IONARG == 1
-        calc = calc_current_losses_abs2
-    else
+    if EREAL
         calc = calc_current_losses_real
+    else
+        calc = calc_current_losses_abs2
     end
 
     return Rnl, calc, p

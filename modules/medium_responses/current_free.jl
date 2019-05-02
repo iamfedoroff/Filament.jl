@@ -1,11 +1,13 @@
 # ******************************************************************************
 # Plasma nonlinearity
 # ******************************************************************************
-function init_current_free(unit, grid, field, medium, plasma, args)
+function init_current_free(unit, grid, field, medium, args)
+    nuc = args["nuc"]
+    mr = args["mr"]
+
     n0 = Media.refractive_index(medium, field.w0)
     Eu = Units.E(unit, real(n0))
-    nuc = plasma.nuc
-    MR = plasma.mr * ME   # reduced mass of electron and hole (effective mass)
+    MR = mr * ME   # reduced mass of electron and hole (effective mass)
 
     Rnl = zeros(ComplexF64, grid.Nw)
     for i=1:grid.Nw
@@ -19,7 +21,7 @@ function init_current_free(unit, grid, field, medium, plasma, args)
     @. Rnl = conj(Rnl)
     Rnl = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, Rnl))
 
-    p = (plasma.rho, )
+    p = (field.rho, )
 
     return Rnl, calc_current_free, p
 end

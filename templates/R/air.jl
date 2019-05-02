@@ -34,7 +34,7 @@ include(joinpath(DEFPATH, "cubic.jl"))
 cubic = Dict(
     "init" => init_cubic,   # initialization function
     "THG" => false,   # switch for third harmonic generation
-    "n2" => 1e-23,   # [m**2/W] nonlinear index
+    "n2" => n2,   # [m**2/W] nonlinear index
     )
 
 # List of nonlinear responses incuded to the model:

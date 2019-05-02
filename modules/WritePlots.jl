@@ -9,7 +9,6 @@ import PyCall
 import Units
 import Grids
 import Fields
-import Plasmas
 
 const FloatGPU = Float32
 const ComplexGPU = ComplexF32
@@ -121,13 +120,13 @@ end
 
 
 function pdata_update!(pdata::PlotVarDataRT, grid::Grids.GridRT,
-                       field::Fields.FieldRT, plasma::Plasmas.Plasma)
+                       field::Fields.FieldRT)
     pdata.I .= abs2.(field.E)
 
     F = sum(pdata.I .* FloatGPU(grid.dt), dims=2)
     pdata.F[:] = CuArrays.collect(F)[:, 1]
 
-    rho = plasma.rho[:, end]
+    rho = field.rho[:, end]
     pdata.rho[:] = CuArrays.collect(rho)
 
     pdata.Fmax = Float64(maximum(F))

@@ -12,12 +12,12 @@ import Units
 import Grids
 import Fields
 import Media
-import Plasmas
 import Hankel
 import Fourier
 import RungeKuttas
 import Guards
 import NonlinearResponses
+import PlasmaEquations
 
 scipy_constants = PyCall.pyimport("scipy.constants")
 const C0 = scipy_constants.c   # speed of light in vacuum
@@ -62,6 +62,7 @@ struct ModelRT{T} <: Model
     Stmp :: CuArrays.CuArray{Complex{T}, 2}
 
     responses #:: Array{NonlinearResponses.NonlinearResponse, 1}
+    PE :: PlasmaEquations.PlasmaEquation
 end
 
 
@@ -80,7 +81,7 @@ end
 
 
 function Model(unit::Units.UnitR, grid::Grids.GridR, field::Fields.FieldR,
-               medium::Media.Medium, keys::Dict, p_guard::Tuple, dict_responses)
+               medium::Media.Medium, keys::Dict, p_guard::Tuple, responses_list)
     # Guards -------------------------------------------------------------------
     guard = Guards.Guard(unit, grid, field.w0, medium, p_guard...)
 
@@ -129,9 +130,9 @@ function Model(unit::Units.UnitR, grid::Grids.GridR, field::Fields.FieldR,
 
     responses = []
     # responses = Array{NonlinearResponses.NonlinearResponse}(undef, 1)
-    for dict_response in dict_responses
-        init = dict_response["init"]
-        Rnl, calc, p = init(unit, grid, field, medium, 0, dict_response)
+    for item in responses_list
+        init = item["init"]
+        Rnl, calc, p = init(unit, grid, field, medium, item)
         response = NonlinearResponses.NonlinearResponse(Rnl, calc, p)
         push!(responses, response)
     end
@@ -144,8 +145,8 @@ end
 
 
 function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
-               medium::Media.Medium, plasma::Plasmas.Plasma, keys::Dict,
-               p_guard::Tuple, dict_responses)
+               medium::Media.Medium, keys::Dict, p_guard::Tuple, responses_list,
+               plasma_equation::Dict)
     # Guards -------------------------------------------------------------------
     guard = Guards.Guard(unit, grid, medium, p_guard...)
 
@@ -219,17 +220,24 @@ function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
     QZ = CuArrays.cu(convert(Array{ComplexGPU, 2}, QZ))
 
     # Nonlinear responses ------------------------------------------------------
+    nuc = plasma_equation["nuc"]
+    mr = plasma_equation["mr"]
     phi_kerr = phi_kerr_func(unit, field, medium)
-    phi_plasma = phi_plasma_func(unit, field, medium, plasma)
+    phi_plasma = phi_plasma_func(unit, field, medium, nuc, mr)
 
     responses = []
     # responses = Array{NonlinearResponses.NonlinearResponse}(undef, 1)
-    for dict_response in dict_responses
-        init = dict_response["init"]
-        Rnl, calc, p = init(unit, grid, field, medium, plasma, dict_response)
+    for item in responses_list
+        init = item["init"]
+        Rnl, calc, p = init(unit, grid, field, medium, item)
         response = NonlinearResponses.NonlinearResponse(Rnl, calc, p)
         push!(responses, response)
     end
+
+    # Plasma equation ----------------------------------------------------------
+    PE = PlasmaEquations.PlasmaEquation(unit, grid, field, medium,
+                                        plasma_equation)
+    PlasmaEquations.solve!(PE, field.rho, field.Kdrho, field.E)
 
     # Temporary arrays ---------------------------------------------------------
     Ftmp = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
@@ -237,12 +245,12 @@ function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
     Stmp = CuArrays.cuzeros(ComplexGPU, (grid.Nr, grid.Nw))
 
     return ModelRT(KZ, QZ, phi_kerr, phi_plasma, guard,
-                   RK, keys, Ftmp, Etmp, Stmp, responses)
+                   RK, keys, Ftmp, Etmp, Stmp, responses, PE)
 end
 
 
 function Model(unit::Units.UnitXY, grid::Grids.GridXY, field::Fields.FieldXY,
-               medium::Media.Medium, keys::Dict, p_guard::Tuple, dict_responses)
+               medium::Media.Medium, keys::Dict, p_guard::Tuple, responses_list)
     # Guards -------------------------------------------------------------------
     guard = Guards.Guard(unit, grid, field.w0, medium, p_guard...)
 
@@ -302,9 +310,9 @@ function Model(unit::Units.UnitXY, grid::Grids.GridXY, field::Fields.FieldXY,
 
     responses = []
     # responses = Array{NonlinearResponses.NonlinearResponse}(undef, 1)
-    for dict_response in dict_responses
-        init = dict_response["init"]
-        Rnl, calc, p = init(unit, grid, field, medium, 0, dict_response)
+    for item in responses_list
+        init = item["init"]
+        Rnl, calc, p = init(unit, grid, field, medium, item)
         response = NonlinearResponses.NonlinearResponse(Rnl, calc, p)
         push!(responses, response)
     end
@@ -468,11 +476,11 @@ end
 
 
 function zstep(z::Float64, dz::Float64, grid::Grids.GridRT,
-               field::Fields.FieldRT, plasma::Plasmas.Plasma, model::ModelRT)
+               field::Fields.FieldRT, model::ModelRT)
     # Calculate plasma density -------------------------------------------------
     @timeit "plasma" begin
-        if ! isempty(plasma.components)
-            Plasmas.free_charge(plasma, grid, field)
+        if ! isempty(model.PE.components)
+            PlasmaEquations.solve!(model.PE, field.rho, field.Kdrho, field.E)
             CUDAdrv.synchronize()
         end
     end
@@ -581,12 +589,11 @@ end
 
 """Plasma phase factor for adaptive z step."""
 function phi_plasma_func(unit::Units.Unit, field::Fields.Field,
-                         medium::Media.Medium, plasma::Plasmas.Plasma)
+                         medium::Media.Medium, nuc, mr)
     w0 = field.w0
     k0 = Media.k_func(medium, w0)
-    nuc = plasma.nuc
     mu = medium.permeability(w0)
-    MR = plasma.mr * ME   # reduced mass of electron and hole (effective mass)
+    MR = mr * ME   # reduced mass of electron and hole (effective mass)
     Rp0 = 0.5 * MU0 * mu * w0 / (nuc - 1im * w0) * QE^2 / MR * unit.rho * unit.z
 
     if real(Rp0) != 0.

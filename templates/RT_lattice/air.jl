@@ -28,9 +28,13 @@ end
 # ------------------------------------------------------------------------------
 # DEFPATH - default path for directory with media responses
 
+n2 = 1e-23   # [m**2/W] nonlinear index
 graman = 0.5   # fraction of stimulated Raman contribution
 
-n2 = 1e-23   # [m**2/W] nonlinear index
+rho0 = 2.5e25   # [1/m**3] neutrals density [https://en.wikipedia.org/wiki/Number_density]
+nuc = 5e12   # [1/s] collision frequency [Sprangle, PRE, 69, 066415 (2004)]
+mr = 1.   # [me] reduced mass of electron and hole (effective mass)
+
 
 # Cubic nonlinearity -----------------------------------------------------------
 include(joinpath(DEFPATH, "cubic.jl"))
@@ -38,7 +42,7 @@ include(joinpath(DEFPATH, "cubic.jl"))
 cubic = Dict(
     "init" => init_cubic,   # initialization function
     "THG" => true,   # switch for third harmonic generation
-    "n2" => graman * 1e-23,   # [m**2/W] nonlinear index
+    "n2" => graman * n2,   # [m**2/W] nonlinear index
     )
 
 
@@ -63,7 +67,7 @@ include(joinpath(DEFPATH, "raman.jl"))
 raman = Dict(
     "init" => init_raman,   # initialization function
     "THG" => true,   # switch for third harmonic generation
-    "n2" => (1. - graman) * 1e-23,   # [m**2/W] nonlinear index
+    "n2" => (1. - graman) * n2,   # [m**2/W] nonlinear index
     "raman_response" => raman_response,   # response function
     )
 
@@ -73,6 +77,8 @@ include(joinpath(DEFPATH, "current_free.jl"))
 
 current_free = Dict(
     "init" => init_current_free,   # initialization function
+    "nuc" => nuc,   # [1/s] collision frequency [Sprangle, PRE, 69, 066415 (2004)]
+    "mr" => mr,   # [me] reduced mass of electron and hole (effective mass)
     )
 
 
@@ -81,7 +87,7 @@ include(joinpath(DEFPATH, "current_losses.jl"))
 
 current_losses = Dict(
     "init" => init_current_losses,   # initialization function
-    "IONARG" => 1,   # switch for the ionization rate argument: 1 - abs(E), 0 - real(E)
+    "EREAL" => false,   # switch for the ionization rate argument: real(E)^2 vs abs2(E)
     )
 
 
@@ -120,15 +126,8 @@ responses = [cubic, raman, current_free, current_losses, lattice]
 
 
 # ------------------------------------------------------------------------------
-# Kinetic equation for electron density
+# Equation for electron density
 # ------------------------------------------------------------------------------
-IONARG = 1   # switch for the ionization rate argument: 1 - abs(E), 0 - real(E)
-AVALANCHE = 1   # switch for avalanche ionization
-
-rho0 = 2.5e25   # [1/m**3] neutrals density [https://en.wikipedia.org/wiki/Number_density]
-nuc = 5e12   # [1/s] collision frequency [Sprangle, PRE, 69, 066415 (2004)]
-mr = 1.   # [me] reduced mass of electron and hole (effective mass)
-
 # Components:
 # Multiphoton ionization rates are from [Kasparian, APB, 71, 877 (2000)]
 N2 = Dict("name" => "nitrogen",
@@ -142,3 +141,14 @@ O2 = Dict("name" => "oxygen",
           "tabular_function" => "multiphoton_O2.tf")
 
 components = [N2, O2]
+
+
+plasma_equation = Dict(
+    "METHOD" => "ETD",   # numerical method (ETD, RK2, RK3, RK4)
+    "AVALANCHE" => true,   # switch for avalanche ionization
+    "EREAL" => false,   # switch for the ionization rate argument: real(E)^2 vs abs2(E)
+    "rho0" => rho0,   # [1/m**3] neutrals density
+    "nuc" => nuc,   # [1/s] collision frequency
+    "mr" => mr,   # [me] reduced mass of electron and hole (effective mass)
+    "components" => components,
+    )

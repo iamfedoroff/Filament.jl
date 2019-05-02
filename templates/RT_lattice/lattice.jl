@@ -1,7 +1,7 @@
 # ******************************************************************************
 # Lattice
 # ******************************************************************************
-function init_lattice(unit, grid, field, medium, plasma, args)
+function init_lattice(unit, grid, field, medium, args)
     dnr_func = args["dnr_func"]
     dnz_func = args["dnz_func"]
 

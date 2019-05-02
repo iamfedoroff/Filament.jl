@@ -7,7 +7,6 @@ import Units
 import Grids
 import Fields
 import Media
-import Plasmas
 
 import PyCall
 scipy_constants = PyCall.pyimport("scipy.constants")
@@ -297,15 +296,14 @@ function info_medium(unit::Units.UnitXY, grid::Grids.GridXY,
 end
 
 
-function info_plasma(plasma::Plasmas.Plasma)
+function info_plasma(components)
     sdata =
     """
     --------------------------------------------------------------------------------
     Component's name          multiphoton order K
     --------------------------------------------------------------------------------
     """
-    for i=1:plasma.Ncomp
-        comp = plasma.components[i]
+    for comp in components
         sdata = sdata * "$(Formatting.fmt("<25", comp.name)) $(comp.K)\n"
     end
     return sdata
