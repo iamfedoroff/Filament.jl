@@ -125,17 +125,12 @@ function Model(unit::Units.UnitR, grid::Grids.GridR, field::Fields.FieldR,
     @. QZ = conj(QZ)
     QZ = CuArrays.cu(convert(Array{ComplexGPU, 1}, QZ))
 
-    # Nonlinear responses ------------------------------------------------------
+    # Phases for the adaptive z step -------------------------------------------
     phi_kerr = phi_kerr_func(unit, field, medium)
 
-    responses = []
-    # responses = Array{NonlinearResponses.NonlinearResponse}(undef, 1)
-    for item in responses_list
-        init = item["init"]
-        Rnl, calc, p = init(unit, grid, field, medium, item)
-        response = NonlinearResponses.NonlinearResponse(Rnl, calc, p)
-        push!(responses, response)
-    end
+    # Nonlinear responses ------------------------------------------------------
+    responses = NonlinearResponses.init(unit, grid, field, medium,
+                                        responses_list)
 
     # Temporary arrays ---------------------------------------------------------
     Ftmp = CuArrays.cuzeros(ComplexGPU, grid.Nr)
@@ -219,20 +214,15 @@ function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
 
     QZ = CuArrays.cu(convert(Array{ComplexGPU, 2}, QZ))
 
-    # Nonlinear responses ------------------------------------------------------
+    # Phases for the adaptive z step -------------------------------------------
     nuc = plasma_equation["nuc"]
     mr = plasma_equation["mr"]
     phi_kerr = phi_kerr_func(unit, field, medium)
     phi_plasma = phi_plasma_func(unit, field, medium, nuc, mr)
 
-    responses = []
-    # responses = Array{NonlinearResponses.NonlinearResponse}(undef, 1)
-    for item in responses_list
-        init = item["init"]
-        Rnl, calc, p = init(unit, grid, field, medium, item)
-        response = NonlinearResponses.NonlinearResponse(Rnl, calc, p)
-        push!(responses, response)
-    end
+    # Nonlinear responses ------------------------------------------------------
+    responses = NonlinearResponses.init(unit, grid, field, medium,
+                                        responses_list)
 
     # Plasma equation ----------------------------------------------------------
     PE = PlasmaEquations.PlasmaEquation(unit, grid, field, medium,
@@ -305,17 +295,12 @@ function Model(unit::Units.UnitXY, grid::Grids.GridXY, field::Fields.FieldXY,
     @. QZ = conj(QZ)
     QZ = CuArrays.cu(convert(Array{ComplexGPU, 2}, QZ))
 
-    # Nonlinear responses ------------------------------------------------------
+    # Phases for the adaptive z step -------------------------------------------
     phi_kerr = phi_kerr_func(unit, field, medium)
 
-    responses = []
-    # responses = Array{NonlinearResponses.NonlinearResponse}(undef, 1)
-    for item in responses_list
-        init = item["init"]
-        Rnl, calc, p = init(unit, grid, field, medium, item)
-        response = NonlinearResponses.NonlinearResponse(Rnl, calc, p)
-        push!(responses, response)
-    end
+    # Nonlinear responses ------------------------------------------------------
+    responses = NonlinearResponses.init(unit, grid, field, medium,
+                                        responses_list)
 
     # Temporary arrays ---------------------------------------------------------
     Ftmp = CuArrays.cuzeros(ComplexGPU, (grid.Nx, grid.Ny))
