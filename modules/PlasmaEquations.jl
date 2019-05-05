@@ -131,7 +131,8 @@ function PlasmaEquation(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
 
     dev = CUDAnative.CuDevice(0)
     MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
-    nthreads = min(grid.Nr, MAX_THREADS_PER_BLOCK)
+    # nthreads = min(grid.Nr, MAX_THREADS_PER_BLOCK)   # CUDA error: too many resources requested for launch
+    nthreads = 512
     nblocks = Int(ceil(grid.Nr / nthreads))
 
     return PlasmaEquation(dt, method, calc, fearg, components, rho, drho,
