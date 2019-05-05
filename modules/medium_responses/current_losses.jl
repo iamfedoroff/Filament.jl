@@ -18,35 +18,29 @@ function init_current_losses(unit, grid, field, medium, args)
     @. Rnl = conj(Rnl)
     Rnl = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, Rnl))
 
-    p = (field.Kdrho, )
-
-    if EREAL
-        calc = calc_current_losses_real
+    fearg = if EREAL
+        function(x)
+            real(x)^2
+        end
     else
-        calc = calc_current_losses_abs2
+        function(x)
+            abs2(x)
+        end
     end
 
-    return Rnl, calc, p
+    p = (field.Kdrho, fearg)
+
+    return Rnl, calc_current_losses, p
 end
 
 
-function calc_current_losses_abs2(z::T,
-                                  F::CuArrays.CuArray{T},
-                                  E::CuArrays.CuArray{Complex{T}},
-                                  p::Tuple) where T
+function calc_current_losses(z::T,
+                             F::CuArrays.CuArray{T},
+                             E::CuArrays.CuArray{Complex{T}},
+                             p::Tuple) where T
     Kdrho = p[1]
-    @. F = abs2(E)
-    inverse!(F)
-    @. F = Kdrho * F * real(E)
-end
-
-
-function calc_current_losses_real(z::T,
-                                  F::CuArrays.CuArray{T},
-                                  E::CuArrays.CuArray{Complex{T}},
-                                  p::Tuple) where T
-    Kdrho = p[1]
-    @. F = real(E)^2
+    fearg = p[2]
+    @. F = fearg(E)
     inverse!(F)
     @. F = Kdrho * F * real(E)
 end
