@@ -292,7 +292,7 @@ function rkfunc_field!(dE::CuArrays.CuArray{Complex{T}, 1},
 
     for response in model.responses
         NonlinearResponses.calculate!(response, z, model.Ftmp, E)
-        Guards.apply_spatial_filter!(guard, model.Ftmp)
+        Guards.apply_field_filter!(guard, model.Ftmp)
         @. dE = dE + response.Rnl * model.Ftmp
     end
 
@@ -302,7 +302,7 @@ function rkfunc_field!(dE::CuArrays.CuArray{Complex{T}, 1},
     else
         Hankel.dht!(grid.HT, dE)
         @. dE = -1im * model.QZ * dE
-        Guards.apply_angular_filter!(guard, dE)
+        Guards.apply_spectral_filter!(guard, dE)
         Hankel.idht!(grid.HT, dE)
     end
 
@@ -322,7 +322,7 @@ function rkfunc_field!(dE::CuArrays.CuArray{Complex{T}, 2},
 
     for response in model.responses
         NonlinearResponses.calculate!(response, z, model.Ftmp, E)
-        Guards.apply_spatial_filter!(guard, model.Ftmp)
+        Guards.apply_field_filter!(guard, model.Ftmp)
         @. dE = dE + response.Rnl * model.Ftmp
     end
 
@@ -332,7 +332,7 @@ function rkfunc_field!(dE::CuArrays.CuArray{Complex{T}, 2},
     else
         Fourier.fft!(grid.FT, dE)
         @. dE = -1im * model.QZ * dE
-        Guards.apply_angular_filter!(guard, dE)
+        Guards.apply_spectral_filter!(guard, dE)
         Fourier.ifft!(grid.FT, dE)
     end
 
@@ -354,7 +354,7 @@ function rkfunc_spectrum!(dS::CuArrays.CuArray{Complex{T}, 2},
 
     for response in model.responses
         NonlinearResponses.calculate!(response, z, model.Ftmp, model.Etmp)
-        Guards.apply_spatio_temporal_filter!(guard, model.Ftmp)
+        Guards.apply_field_filter!(guard, model.Ftmp)
         Fourier.rfft2!(grid.FT, model.Ftmp, model.Stmp)   # time -> frequency
         update_dS!(dS, response.Rnl, model.Stmp)   # dS = dS + Ra * Stmp
     end
@@ -365,7 +365,7 @@ function rkfunc_spectrum!(dS::CuArrays.CuArray{Complex{T}, 2},
     else
         Hankel.dht!(grid.HT, dS)
         @. dS = -1im * model.QZ * dS
-        Guards.apply_frequency_angular_filter!(guard, dS)
+        Guards.apply_spectral_filter!(guard, dS)
         Hankel.idht!(grid.HT, dS)
     end
 
@@ -391,13 +391,13 @@ function zstep(z::T, dz::T, grid::Grids.GridR, field::Fields.FieldR,
     @timeit "linear" begin
         Hankel.dht!(grid.HT, field.E)
         @. field.E = field.E * CUDAnative.exp(-1im * model.KZ * dz_gpu)
-        Guards.apply_angular_filter!(guard, field.E)
+        Guards.apply_spectral_filter!(guard, field.E)
         Hankel.idht!(grid.HT, field.E)
         CUDAdrv.synchronize()
     end
 
-    @timeit "spatial filter" begin
-        Guards.apply_spatial_filter!(guard, field.E)
+    @timeit "field filter" begin
+        Guards.apply_field_filter!(guard, field.E)
         CUDAdrv.synchronize()
     end
 
@@ -437,7 +437,7 @@ function zstep(z::T, dz::T, grid::Grids.GridRT, field::Fields.FieldRT,
     @timeit "linear" begin
         Hankel.dht!(grid.HT, field.S)
         @. field.S = field.S * CUDAnative.exp(-1im * model.KZ * dz_gpu)
-        Guards.apply_frequency_angular_filter!(guard, field.S)
+        Guards.apply_spectral_filter!(guard, field.S)
         Hankel.idht!(grid.HT, field.S)
         CUDAdrv.synchronize()
     end
@@ -448,8 +448,8 @@ function zstep(z::T, dz::T, grid::Grids.GridRT, field::Fields.FieldRT,
         CUDAdrv.synchronize()
     end
 
-    @timeit "sp-temp filter" begin
-        Guards.apply_spatio_temporal_filter!(guard, field.E)
+    @timeit "field filter" begin
+        Guards.apply_field_filter!(guard, field.E)
         CUDAdrv.synchronize()
     end
 
@@ -475,13 +475,13 @@ function zstep(z::T, dz::T, grid::Grids.GridXY, field::Fields.FieldXY,
     @timeit "linear" begin
         Fourier.fft!(grid.FT, field.E)
         @. field.E = field.E * CUDAnative.exp(-1im * model.KZ * dz_gpu)
-        Guards.apply_angular_filter!(guard, field.E)
+        Guards.apply_spectral_filter!(guard, field.E)
         Fourier.ifft!(grid.FT, field.E)
         CUDAdrv.synchronize()
     end
 
-    @timeit "spatial filter" begin
-        Guards.apply_spatial_filter!(guard, field.E)
+    @timeit "field filter" begin
+        Guards.apply_field_filter!(guard, field.E)
         CUDAdrv.synchronize()
     end
 

@@ -207,15 +207,23 @@ function guard_window(x::Array{T, 1}, guard_width::T; mode="both") where T
 end
 
 
-function apply_spatial_filter!(guard::GuardR,
-                               E::CuArrays.CuArray{Complex{T}, 1}) where T
+function apply_field_filter!(guard::GuardR,
+                             E::CuArrays.CuArray{Complex{T}, 1}) where T
     @. E = E * guard.R
     return nothing
 end
 
 
-function apply_spatial_filter!(guard::GuardXY,
-                               E::CuArrays.CuArray{Complex{T}, 2}) where T
+function apply_field_filter!(guard::GuardRT,
+                             E::CuArrays.CuArray{T, 2}) where T
+    nth = guard.nthreadsNrNt
+    nbl = guard.nblocksNrNt
+    @CUDAnative.cuda blocks=nbl threads=nth kernel(E, guard.R, guard.T)
+end
+
+
+function apply_field_filter!(guard::GuardXY,
+                             E::CuArrays.CuArray{Complex{T}, 2}) where T
     nth = guard.nthreads
     nbl = guard.nblocks
     @CUDAnative.cuda blocks=nbl threads=nth kernel(E, guard.X, guard.Y)
@@ -223,35 +231,27 @@ function apply_spatial_filter!(guard::GuardXY,
 end
 
 
-function apply_angular_filter!(guard::GuardR,
-                               E::CuArrays.CuArray{Complex{T}, 1}) where T
+function apply_spectral_filter!(guard::GuardR,
+                                E::CuArrays.CuArray{Complex{T}, 1}) where T
     @. E = E * guard.K
     return nothing
 end
 
 
-function apply_angular_filter!(guard::GuardXY,
-                               E::CuArrays.CuArray{Complex{T}, 2}) where T
+function apply_spectral_filter!(guard::GuardRT,
+                                S::CuArrays.CuArray{Complex{T}, 2}) where T
+    nth = guard.nthreadsNrNw
+    nbl = guard.nblocksNrNw
+    @CUDAnative.cuda blocks=nbl threads=nth kernel(S, guard.K, guard.W)
+end
+
+
+function apply_spectral_filter!(guard::GuardXY,
+                                E::CuArrays.CuArray{Complex{T}, 2}) where T
     nth = guard.nthreads
     nbl = guard.nblocks
     @CUDAnative.cuda blocks=nbl threads=nth kernel(E, guard.KX, guard.KY)
     return nothing
-end
-
-
-function apply_spatio_temporal_filter!(guard::GuardRT,
-                                       E::CuArrays.CuArray{T, 2}) where T
-    nth = guard.nthreadsNrNt
-    nbl = guard.nblocksNrNt
-    @CUDAnative.cuda blocks=nbl threads=nth kernel(E, guard.R, guard.T)
-end
-
-
-function apply_frequency_angular_filter!(guard::GuardRT,
-                                         S::CuArrays.CuArray{Complex{T}, 2}) where T
-    nth = guard.nthreadsNrNw
-    nbl = guard.nblocksNrNw
-    @CUDAnative.cuda blocks=nbl threads=nth kernel(S, guard.K, guard.W)
 end
 
 
