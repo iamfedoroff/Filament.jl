@@ -22,7 +22,7 @@ function init(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
         response = NonlinearResponses.NonlinearResponse(Rnl, calc, p)
         push!(responses, response)
     end
-    return responses
+    return tuple(responses...)
 end
 
 

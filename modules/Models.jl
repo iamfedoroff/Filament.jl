@@ -44,7 +44,7 @@ struct ModelR{T} <: Model
 
     Ftmp :: CuArrays.CuArray{Complex{T}, 1}
 
-    responses #:: Array{NonlinearResponses.NonlinearResponse, 1}
+    responses :: Tuple
 end
 
 
@@ -61,7 +61,7 @@ struct ModelRT{T} <: Model
     Etmp :: CuArrays.CuArray{Complex{T}, 2}
     Stmp :: CuArrays.CuArray{Complex{T}, 2}
 
-    responses #:: Array{NonlinearResponses.NonlinearResponse, 1}
+    responses :: Tuple
     PE :: PlasmaEquations.PlasmaEquation
 end
 
@@ -76,7 +76,7 @@ struct ModelXY{T} <: Model
 
     Ftmp :: CuArrays.CuArray{Complex{T}, 2}
 
-    responses #:: Array{NonlinearResponses.NonlinearResponse, 1}
+    responses :: Tuple
 end
 
 
