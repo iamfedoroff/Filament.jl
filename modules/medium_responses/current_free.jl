@@ -1,11 +1,12 @@
 # ******************************************************************************
 # Plasma nonlinearity
 # ******************************************************************************
-function init_current_free(unit, grid, field, medium, args)
-    nuc = args["nuc"]
-    mr = args["mr"]
+function init_current_free(unit, grid, field, medium, p)
+    nuc = p["nuc"]
+    mr = p["mr"]
 
-    n0 = Media.refractive_index(medium, field.w0)
+    w0 = field.w0
+    n0 = Media.refractive_index(medium, w0)
     Eu = Units.E(unit, real(n0))
     MR = mr * ME   # reduced mass of electron and hole (effective mass)
 
@@ -21,9 +22,17 @@ function init_current_free(unit, grid, field, medium, args)
     @. Rnl = conj(Rnl)
     Rnl = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, Rnl))
 
-    p = (field.rho, )
+    p_calc = (field.rho, )
 
-    return Rnl, calc_current_free, p
+    mu = medium.permeability(w0)
+    k0 = Media.k_func(medium, w0)
+    QZ0 = MU0 * mu * w0^2 / (2. * k0) * unit.z / Eu
+    Rnl0 = 1im / w0 * QE^2 / MR / (nuc - 1im * w0) * unit.rho * Eu
+    phi = QZ0 * abs(real(Rnl0))
+
+    p_dzadapt = (phi, field.rho)
+
+    return Rnl, calc_current_free, p_calc, dzadapt_current_free, p_dzadapt
 end
 
 
@@ -34,4 +43,12 @@ function calc_current_free(z::T,
     rho = p[1]
     @. F = rho * real(E)
     return nothing
+end
+
+
+function dzadapt_current_free(phimax::AbstractFloat, p::Tuple)
+    phi = p[1]
+    rho = p[2]
+    rhomax = maximum(rho)
+    return phimax / (phi * rhomax)
 end

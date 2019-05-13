@@ -1,9 +1,9 @@
 # ******************************************************************************
 # Lattice
 # ******************************************************************************
-function init_lattice(unit, grid, field, medium, args)
-    dnr_func = args["dnr_func"]
-    dnz_func = args["dnz_func"]
+function init_lattice(unit, grid, field, medium, p)
+    dnr_func = p["dnr_func"]
+    dnz_func = p["dnz_func"]
 
     n0 = Media.refractive_index(medium, field.w0)
     Eu = Units.E(unit, real(n0))
@@ -18,9 +18,11 @@ function init_lattice(unit, grid, field, medium, args)
     dnr = @. dnr_func(grid.r, unit.r)
     dnr = CuArrays.CuArray(convert(Array{FloatGPU, 1}, dnr))
 
-    p = (dnr, dnz_func, unit.z)
+    p_calc = (dnr, dnz_func, unit.z)
 
-    return Rnl, calc_lattice, p
+    p_dzadapt = ()
+
+    return Rnl, calc_lattice, p_calc, dzadapt_lattice, p_dzadapt
 end
 
 
@@ -36,4 +38,8 @@ function calc_lattice(z::T,
 
     @. F = (2 * (dnr * dnz) + (dnr * dnz)^2) * real(E)
     return nothing
+end
+
+function dzadapt_lattice(phimax::AbstractFloat, p::Tuple)
+    return Inf
 end

@@ -1,8 +1,8 @@
 # ******************************************************************************
 # Losses due to multiphoton ionization
 # ******************************************************************************
-function init_current_losses(unit, grid, field, medium, args)
-    EREAL = args["EREAL"]
+function init_current_losses(unit, grid, field, medium, p)
+    EREAL = p["EREAL"]
 
     n0 = Media.refractive_index(medium, field.w0)
     Eu = Units.E(unit, real(n0))
@@ -28,9 +28,11 @@ function init_current_losses(unit, grid, field, medium, args)
         end
     end
 
-    p = (field.Kdrho, fearg)
+    p_calc = (field.Kdrho, fearg)
 
-    return Rnl, calc_current_losses, p
+    p_dzadapt = ()
+
+    return Rnl, calc_current_losses, p_calc, dzadapt_current_losses, p_dzadapt
 end
 
 
@@ -69,4 +71,9 @@ function inverse_kernel(F)
         end
     end
     return nothing
+end
+
+
+function dzadapt_current_losses(phimax::AbstractFloat, p::Tuple)
+    return Inf
 end

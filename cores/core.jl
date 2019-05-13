@@ -96,18 +96,16 @@ function main()
                     "I=$(Formatting.fmt("18.12e", pdata.Imax))[Iu] ")
         end
 
-        # Adaptive z step
-        if occursin("T", grid.geometry)
-            dz = Models.adaptive_dz(model, Input.dzAdaptLevel, pdata.Imax,
-                                    pdata.rhomax)
-        else
-            dz = Models.adaptive_dz(model, Input.dzAdaptLevel, pdata.Imax)
+        @timeit "dzadapt" begin
+            dz = Models.dzadapt(model, Input.dzAdaptLevel)   # adaptive z step
+            CUDAdrv.synchronize()
         end
         dz = min(Input.dz_initial, Input.dz_plothdf, dz)
         z = z + dz
 
         @timeit "zstep" begin
             Models.zstep(z, dz, grid, field, model)
+            CUDAdrv.synchronize()
         end
 
         @timeit "plots" begin

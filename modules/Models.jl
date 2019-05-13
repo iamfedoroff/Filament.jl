@@ -37,7 +37,6 @@ abstract type Model end
 struct ModelR{T} <: Model
     KZ :: CuArrays.CuArray{Complex{T}, 1}
     QZ :: CuArrays.CuArray{Complex{T}, 1}
-    phi_kerr :: Float64
     guard :: Guards.Guard
     RK :: RungeKuttas.RungeKutta
     keys :: NamedTuple
@@ -51,8 +50,6 @@ end
 struct ModelRT{T} <: Model
     KZ :: CuArrays.CuArray{Complex{T}, 2}
     QZ :: CuArrays.CuArray{Complex{T}, 2}
-    phi_kerr :: Float64
-    phi_plasma :: Float64
     guard :: Guards.Guard
     RK :: RungeKuttas.RungeKutta
     keys :: NamedTuple
@@ -69,7 +66,6 @@ end
 struct ModelXY{T} <: Model
     KZ :: CuArrays.CuArray{Complex{T}, 2}
     QZ :: CuArrays.CuArray{Complex{T}, 2}
-    phi_kerr :: Float64
     guard :: Guards.Guard
     RK :: RungeKuttas.RungeKutta
     keys :: NamedTuple
@@ -121,9 +117,6 @@ function Model(unit::Units.UnitR, grid::Grids.GridR, field::Fields.FieldR,
     @. QZ = conj(QZ)
     QZ = CuArrays.cu(convert(Array{ComplexGPU, 1}, QZ))
 
-    # Phases for the adaptive z step -------------------------------------------
-    phi_kerr = phi_kerr_func(unit, field, medium)
-
     # Nonlinear responses ------------------------------------------------------
     responses = NonlinearResponses.init(unit, grid, field, medium,
                                         responses_list)
@@ -131,7 +124,7 @@ function Model(unit::Units.UnitR, grid::Grids.GridR, field::Fields.FieldR,
     # Temporary arrays ---------------------------------------------------------
     Ftmp = CuArrays.cuzeros(ComplexGPU, grid.Nr)
 
-    return ModelR(KZ, QZ, phi_kerr, guard, RK, keys, Ftmp, responses)
+    return ModelR(KZ, QZ, guard, RK, keys, Ftmp, responses)
 end
 
 
@@ -205,12 +198,6 @@ function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
 
     QZ = CuArrays.cu(convert(Array{ComplexGPU, 2}, QZ))
 
-    # Phases for the adaptive z step -------------------------------------------
-    nuc = plasma_equation["nuc"]
-    mr = plasma_equation["mr"]
-    phi_kerr = phi_kerr_func(unit, field, medium)
-    phi_plasma = phi_plasma_func(unit, field, medium, nuc, mr)
-
     # Nonlinear responses ------------------------------------------------------
     responses = NonlinearResponses.init(unit, grid, field, medium,
                                         responses_list)
@@ -225,8 +212,7 @@ function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
     Etmp = CuArrays.cuzeros(ComplexGPU, (grid.Nr, grid.Nt))
     Stmp = CuArrays.cuzeros(ComplexGPU, (grid.Nr, grid.Nw))
 
-    return ModelRT(KZ, QZ, phi_kerr, phi_plasma, guard,
-                   RK, keys, Ftmp, Etmp, Stmp, responses, PE)
+    return ModelRT(KZ, QZ, guard, RK, keys, Ftmp, Etmp, Stmp, responses, PE)
 end
 
 
@@ -282,9 +268,6 @@ function Model(unit::Units.UnitXY, grid::Grids.GridXY, field::Fields.FieldXY,
     @. QZ = conj(QZ)
     QZ = CuArrays.cu(convert(Array{ComplexGPU, 2}, QZ))
 
-    # Phases for the adaptive z step -------------------------------------------
-    phi_kerr = phi_kerr_func(unit, field, medium)
-
     # Nonlinear responses ------------------------------------------------------
     responses = NonlinearResponses.init(unit, grid, field, medium,
                                         responses_list)
@@ -292,35 +275,21 @@ function Model(unit::Units.UnitXY, grid::Grids.GridXY, field::Fields.FieldXY,
     # Temporary arrays ---------------------------------------------------------
     Ftmp = CuArrays.cuzeros(ComplexGPU, (grid.Nx, grid.Ny))
 
-    return ModelXY(KZ, QZ, phi_kerr, guard, RK, keys, Ftmp, responses)
+    return ModelXY(KZ, QZ, guard, RK, keys, Ftmp, responses)
 end
 
 
-function adaptive_dz(model::Model, AdaptLevel::Float64, I::Float64)
+function dzadapt(model::Model, phimax::AbstractFloat)
     if ! isempty(model.responses)
-        dz_kerr = model.phi_kerr / I * AdaptLevel
+        dzs = []
+        for resp in model.responses
+            dz = NonlinearResponses.dzadaptive(resp, phimax)
+            push!(dzs, dz)
+        end
+        dz = minimum(dzs)
     else
-        dz_kerr = Inf
+        dz = Inf
     end
-    return dz_kerr
-end
-
-
-function adaptive_dz(model::ModelRT, AdaptLevel::Float64, I::Float64,
-                     rho::Float64)
-    if ! isempty(model.responses)
-        dz_kerr = model.phi_kerr / I * AdaptLevel
-    else
-        dz_kerr = Inf
-    end
-
-    if (! isempty(model.responses)) & (rho != 0.)
-        dz_plasma = model.phi_plasma / rho * AdaptLevel
-    else
-        dz_plasma = Inf
-    end
-
-    dz = min(dz_kerr, dz_plasma)
     return dz
 end
 
@@ -528,60 +497,6 @@ function zstep(z::Float64, dz::Float64, grid::Grids.GridXY,
     end
 
     return nothing
-end
-
-
-"""Kerr phase factor for adaptive z step."""
-function phi_kerr_func(unit::Units.Unit, field::Fields.Field,
-                       medium::Media.Medium)
-    w0 = field.w0
-    n0 = real(Media.refractive_index(medium, field.w0))
-    k0 = Media.k_func(medium, w0)
-    Eu = Units.E(unit, n0)
-    mu = medium.permeability(w0)
-    chi3 = Media.chi3_func(medium, field.w0)
-    Rk0 = mu * w0^2 / (2. * C0^2) * chi3 * Eu^2 * unit.z
-
-    if real(Rk0) != 0.
-        phi_real = k0 / (3. / 4. * abs(real(Rk0)))
-    else
-        phi_real = Inf
-    end
-
-    if imag(Rk0) != 0.
-        phi_imag = k0 / (3. / 4. * abs(imag(Rk0)))
-    else
-        phi_imag = Inf
-    end
-
-    phi = min(phi_real, phi_imag)
-    return phi
-end
-
-
-"""Plasma phase factor for adaptive z step."""
-function phi_plasma_func(unit::Units.Unit, field::Fields.Field,
-                         medium::Media.Medium, nuc, mr)
-    w0 = field.w0
-    k0 = Media.k_func(medium, w0)
-    mu = medium.permeability(w0)
-    MR = mr * ME   # reduced mass of electron and hole (effective mass)
-    Rp0 = 0.5 * MU0 * mu * w0 / (nuc - 1im * w0) * QE^2 / MR * unit.rho * unit.z
-
-    if real(Rp0) != 0.
-        phi_real = k0 / abs(real(Rp0))
-    else
-        phi_real = Inf
-    end
-
-    if imag(Rp0) != 0.
-        phi_imag = k0 / abs(imag(Rp0))
-    else
-        phi_imag = Inf
-    end
-
-    phi = min(phi_real, phi_imag)
-    return phi
 end
 
 

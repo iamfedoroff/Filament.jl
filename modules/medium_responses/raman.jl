@@ -1,10 +1,10 @@
 # ******************************************************************************
 # Stimulated Raman response
 # ******************************************************************************
-function init_raman(unit, grid, field, medium, args)
-    THG = args["THG"]
-    n2 = args["n2"]
-    raman_response = args["raman_response"]
+function init_raman(unit, grid, field, medium, p)
+    THG = p["THG"]
+    n2 = p["n2"]
+    raman_response = p["raman_response"]
 
     n0 = Media.refractive_index(medium, field.w0)
     Eu = Units.E(unit, real(n0))
@@ -23,14 +23,10 @@ function init_raman(unit, grid, field, medium, args)
                 " normalized to 1.")
     end
 
-    # Tguard = convert(Array{ComplexF64, 1}, CuArrays.collect(guard.T))
-    # @. Hraman = Hraman * Tguard   # temporal filter
     Hraman = Fourier.ifftshift(Hraman)
     Hramanw = FFTW.rfft(Hraman)   # time -> frequency
 
     Hramanw = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, Hramanw))
-
-    p = (Hramanw, grid.FT)
 
     if THG
         calc = calc_raman
@@ -38,7 +34,11 @@ function init_raman(unit, grid, field, medium, args)
         calc = calc_raman_nothg
     end
 
-    return Rnl, calc, p
+    p_calc = (Hramanw, grid.FT)
+
+    p_dzadapt = ()
+
+    return Rnl, calc, p_calc, dzadapt_raman, p_dzadapt
 end
 
 
@@ -63,4 +63,9 @@ function calc_raman_nothg(z::T,
     Fourier.convolution2!(FT, Hramanw, F)
     @. F = F * real(E)
     return nothing
+end
+
+
+function dzadapt_raman(phimax::AbstractFloat, p::Tuple)
+    return Inf
 end
