@@ -40,7 +40,7 @@ struct ModelR{T} <: Model
     phi_kerr :: Float64
     guard :: Guards.Guard
     RK :: RungeKuttas.RungeKutta
-    keys :: Dict
+    keys :: NamedTuple
 
     Ftmp :: CuArrays.CuArray{Complex{T}, 1}
 
@@ -55,7 +55,7 @@ struct ModelRT{T} <: Model
     phi_plasma :: Float64
     guard :: Guards.Guard
     RK :: RungeKuttas.RungeKutta
-    keys :: Dict
+    keys :: NamedTuple
 
     Ftmp :: CuArrays.CuArray{T, 2}
     Etmp :: CuArrays.CuArray{Complex{T}, 2}
@@ -72,7 +72,7 @@ struct ModelXY{T} <: Model
     phi_kerr :: Float64
     guard :: Guards.Guard
     RK :: RungeKuttas.RungeKutta
-    keys :: Dict
+    keys :: NamedTuple
 
     Ftmp :: CuArrays.CuArray{Complex{T}, 2}
 
@@ -81,19 +81,17 @@ end
 
 
 function Model(unit::Units.UnitR, grid::Grids.GridR, field::Fields.FieldR,
-               medium::Media.Medium, keys::Dict, p_guard::Tuple, responses_list)
+               medium::Media.Medium, keys::NamedTuple, p_guard::Tuple,
+               responses_list)
     # Guards -------------------------------------------------------------------
     guard = Guards.Guard(unit, grid, field.w0, medium, p_guard...)
 
     # Runge-Kutta --------------------------------------------------------------
-    RKORDER = keys["RKORDER"]
-    RK = RungeKuttas.RungeKutta(RKORDER, ComplexGPU, grid.Nr)
+    RK = RungeKuttas.RungeKutta(keys.RKORDER, ComplexGPU, grid.Nr)
 
     # Linear propagator --------------------------------------------------------
-    KPARAXIAL = keys["KPARAXIAL"]
-
     beta = Media.beta_func(medium, field.w0)
-    if KPARAXIAL != 0
+    if keys.KPARAXIAL != 0
         KZ = @. beta - (grid.k * unit.k)^2 / (2. * beta)
     else
         KZ = @. sqrt(beta^2 - (grid.k * unit.k)^2 + 0im)
@@ -103,8 +101,6 @@ function Model(unit::Units.UnitR, grid::Grids.GridR, field::Fields.FieldR,
     KZ = CuArrays.cu(convert(Array{ComplexGPU, 1}, KZ))
 
     # Nonlinear propagator -----------------------------------------------------
-    QPARAXIAL = keys["QPARAXIAL"]
-
     n0 = real(Media.refractive_index(medium, field.w0))
     Eu = Units.E(unit, n0)
     mu = medium.permeability(field.w0)
@@ -112,7 +108,7 @@ function Model(unit::Units.UnitR, grid::Grids.GridR, field::Fields.FieldR,
     Qfactor = MU0 * mu * field.w0^2 / 2. * unit.z / Eu
 
     QZ = zeros(ComplexF64, grid.Nr)
-    if QPARAXIAL != 0
+    if keys.QPARAXIAL != 0
         @. QZ = Qfactor / beta
     else
         for i=1:grid.Nr
@@ -140,21 +136,18 @@ end
 
 
 function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
-               medium::Media.Medium, keys::Dict, p_guard::Tuple, responses_list,
-               plasma_equation::Dict)
+               medium::Media.Medium, keys::NamedTuple, p_guard::Tuple,
+               responses_list, plasma_equation::Dict)
     # Guards -------------------------------------------------------------------
     guard = Guards.Guard(unit, grid, medium, p_guard...)
 
     # Runge-Kutta --------------------------------------------------------------
-    RKORDER = keys["RKORDER"]
-    RK = RungeKuttas.RungeKutta(RKORDER, ComplexGPU, grid.Nr, grid.Nw)
+    RK = RungeKuttas.RungeKutta(keys.RKORDER, ComplexGPU, grid.Nr, grid.Nw)
 
     # Linear propagator --------------------------------------------------------
-    KPARAXIAL = keys["KPARAXIAL"]
-
     beta = Media.beta_func.(Ref(medium), grid.w * unit.w)
     KZ = zeros(ComplexF64, (grid.Nr, grid.Nw))
-    if KPARAXIAL != 0
+    if keys.KPARAXIAL != 0
         for j=1:grid.Nw
             if beta[j] != 0.
                 for i=1:grid.Nr
@@ -182,8 +175,6 @@ function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
     KZ = CuArrays.cu(convert(Array{ComplexGPU, 2}, KZ))
 
     # Nonlinear propagator -----------------------------------------------------
-    QPARAXIAL = keys["QPARAXIAL"]
-
     n0 = real(Media.refractive_index(medium, field.w0))
     Eu = Units.E(unit, n0)
     mu = medium.permeability(grid.w * unit.w)
@@ -191,7 +182,7 @@ function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
     Qfactor = @. MU0 * mu * (grid.w * unit.w)^2 / 2. * unit.z / Eu
 
     QZ = zeros(ComplexF64, (grid.Nr, grid.Nw))
-    if QPARAXIAL != 0
+    if keys.QPARAXIAL != 0
         for j=1:grid.Nw
             if beta[j] != 0.
                 for i=1:grid.Nr
@@ -240,20 +231,18 @@ end
 
 
 function Model(unit::Units.UnitXY, grid::Grids.GridXY, field::Fields.FieldXY,
-               medium::Media.Medium, keys::Dict, p_guard::Tuple, responses_list)
+               medium::Media.Medium, keys::NamedTuple, p_guard::Tuple,
+               responses_list)
     # Guards -------------------------------------------------------------------
     guard = Guards.Guard(unit, grid, field.w0, medium, p_guard...)
 
     # Runge-Kutta --------------------------------------------------------------
-    RKORDER = keys["RKORDER"]
-    RK = RungeKuttas.RungeKutta(RKORDER, ComplexGPU, grid.Nx, grid.Ny)
+    RK = RungeKuttas.RungeKutta(keys.RKORDER, ComplexGPU, grid.Nx, grid.Ny)
 
     # Linear propagator --------------------------------------------------------
-    KPARAXIAL = keys["KPARAXIAL"]
-
     beta = Media.beta_func(medium, field.w0)
     KZ = zeros(ComplexF64, (grid.Nx, grid.Ny))
-    if KPARAXIAL != 0
+    if keys.KPARAXIAL != 0
         for j=1:grid.Ny
             for i=1:grid.Nx
                 KZ[i, j] = beta - ((grid.kx[i] * unit.kx)^2 + (grid.ky[j] * unit.ky)^2) / (2. * beta)
@@ -271,8 +260,6 @@ function Model(unit::Units.UnitXY, grid::Grids.GridXY, field::Fields.FieldXY,
     KZ = CuArrays.cu(convert(Array{ComplexGPU, 2}, KZ))
 
     # Nonlinear propagator -----------------------------------------------------
-    QPARAXIAL = keys["QPARAXIAL"]
-
     n0 = real(Media.refractive_index(medium, field.w0))
     Eu = Units.E(unit, n0)
     mu = medium.permeability(field.w0)
@@ -280,7 +267,7 @@ function Model(unit::Units.UnitXY, grid::Grids.GridXY, field::Fields.FieldXY,
     Qfactor = MU0 * mu * field.w0^2 / 2. * unit.z / Eu
 
     QZ = zeros(ComplexF64, (grid.Nx, grid.Ny))
-    if QPARAXIAL != 0
+    if keys.QPARAXIAL != 0
         @. QZ = Qfactor / beta
     else
         for j=1:grid.Ny
@@ -354,7 +341,7 @@ function rkfunc_field!(dE::CuArrays.CuArray{Complex{T}, 1},
     end
 
     # Nonparaxiality:
-    if model.keys["QPARAXIAL"] != 0
+    if model.keys.QPARAXIAL != 0
         @. dE = -1im * model.QZ * dE
     else
         Hankel.dht!(grid.HT, dE)
@@ -383,7 +370,7 @@ function rkfunc_field!(dE::CuArrays.CuArray{Complex{T}, 2},
     end
 
     # Nonparaxiality:
-    if model.keys["QPARAXIAL"] != 0
+    if model.keys.QPARAXIAL != 0
         @. dE = -1im * model.QZ * dE
     else
         Fourier.fft!(grid.FT, dE)
@@ -415,7 +402,7 @@ function rkfunc_spectrum!(dS::CuArrays.CuArray{Complex{T}, 2},
     end
 
     # Nonparaxiality:
-    if model.keys["QPARAXIAL"] != 0
+    if model.keys.QPARAXIAL != 0
         @. dS = -1im * model.QZ * dS
     else
         Hankel.dht!(grid.HT, dS)

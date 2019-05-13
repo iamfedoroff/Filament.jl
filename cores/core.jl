@@ -38,19 +38,7 @@ function main()
     # **************************************************************************
     # Prepare model
     # **************************************************************************
-    if occursin("T", grid.geometry)
-        keys = Dict(
-            "KPARAXIAL" => Input.KPARAXIAL, "QPARAXIAL" => Input.QPARAXIAL,
-            "RKORDER" => Input.RKORDER)
-        model = Models.Model(unit, grid, field, medium, keys, Input.p_guard,
-                             Input.responses, Input.plasma_equation)
-    else
-        keys = Dict(
-            "KPARAXIAL" => Input.KPARAXIAL, "QPARAXIAL" => Input.QPARAXIAL,
-            "RKORDER" => Input.RKORDER)
-        model = Models.Model(unit, grid, field, medium, keys, Input.p_guard,
-                             Input.responses)
-    end
+    model = Models.Model(unit, grid, field, medium, Input.p_model...)
 
     # **************************************************************************
     # Prepare output files
