@@ -37,7 +37,6 @@ abstract type Model end
 struct ModelR{T} <: Model
     KZ :: CuArrays.CuArray{Complex{T}, 1}
     QZ :: CuArrays.CuArray{Complex{T}, 1}
-    guard :: Guards.Guard
     RK :: RungeKuttas.RungeKutta
     keys :: NamedTuple
 
@@ -50,7 +49,6 @@ end
 struct ModelRT{T} <: Model
     KZ :: CuArrays.CuArray{Complex{T}, 2}
     QZ :: CuArrays.CuArray{Complex{T}, 2}
-    guard :: Guards.Guard
     RK :: RungeKuttas.RungeKutta
     keys :: NamedTuple
 
@@ -66,7 +64,6 @@ end
 struct ModelXY{T} <: Model
     KZ :: CuArrays.CuArray{Complex{T}, 2}
     QZ :: CuArrays.CuArray{Complex{T}, 2}
-    guard :: Guards.Guard
     RK :: RungeKuttas.RungeKutta
     keys :: NamedTuple
 
@@ -77,11 +74,7 @@ end
 
 
 function Model(unit::Units.UnitR, grid::Grids.GridR, field::Fields.FieldR,
-               medium::Media.Medium, keys::NamedTuple, p_guard::Tuple,
-               responses_list)
-    # Guards -------------------------------------------------------------------
-    guard = Guards.Guard(unit, grid, field.w0, medium, p_guard...)
-
+               medium::Media.Medium, keys::NamedTuple, responses_list)
     # Runge-Kutta --------------------------------------------------------------
     RK = RungeKuttas.RungeKutta(keys.RKORDER, ComplexGPU, grid.Nr)
 
@@ -94,7 +87,7 @@ function Model(unit::Units.UnitR, grid::Grids.GridR, field::Fields.FieldR,
     end
     @. KZ = KZ * unit.z
     @. KZ = conj(KZ)
-    KZ = CuArrays.cu(convert(Array{ComplexGPU, 1}, KZ))
+    KZ = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, KZ))
 
     # Nonlinear propagator -----------------------------------------------------
     n0 = real(Media.refractive_index(medium, field.w0))
@@ -115,7 +108,7 @@ function Model(unit::Units.UnitR, grid::Grids.GridR, field::Fields.FieldR,
         end
     end
     @. QZ = conj(QZ)
-    QZ = CuArrays.cu(convert(Array{ComplexGPU, 1}, QZ))
+    QZ = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, QZ))
 
     # Nonlinear responses ------------------------------------------------------
     responses = NonlinearResponses.init(unit, grid, field, medium,
@@ -124,16 +117,13 @@ function Model(unit::Units.UnitR, grid::Grids.GridR, field::Fields.FieldR,
     # Temporary arrays ---------------------------------------------------------
     Ftmp = CuArrays.cuzeros(ComplexGPU, grid.Nr)
 
-    return ModelR(KZ, QZ, guard, RK, keys, Ftmp, responses)
+    return ModelR(KZ, QZ, RK, keys, Ftmp, responses)
 end
 
 
 function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
-               medium::Media.Medium, keys::NamedTuple, p_guard::Tuple,
-               responses_list, plasma_equation::Dict)
-    # Guards -------------------------------------------------------------------
-    guard = Guards.Guard(unit, grid, medium, p_guard...)
-
+               medium::Media.Medium, keys::NamedTuple, responses_list,
+               plasma_equation::Dict)
     # Runge-Kutta --------------------------------------------------------------
     RK = RungeKuttas.RungeKutta(keys.RKORDER, ComplexGPU, grid.Nr, grid.Nw)
 
@@ -165,7 +155,7 @@ function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
 
     @. KZ = conj(KZ)
 
-    KZ = CuArrays.cu(convert(Array{ComplexGPU, 2}, KZ))
+    KZ = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, KZ))
 
     # Nonlinear propagator -----------------------------------------------------
     n0 = real(Media.refractive_index(medium, field.w0))
@@ -196,7 +186,7 @@ function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
 
     @. QZ = conj(QZ)
 
-    QZ = CuArrays.cu(convert(Array{ComplexGPU, 2}, QZ))
+    QZ = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, QZ))
 
     # Nonlinear responses ------------------------------------------------------
     responses = NonlinearResponses.init(unit, grid, field, medium,
@@ -212,16 +202,12 @@ function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
     Etmp = CuArrays.cuzeros(ComplexGPU, (grid.Nr, grid.Nt))
     Stmp = CuArrays.cuzeros(ComplexGPU, (grid.Nr, grid.Nw))
 
-    return ModelRT(KZ, QZ, guard, RK, keys, Ftmp, Etmp, Stmp, responses, PE)
+    return ModelRT(KZ, QZ, RK, keys, Ftmp, Etmp, Stmp, responses, PE)
 end
 
 
 function Model(unit::Units.UnitXY, grid::Grids.GridXY, field::Fields.FieldXY,
-               medium::Media.Medium, keys::NamedTuple, p_guard::Tuple,
-               responses_list)
-    # Guards -------------------------------------------------------------------
-    guard = Guards.Guard(unit, grid, field.w0, medium, p_guard...)
-
+               medium::Media.Medium, keys::NamedTuple, responses_list)
     # Runge-Kutta --------------------------------------------------------------
     RK = RungeKuttas.RungeKutta(keys.RKORDER, ComplexGPU, grid.Nx, grid.Ny)
 
@@ -243,7 +229,7 @@ function Model(unit::Units.UnitXY, grid::Grids.GridXY, field::Fields.FieldXY,
     end
     @. KZ = KZ * unit.z
     @. KZ = conj(KZ)
-    KZ = CuArrays.cu(convert(Array{ComplexGPU, 2}, KZ))
+    KZ = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, KZ))
 
     # Nonlinear propagator -----------------------------------------------------
     n0 = real(Media.refractive_index(medium, field.w0))
@@ -266,7 +252,7 @@ function Model(unit::Units.UnitXY, grid::Grids.GridXY, field::Fields.FieldXY,
         end
     end
     @. QZ = conj(QZ)
-    QZ = CuArrays.cu(convert(Array{ComplexGPU, 2}, QZ))
+    QZ = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, QZ))
 
     # Nonlinear responses ------------------------------------------------------
     responses = NonlinearResponses.init(unit, grid, field, medium,
@@ -275,7 +261,7 @@ function Model(unit::Units.UnitXY, grid::Grids.GridXY, field::Fields.FieldXY,
     # Temporary arrays ---------------------------------------------------------
     Ftmp = CuArrays.cuzeros(ComplexGPU, (grid.Nx, grid.Ny))
 
-    return ModelXY(KZ, QZ, guard, RK, keys, Ftmp, responses)
+    return ModelXY(KZ, QZ, RK, keys, Ftmp, responses)
 end
 
 
@@ -299,13 +285,14 @@ function rkfunc_field!(dE::CuArrays.CuArray{Complex{T}, 1},
                        p::Tuple) where T
     z = p[1]
     grid = p[2]
-    model = p[3]
+    guard = p[3]
+    model = p[4]
 
     fill!(dE, 0)
 
     for response in model.responses
         NonlinearResponses.calculate!(response, z, model.Ftmp, E)
-        Guards.apply_spatial_filter!(model.guard, model.Ftmp)
+        Guards.apply_spatial_filter!(guard, model.Ftmp)
         @. dE = dE + response.Rnl * model.Ftmp
     end
 
@@ -315,7 +302,7 @@ function rkfunc_field!(dE::CuArrays.CuArray{Complex{T}, 1},
     else
         Hankel.dht!(grid.HT, dE)
         @. dE = -1im * model.QZ * dE
-        Guards.apply_angular_filter!(model.guard, dE)
+        Guards.apply_angular_filter!(guard, dE)
         Hankel.idht!(grid.HT, dE)
     end
 
@@ -328,13 +315,14 @@ function rkfunc_field!(dE::CuArrays.CuArray{Complex{T}, 2},
                        p::Tuple) where T
     z = p[1]
     grid = p[2]
-    model = p[3]
+    guard = p[3]
+    model = p[4]
 
     fill!(dE, 0)
 
     for response in model.responses
         NonlinearResponses.calculate!(response, z, model.Ftmp, E)
-        Guards.apply_spatial_filter!(model.guard, model.Ftmp)
+        Guards.apply_spatial_filter!(guard, model.Ftmp)
         @. dE = dE + response.Rnl * model.Ftmp
     end
 
@@ -344,7 +332,7 @@ function rkfunc_field!(dE::CuArrays.CuArray{Complex{T}, 2},
     else
         Fourier.fft!(grid.FT, dE)
         @. dE = -1im * model.QZ * dE
-        Guards.apply_angular_filter!(model.guard, dE)
+        Guards.apply_angular_filter!(guard, dE)
         Fourier.ifft!(grid.FT, dE)
     end
 
@@ -357,7 +345,8 @@ function rkfunc_spectrum!(dS::CuArrays.CuArray{Complex{T}, 2},
                           p::Tuple) where T
     z = p[1]
     grid = p[2]
-    model = p[3]
+    guard = p[3]
+    model = p[4]
 
     Fourier.hilbert2!(grid.FT, S, model.Etmp)   # spectrum real to signal analytic
 
@@ -365,7 +354,7 @@ function rkfunc_spectrum!(dS::CuArrays.CuArray{Complex{T}, 2},
 
     for response in model.responses
         NonlinearResponses.calculate!(response, z, model.Ftmp, model.Etmp)
-        Guards.apply_spatio_temporal_filter!(model.guard, model.Ftmp)
+        Guards.apply_spatio_temporal_filter!(guard, model.Ftmp)
         Fourier.rfft2!(grid.FT, model.Ftmp, model.Stmp)   # time -> frequency
         update_dS!(dS, response.Rnl, model.Stmp)   # dS = dS + Ra * Stmp
     end
@@ -376,7 +365,7 @@ function rkfunc_spectrum!(dS::CuArrays.CuArray{Complex{T}, 2},
     else
         Hankel.dht!(grid.HT, dS)
         @. dS = -1im * model.QZ * dS
-        Guards.apply_frequency_angular_filter!(model.guard, dS)
+        Guards.apply_frequency_angular_filter!(guard, dS)
         Hankel.idht!(grid.HT, dS)
     end
 
@@ -384,15 +373,15 @@ function rkfunc_spectrum!(dS::CuArrays.CuArray{Complex{T}, 2},
 end
 
 
-function zstep(z::Float64, dz::Float64, grid::Grids.GridR, field::Fields.FieldR,
-               model::ModelR)
+function zstep(z::T, dz::T, grid::Grids.GridR, field::Fields.FieldR,
+               guard::Guards.GuardR, model::ModelR) where T
     z_gpu = FloatGPU(z)
     dz_gpu = FloatGPU(dz)
 
     # Nonlinearity -------------------------------------------------------------
     @timeit "nonlinearity" begin
         if ! isempty(model.responses)
-           p = (z_gpu, grid, model)
+           p = (z_gpu, grid, guard, model)
            RungeKuttas.solve!(model.RK, field.E, dz_gpu, rkfunc_field!, p)
            CUDAdrv.synchronize()
        end
@@ -402,13 +391,13 @@ function zstep(z::Float64, dz::Float64, grid::Grids.GridR, field::Fields.FieldR,
     @timeit "linear" begin
         Hankel.dht!(grid.HT, field.E)
         @. field.E = field.E * CUDAnative.exp(-1im * model.KZ * dz_gpu)
-        Guards.apply_angular_filter!(model.guard, field.E)
+        Guards.apply_angular_filter!(guard, field.E)
         Hankel.idht!(grid.HT, field.E)
         CUDAdrv.synchronize()
     end
 
     @timeit "spatial filter" begin
-        Guards.apply_spatial_filter!(model.guard, field.E)
+        Guards.apply_spatial_filter!(guard, field.E)
         CUDAdrv.synchronize()
     end
 
@@ -416,8 +405,8 @@ function zstep(z::Float64, dz::Float64, grid::Grids.GridR, field::Fields.FieldR,
 end
 
 
-function zstep(z::Float64, dz::Float64, grid::Grids.GridRT,
-               field::Fields.FieldRT, model::ModelRT)
+function zstep(z::T, dz::T, grid::Grids.GridRT, field::Fields.FieldRT,
+               guard::Guards.GuardRT, model::ModelRT) where T
     # Calculate plasma density -------------------------------------------------
     @timeit "plasma" begin
         if ! isempty(model.PE.components)
@@ -438,7 +427,7 @@ function zstep(z::Float64, dz::Float64, grid::Grids.GridRT,
     # Nonlinearity -------------------------------------------------------------
     @timeit "nonlinearity" begin
         if ! isempty(model.responses)
-           p = (z_gpu, grid, model)
+           p = (z_gpu, grid, guard, model)
            RungeKuttas.solve!(model.RK, field.S, dz_gpu, rkfunc_spectrum!, p)
            CUDAdrv.synchronize()
        end
@@ -448,7 +437,7 @@ function zstep(z::Float64, dz::Float64, grid::Grids.GridRT,
     @timeit "linear" begin
         Hankel.dht!(grid.HT, field.S)
         @. field.S = field.S * CUDAnative.exp(-1im * model.KZ * dz_gpu)
-        Guards.apply_frequency_angular_filter!(model.guard, field.S)
+        Guards.apply_frequency_angular_filter!(guard, field.S)
         Hankel.idht!(grid.HT, field.S)
         CUDAdrv.synchronize()
     end
@@ -460,7 +449,7 @@ function zstep(z::Float64, dz::Float64, grid::Grids.GridRT,
     end
 
     @timeit "sp-temp filter" begin
-        Guards.apply_spatio_temporal_filter!(model.guard, field.E)
+        Guards.apply_spatio_temporal_filter!(guard, field.E)
         CUDAdrv.synchronize()
     end
 
@@ -468,15 +457,15 @@ function zstep(z::Float64, dz::Float64, grid::Grids.GridRT,
 end
 
 
-function zstep(z::Float64, dz::Float64, grid::Grids.GridXY,
-               field::Fields.FieldXY, model::ModelXY)
+function zstep(z::T, dz::T, grid::Grids.GridXY, field::Fields.FieldXY,
+               guard::Guards.GuardXY, model::ModelXY) where T
     z_gpu = FloatGPU(z)
     dz_gpu = FloatGPU(dz)
 
     # Nonlinearity -------------------------------------------------------------
     @timeit "nonlinearity" begin
         if ! isempty(model.responses)
-           p = (z_gpu, grid, model)
+           p = (z_gpu, grid, guard, model)
            RungeKuttas.solve!(model.RK, field.E, dz_gpu, rkfunc_field!, p)
            CUDAdrv.synchronize()
        end
@@ -486,13 +475,13 @@ function zstep(z::Float64, dz::Float64, grid::Grids.GridXY,
     @timeit "linear" begin
         Fourier.fft!(grid.FT, field.E)
         @. field.E = field.E * CUDAnative.exp(-1im * model.KZ * dz_gpu)
-        Guards.apply_angular_filter!(model.guard, field.E)
+        Guards.apply_angular_filter!(guard, field.E)
         Fourier.ifft!(grid.FT, field.E)
         CUDAdrv.synchronize()
     end
 
     @timeit "spatial filter" begin
-        Guards.apply_spatial_filter!(model.guard, field.E)
+        Guards.apply_spatial_filter!(guard, field.E)
         CUDAdrv.synchronize()
     end
 

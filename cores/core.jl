@@ -8,10 +8,10 @@ import Units
 import Grids
 import Fields
 import Media
-import PlasmaEquations
+import Guards
+import Models
 import Infos
 import WritePlots
-import Models
 
 include("Input.jl")
 import .Input
@@ -36,8 +36,9 @@ function main()
     medium = Media.Medium(Input.permittivity, Input.permeability, Input.n2)
 
     # **************************************************************************
-    # Prepare model
+    # Prepare guards and model
     # **************************************************************************
+    guard = Guards.Guard(unit, grid, field, medium, Input.p_guard...)
     model = Models.Model(unit, grid, field, medium, Input.p_model...)
 
     # **************************************************************************
@@ -104,7 +105,7 @@ function main()
         z = z + dz
 
         @timeit "zstep" begin
-            Models.zstep(z, dz, grid, field, model)
+            Models.zstep(z, dz, grid, field, guard, model)
             CUDAdrv.synchronize()
         end
 

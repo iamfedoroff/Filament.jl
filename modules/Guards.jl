@@ -6,6 +6,7 @@ import CUDAdrv
 
 import Units
 import Grids
+import Fields
 import Media
 
 const FloatGPU = Float32
@@ -45,36 +46,36 @@ struct GuardXY{T} <: Guard
 end
 
 
-function Guard(unit::Units.UnitR, grid::Grids.GridR, w0::Float64,
-               medium::Media.Medium, rguard::Float64, kguard::Float64)
+function Guard(unit::Units.UnitR, grid::Grids.GridR, field::Fields.FieldR,
+               medium::Media.Medium, rguard::T, kguard::T) where T
     # Spatial guard filter:
     Rguard = guard_window(grid.r, rguard, mode="right")
-    Rguard = CuArrays.cu(convert(Array{FloatGPU, 1}, Rguard))
+    Rguard = CuArrays.CuArray(convert(Array{FloatGPU, 1}, Rguard))
 
     # Angular guard filter:
-    k0 = Media.k_func.(Ref(medium), w0)
+    k0 = Media.k_func(medium, field.w0)
     kmax = k0 * sind(kguard)
     Kguard = @. exp(-((grid.k * unit.k)^2 / kmax^2)^20)
-    Kguard = CuArrays.cu(convert(Array{FloatGPU, 1}, Kguard))
+    Kguard = CuArrays.CuArray(convert(Array{FloatGPU, 1}, Kguard))
 
     return GuardR(Rguard, Kguard)
 end
 
 
-function Guard(unit::Units.UnitRT, grid::Grids.GridRT, medium::Media.Medium,
-               rguard::Float64, tguard::Float64, kguard::Float64,
-               wguard::Float64)
+function Guard(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
+               medium::Media.Medium,
+               rguard::T, tguard::T, kguard::T, wguard::T) where T
     # Spatial guard filter:
     Rguard = guard_window(grid.r, rguard, mode="right")
-    Rguard = CuArrays.cu(convert(Array{FloatGPU, 1}, Rguard))
+    Rguard = CuArrays.CuArray(convert(Array{FloatGPU, 1}, Rguard))
 
     # Temporal guard filter:
     Tguard = guard_window(grid.t, tguard, mode="both")
-    Tguard = CuArrays.cu(convert(Array{FloatGPU, 1}, Tguard))
+    Tguard = CuArrays.CuArray(convert(Array{FloatGPU, 1}, Tguard))
 
     # Frequency guard filter:
     Wguard = @. exp(-((grid.w * unit.w)^2 / wguard^2)^20)
-    Wguard = CuArrays.cu(convert(Array{FloatGPU, 1}, Wguard))
+    Wguard = CuArrays.CuArray(convert(Array{FloatGPU, 1}, Wguard))
 
     # Angular guard filter:
     k = Media.k_func.(Ref(medium), grid.w * unit.w)
@@ -87,7 +88,7 @@ function Guard(unit::Units.UnitRT, grid::Grids.GridRT, medium::Media.Medium,
             end
         end
     end
-    Kguard = CuArrays.cu(convert(Array{FloatGPU, 2}, Kguard))
+    Kguard = CuArrays.CuArray(convert(Array{FloatGPU, 2}, Kguard))
 
     # GPU:
     CuArrays.allowscalar(false)   # disable slow fallback methods
@@ -107,26 +108,26 @@ function Guard(unit::Units.UnitRT, grid::Grids.GridRT, medium::Media.Medium,
 end
 
 
-function Guard(unit::Units.UnitXY, grid::Grids.GridXY, w0::Float64,
-               medium::Media.Medium, xguard::Float64, yguard::Float64,
-               kxguard::Float64, kyguard::Float64)
+function Guard(unit::Units.UnitXY, grid::Grids.GridXY, field::Fields.Field,
+               medium::Media.Medium,
+               xguard::T, yguard::T, kxguard::T, kyguard::T) where T
     # Spatial guard filters:
     Xguard = guard_window(grid.x, xguard, mode="both")
-    Xguard = CuArrays.cu(convert(Array{FloatGPU, 1}, Xguard))
+    Xguard = CuArrays.CuArray(convert(Array{FloatGPU, 1}, Xguard))
 
     Yguard = guard_window(grid.y, yguard, mode="both")
-    Yguard = CuArrays.cu(convert(Array{FloatGPU, 1}, Yguard))
+    Yguard = CuArrays.CuArray(convert(Array{FloatGPU, 1}, Yguard))
 
     # Angular guard filters:
-    k0 = Media.k_func.(Ref(medium), w0)
+    k0 = Media.k_func(medium, field.w0)
     kxmax = k0 * sind(kxguard)
     kymax = k0 * sind(kyguard)
 
     KXguard = @. exp(-((grid.kx * unit.kx)^2 / kxmax^2)^20)
-    KXguard = CuArrays.cu(convert(Array{FloatGPU, 1}, KXguard))
+    KXguard = CuArrays.CuArray(convert(Array{FloatGPU, 1}, KXguard))
 
     KYguard = @. exp(-((grid.ky * unit.ky)^2 / kymax^2)^20)
-    KYguard = CuArrays.cu(convert(Array{FloatGPU, 1}, KYguard))
+    KYguard = CuArrays.CuArray(convert(Array{FloatGPU, 1}, KYguard))
 
     dev = CUDAnative.CuDevice(0)
     MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
@@ -146,7 +147,7 @@ Lossy guard window at the ends of grid coordinate.
           "right" - lossy guard only on the right end of the grid
           "both" - lossy guard on both ends of the grid
 """
-function guard_window(x::Array{Float64, 1}, guard_width::Float64; mode="both")
+function guard_window(x::Array{T, 1}, guard_width::T; mode="both") where T
     @assert guard_width >= 0.
     @assert mode in ["left", "right", "both"]
 
@@ -217,21 +218,7 @@ function apply_spatial_filter!(guard::GuardXY,
                                E::CuArrays.CuArray{Complex{T}, 2}) where T
     nth = guard.nthreads
     nbl = guard.nblocks
-    @CUDAnative.cuda blocks=nbl threads=nth apply_spatial_filter_kernel(E, guard.X, guard.Y)
-    return nothing
-end
-
-
-function apply_spatial_filter_kernel(E, X, Y)
-    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
-    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
-    Nx, Ny = size(E)
-    cartesian = CartesianIndices((Nx, Ny))
-    for k=id:stride:Nx*Ny
-        i = cartesian[k][1]
-        j = cartesian[k][2]
-        @inbounds E[i, j] = E[i, j] * X[i] * Y[j]
-    end
+    @CUDAnative.cuda blocks=nbl threads=nth kernel(E, guard.X, guard.Y)
     return nothing
 end
 
@@ -247,7 +234,7 @@ function apply_angular_filter!(guard::GuardXY,
                                E::CuArrays.CuArray{Complex{T}, 2}) where T
     nth = guard.nthreads
     nbl = guard.nblocks
-    @CUDAnative.cuda blocks=nbl threads=nth apply_spatial_filter_kernel(E, guard.KX, guard.KY)
+    @CUDAnative.cuda blocks=nbl threads=nth kernel(E, guard.KX, guard.KY)
     return nothing
 end
 
@@ -256,21 +243,7 @@ function apply_spatio_temporal_filter!(guard::GuardRT,
                                        E::CuArrays.CuArray{T, 2}) where T
     nth = guard.nthreadsNrNt
     nbl = guard.nblocksNrNt
-    @CUDAnative.cuda blocks=nbl threads=nth apply_spatio_temporal_filter_kernel(E, guard.R, guard.T)
-end
-
-
-function apply_spatio_temporal_filter_kernel(E, R, T)
-    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
-    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
-    Nr, Nt = size(E)
-    cartesian = CartesianIndices((Nr, Nt))
-    for k=id:stride:Nr*Nt
-        i = cartesian[k][1]
-        j = cartesian[k][2]
-        @inbounds E[i, j] = E[i, j] * R[i] * T[j]
-    end
-    return nothing
+    @CUDAnative.cuda blocks=nbl threads=nth kernel(E, guard.R, guard.T)
 end
 
 
@@ -278,19 +251,37 @@ function apply_frequency_angular_filter!(guard::GuardRT,
                                          S::CuArrays.CuArray{Complex{T}, 2}) where T
     nth = guard.nthreadsNrNw
     nbl = guard.nblocksNrNw
-    @CUDAnative.cuda blocks=nbl threads=nth apply_frequency_angular_filter_kernel(S, guard.W, guard.K)
+    @CUDAnative.cuda blocks=nbl threads=nth kernel(S, guard.K, guard.W)
 end
 
 
-function apply_frequency_angular_filter_kernel(S, W, K)
+function kernel(F::CUDAnative.CuDeviceArray,
+                A::CUDAnative.CuDeviceArray{T, 1},
+                B::CUDAnative.CuDeviceArray{T, 1}) where T
     id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
     stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
-    Nr, Nw = size(S)
-    cartesian = CartesianIndices((Nr, Nw))
-    for k=id:stride:Nr*Nw
+    N1, N2 = size(F)
+    cartesian = CartesianIndices((N1, N2))
+    for k=id:stride:N1*N2
         i = cartesian[k][1]
         j = cartesian[k][2]
-        @inbounds S[i, j] = S[i, j] * W[j] * K[i, j]
+        @inbounds F[i, j] = F[i, j] * A[i] * B[j]
+    end
+    return nothing
+end
+
+
+function kernel(F::CUDAnative.CuDeviceArray,
+                A::CUDAnative.CuDeviceArray{T, 2},
+                B::CUDAnative.CuDeviceArray{T, 1}) where T
+    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
+    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
+    N1, N2 = size(F)
+    cartesian = CartesianIndices((N1, N2))
+    for k=id:stride:N1*N2
+        i = cartesian[k][1]
+        j = cartesian[k][2]
+        @inbounds F[i, j] = F[i, j] * A[i, j] * B[j]
     end
     return nothing
 end
