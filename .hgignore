@@ -3,3 +3,4 @@ syntax: glob
 *~
 results*/
 *.h5
+Manifest.toml

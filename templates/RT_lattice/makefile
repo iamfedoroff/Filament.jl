@@ -1,4 +1,4 @@
-CORE=../../cores/core.jl
+PROJECT=../..
 
 run:
-	julia -O3 --check-bounds=no ${CORE} input.jl
+	julia --project=${PROJECT} -O3 --check-bounds=no ${PROJECT}/src/Filament.jl input.jl

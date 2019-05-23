@@ -22,7 +22,7 @@ const HBAR = scipy_constants.hbar   # the Planck constant (divided by 2*pi) [J*s
 const FloatGPU = Float32
 const ComplexGPU = ComplexF32
 
-const DEFPATH = joinpath(@__DIR__, "..", "modules", "medium_responses")
+const DEFPATH = joinpath(@__DIR__, "modules", "medium_responses")
 
 # Read input file and change current working directory:
 file_input = abspath(ARGS[1])

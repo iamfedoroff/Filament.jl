@@ -3,7 +3,7 @@ import Formatting
 import Dates
 import CUDAdrv
 
-push!(LOAD_PATH, joinpath(@__DIR__, "..", "modules"))
+push!(LOAD_PATH, joinpath(@__DIR__, "modules"))
 import Units
 import Grids
 import Fields
