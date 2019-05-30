@@ -147,6 +147,7 @@ plasma_equation = Dict(
     "METHOD" => "ETD",   # numerical method (ETD, RK2, RK3, RK4)
     "AVALANCHE" => true,   # switch for avalanche ionization
     "EREAL" => false,   # switch for the ionization rate argument: real(E)^2 vs abs2(E)
+    "KGAMMA" => true,   # multiphoton ionization order K depends on Keldysh gamma
     "rho0" => rho0,   # [1/m**3] neutrals density
     "nuc" => nuc,   # [1/s] collision frequency
     "mr" => mr,   # [me] reduced mass of electron and hole (effective mass)

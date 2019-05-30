@@ -12,6 +12,8 @@ import TabularFunctions
 
 import PyCall
 scipy_constants = PyCall.pyimport("scipy.constants")
+const C0 = scipy_constants.c   # speed of light in vacuum
+const EPS0 = scipy_constants.epsilon_0   # the electric constant (vacuum permittivity) [F/m]
 const QE = scipy_constants.e   # elementary charge [C]
 const ME = scipy_constants.m_e   # electron mass [kg]
 
@@ -23,6 +25,7 @@ struct Component{T<:AbstractFloat}
     frho0 :: T
     K :: T
     Rava :: T
+    Rgamma :: T
     tf :: TabularFunctions.TabularFunction
 end
 
@@ -47,9 +50,12 @@ function Component(unit::Units.Unit, field::Fields.Field, medium::Media.Medium,
     Rava = sigma / Ui * Eu^2 * unit.t
     Rava = FloatGPU(Rava)
 
+    Rgamma = field.w0 / QE * sqrt(MR * n0 * EPS0 * C0 * Ui / unit.I)
+    Rgamma = FloatGPU(Rgamma)
+
     tf = TabularFunctions.CuTabularFunction(FloatGPU, unit, fname_tabfunc)
 
-    return Component(name, frho0, K, Rava, tf)
+    return Component(name, frho0, K, Rava, Rgamma, tf)
 end
 
 
@@ -61,6 +67,8 @@ struct PlasmaEquation{T<:AbstractFloat}
     components :: Array{Component, 1}
     rho :: CuArrays.CuArray{T}
     drho :: CuArrays.CuArray{T}
+    KGAMMA :: Bool
+    Kgamma :: CuArrays.CuArray{T}
     nthreads :: Int
     nblocks :: Int
 end
@@ -129,6 +137,13 @@ function PlasmaEquation(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     rho = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
     drho = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
 
+    KGAMMA = args["KGAMMA"]
+    if KGAMMA
+        Kgamma = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
+    else
+        Kgamma = CuArrays.cuzeros(FloatGPU, 0)
+    end
+
     dev = CUDAnative.CuDevice(0)
     MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
     # nthreads = min(grid.Nr, MAX_THREADS_PER_BLOCK)   # CUDA error: too many resources requested for launch
@@ -136,7 +151,7 @@ function PlasmaEquation(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     nblocks = Int(ceil(grid.Nr / nthreads))
 
     return PlasmaEquation(dt, method, calc, fearg, components, rho, drho,
-                           nthreads, nblocks)
+                          KGAMMA, Kgamma, nthreads, nblocks)
 end
 
 
@@ -157,7 +172,18 @@ function solve!(PE::PlasmaEquation,
                                                              E, p)
         CUDAdrv.synchronize()
         @. rho = rho + PE.rho
-        @. Kdrho = Kdrho + comp.K * PE.drho
+
+        if PE.KGAMMA
+            @CUDAnative.cuda blocks=nbl threads=nth Kgamma_kernel(PE.Kgamma,
+                                                                  PE.fearg,
+                                                                  comp.Rgamma,
+                                                                  comp.K, E)
+            CUDAdrv.synchronize()
+            @. Kdrho = Kdrho + PE.Kgamma * PE.drho
+        else
+            @. Kdrho = Kdrho + comp.K * PE.drho
+        end
+
         CUDAdrv.synchronize()
     end
 end
@@ -180,6 +206,39 @@ function solve_kernel(rho::AbstractArray{T, 2}, drho::AbstractArray{T, 2},
         drho[i, end] = convert(T, 0)
     end
     return nothing
+end
+
+
+function Kgamma_kernel(Kgamma, fearg, Rgamma, K, E)
+    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
+    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
+    N1, N2 = size(E)
+    for i=id:stride:N1*N2
+        Iarg = fearg(E[i])
+        gamma = Rgamma / CUDAnative.sqrt(Iarg)   # Keldysh gamma
+        Kgamma[i] = Kgamma_func(gamma, K)
+    end
+    return nothing
+end
+
+
+"""
+Calculate the dependence of number of photons, K, needed to ionize one atom, on
+Keldysh parameter gamma.
+"""
+function Kgamma_func(x::T, K::T) where T<:AbstractFloat
+    # Keldysh gamma which defines the boundary between multiphoton and tunnel
+    # ionization regimes:
+    gamma0 = 1.5
+    p = 6   # order of supergaussians used for the transition function
+    if x >= 2 * gamma0
+        Kgamma = K
+    else
+        gauss = 1 - CUDAnative.exp(-CUDAnative.pow(x / gamma0, p)) +
+                CUDAnative.exp(-CUDAnative.pow((x - 2 * gamma0) / gamma0, p))
+        Kgamma = 1 + (K - 1) * 0.5 * gauss
+    end
+    return Kgamma
 end
 
 
