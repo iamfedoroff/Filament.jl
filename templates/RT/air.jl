@@ -42,7 +42,7 @@ include(joinpath(DEFPATH, "cubic.jl"))
 cubic = Dict(
     "init" => init_cubic,   # initialization function
     "THG" => true,   # switch for third harmonic generation
-    "n2" => graman * n2,   # [m**2/W] nonlinear index
+    "n2" => (1. - graman) * n2,   # [m**2/W] nonlinear index
     )
 
 
@@ -67,7 +67,7 @@ include(joinpath(DEFPATH, "raman.jl"))
 raman = Dict(
     "init" => init_raman,   # initialization function
     "THG" => true,   # switch for third harmonic generation
-    "n2" => (1. - graman) * n2,   # [m**2/W] nonlinear index
+    "n2" =>  graman * n2,   # [m**2/W] nonlinear index
     "raman_response" => raman_response,   # response function
     )
 
@@ -91,7 +91,7 @@ current_losses = Dict(
     )
 
 
-# List of nonlinear responses incuded to the model:
+# List of nonlinear responses included in the model:
 responses = [cubic, raman, current_free, current_losses]
 
 

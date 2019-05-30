@@ -37,5 +37,5 @@ cubic = Dict(
     "n2" => n2,   # [m**2/W] nonlinear index
     )
 
-# List of nonlinear responses incuded to the model:
+# List of nonlinear responses included in the model:
 responses = [cubic]
