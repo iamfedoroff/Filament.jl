@@ -26,7 +26,7 @@ struct Component{T<:AbstractFloat}
     K :: T
     Rava :: T
     Rgamma :: T
-    tf :: TabularFunctions.TabularFunction
+    p_tf :: Tuple
 end
 
 
@@ -54,21 +54,17 @@ function Component(unit::Units.Unit, field::Fields.Field, medium::Media.Medium,
     Rgamma = FloatGPU(Rgamma)
 
     tf = TabularFunctions.CuTabularFunction(FloatGPU, unit, fname_tabfunc)
+    p_tf = tf.x, tf.y, tf.dy
 
-    return Component(name, frho0, K, Rava, Rgamma, tf)
+    return Component(name, frho0, K, Rava, Rgamma, p_tf)
 end
 
 
 struct PlasmaEquation{T<:AbstractFloat}
-    dt :: T
-    method :: Function
-    calc :: Function
-    fearg :: Function
+    p_solve :: Tuple
     components :: Array{Component, 1}
     rho :: CuArrays.CuArray{T}
-    drho :: CuArrays.CuArray{T}
-    KGAMMA :: Bool
-    Kgamma :: CuArrays.CuArray{T}
+    Kdrho :: CuArrays.CuArray{T}
     nthreads :: Int
     nblocks :: Int
 end
@@ -95,16 +91,23 @@ function PlasmaEquation(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     AVALANCHE = args["AVALANCHE"]
     if AVALANCHE
         if METHOD == "ETD"
-            calc = etd_field_avalanche
+            calc_rho = etd_field_avalanche
         else
-            calc = rk_field_avalanche
+            calc_rho = rk_field_avalanche
         end
     else
         if METHOD == "ETD"
-            calc = etd_field
+            calc_rho = etd_field
         else
-            calc = rk_field
+            calc_rho = rk_field
         end
+    end
+
+    KGAMMA = args["KGAMMA"]
+    if KGAMMA
+        calc_Kdrho = Kdrho_func_Kgamma
+    else
+        calc_Kdrho = Kdrho_func
     end
 
     EREAL = args["EREAL"]
@@ -117,6 +120,8 @@ function PlasmaEquation(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
             abs2(x)
         end
     end
+
+    p_solve = (dt, method, calc_rho, calc_Kdrho, fearg)
 
     rho0 = args["rho0"]
     nuc = args["nuc"]
@@ -135,14 +140,7 @@ function PlasmaEquation(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     end
 
     rho = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
-    drho = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
-
-    KGAMMA = args["KGAMMA"]
-    if KGAMMA
-        Kgamma = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
-    else
-        Kgamma = CuArrays.cuzeros(FloatGPU, 0)
-    end
+    Kdrho = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
 
     dev = CUDAnative.CuDevice(0)
     MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
@@ -150,8 +148,7 @@ function PlasmaEquation(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     nthreads = 512
     nblocks = Int(ceil(grid.Nr / nthreads))
 
-    return PlasmaEquation(dt, method, calc, fearg, components, rho, drho,
-                          KGAMMA, Kgamma, nthreads, nblocks)
+    return PlasmaEquation(p_solve, components, rho, Kdrho, nthreads, nblocks)
 end
 
 
@@ -165,34 +162,30 @@ function solve!(PE::PlasmaEquation,
     fill!(Kdrho, convert(T, 0))
 
     for comp in PE.components
-        p = (comp.tf.x, comp.tf.y, comp.tf.dy, comp.frho0, comp.Rava)
-        @CUDAnative.cuda blocks=nbl threads=nth solve_kernel(PE.rho, PE.drho,
-                                                             PE.dt, PE.method,
-                                                             PE.calc, PE.fearg,
-                                                             E, p)
+        p_calc = (comp.p_tf, comp.frho0, comp.Rava, comp.K, comp.Rgamma)
+        @CUDAnative.cuda blocks=nbl threads=nth solve_kernel(PE.rho, PE.Kdrho,
+                                                             E, PE.p_solve,
+                                                             p_calc)
         CUDAdrv.synchronize()
         @. rho = rho + PE.rho
-
-        if PE.KGAMMA
-            @CUDAnative.cuda blocks=nbl threads=nth Kgamma_kernel(PE.Kgamma,
-                                                                  PE.fearg,
-                                                                  comp.Rgamma,
-                                                                  comp.K, E)
-            CUDAdrv.synchronize()
-            @. Kdrho = Kdrho + PE.Kgamma * PE.drho
-        else
-            @. Kdrho = Kdrho + comp.K * PE.drho
-        end
+        @. Kdrho = Kdrho + PE.Kdrho
 
         CUDAdrv.synchronize()
     end
 end
 
 
-function solve_kernel(rho::AbstractArray{T, 2}, drho::AbstractArray{T, 2},
-                      dt::T, method::Function, calc::Function, fearg::Function,
+function solve_kernel(rho::AbstractArray{T, 2},
+                      Kdrho::AbstractArray{T, 2},
                       E::AbstractArray{Complex{T}, 2},
+                      p_solve::Tuple,
                       p::Tuple) where T<:AbstractFloat
+    dt = p_solve[1]
+    method = p_solve[2]
+    calc_rho = p_solve[3]
+    calc_Kdrho = p_solve[4]
+    fearg = p_solve[5]
+
     id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
     stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
     N1, N2 = size(rho)
@@ -200,45 +193,12 @@ function solve_kernel(rho::AbstractArray{T, 2}, drho::AbstractArray{T, 2},
         rho[i, 1] = convert(T, 0)
         for j=1:N2-1
             Iarg = fearg(E[i, j])
-            rho[i, j + 1] = method(rho[i, j], dt, calc, Iarg, p)
-            drho[i, j] = drho_func(rho[i, j], Iarg, p)
+            rho[i, j + 1] = method(rho[i, j], dt, calc_rho, Iarg, p)
+            Kdrho[i, j] = calc_Kdrho(rho[i, j], Iarg, p)
         end
-        drho[i, end] = convert(T, 0)
+        Kdrho[i, end] = convert(T, 0)
     end
     return nothing
-end
-
-
-function Kgamma_kernel(Kgamma, fearg, Rgamma, K, E)
-    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
-    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
-    N1, N2 = size(E)
-    for i=id:stride:N1*N2
-        Iarg = fearg(E[i])
-        gamma = Rgamma / CUDAnative.sqrt(Iarg)   # Keldysh gamma
-        Kgamma[i] = Kgamma_func(gamma, K)
-    end
-    return nothing
-end
-
-
-"""
-Calculate the dependence of number of photons, K, needed to ionize one atom, on
-Keldysh parameter gamma.
-"""
-function Kgamma_func(x::T, K::T) where T<:AbstractFloat
-    # Keldysh gamma which defines the boundary between multiphoton and tunnel
-    # ionization regimes:
-    gamma0 = 1.5
-    p = 6   # order of supergaussians used for the transition function
-    if x >= 2 * gamma0
-        Kgamma = K
-    else
-        gauss = 1 - CUDAnative.exp(-CUDAnative.pow(x / gamma0, p)) +
-                CUDAnative.exp(-CUDAnative.pow((x - 2 * gamma0) / gamma0, p))
-        Kgamma = 1 + (K - 1) * 0.5 * gauss
-    end
-    return Kgamma
 end
 
 
@@ -248,22 +208,18 @@ end
 
 
 function etd_field(rho::T, dt::T, I::T, p::Tuple) where T<:AbstractFloat
-    tfx = p[1]
-    tfy = p[2]
-    tfdy = p[3]
-    frho0 = p[4]
-    R1 = TabularFunctions.tfvalue(I, tfx, tfy, tfdy)
+    p_tf = p[1]
+    frho0 = p[2]
+    R1 = TabularFunctions.tfvalue(I, p_tf...)
     return frho0 - (frho0 - rho) * CUDAnative.exp(-R1 * dt)
 end
 
 
 function etd_field_avalanche(rho::T, dt::T, I::T, p::Tuple) where T<:AbstractFloat
-    tfx = p[1]
-    tfy = p[2]
-    tfdy = p[3]
-    frho0 = p[4]
-    Rava = p[5]
-    R1 = TabularFunctions.tfvalue(I, tfx, tfy, tfdy)
+    p_tf = p[1]
+    frho0 = p[2]
+    Rava = p[3]
+    R1 = TabularFunctions.tfvalue(I, p_tf...)
     R2 = Rava * I
     if iszero(R1)
         # if no field ionization, then calculate only the avalanche one
@@ -316,34 +272,65 @@ end
 
 
 function rk_field(rho::T, I::T, p::Tuple) where T<:AbstractFloat
-    tfx = p[1]
-    tfy = p[2]
-    tfdy = p[3]
-    frho0 = p[4]
-    R1 = TabularFunctions.tfvalue(I, tfx, tfy, tfdy)
+    p_tf = p[1]
+    frho0 = p[2]
+    R1 = TabularFunctions.tfvalue(I, p_tf...)
     return R1 * (frho0 - rho)
 end
 
 
 function rk_field_avalanche(rho::T, I::T, p::Tuple) where T<:AbstractFloat
-    tfx = p[1]
-    tfy = p[2]
-    tfdy = p[3]
-    frho0 = p[4]
-    Rava = p[5]
-    R1 = TabularFunctions.tfvalue(I, tfx, tfy, tfdy)
+    p_tf = p[1]
+    frho0 = p[2]
+    Rava = p[3]
+    R1 = TabularFunctions.tfvalue(I, p_tf...)
     R2 = Rava * I
     return R1 * (frho0 - rho) + R2 * rho
 end
 
 
-function drho_func(rho::T, I::T, p::Tuple) where T<:AbstractFloat
-    tfx = p[1]
-    tfy = p[2]
-    tfdy = p[3]
-    frho0 = p[4]
-    R1 = TabularFunctions.tfvalue(I, tfx, tfy, tfdy)
-    return R1 * (frho0 - rho)
+function Kdrho_func(rho::T, I::T, p::Tuple) where T<:AbstractFloat
+    p_tf = p[1]
+    frho0 = p[2]
+    K = p[4]
+    R1 = TabularFunctions.tfvalue(I, p_tf...)
+    drho = R1 * (frho0 - rho)
+    return K * drho
+end
+
+
+function Kdrho_func_Kgamma(rho::T, I::T, p::Tuple) where T<:AbstractFloat
+    p_tf = p[1]
+    frho0 = p[2]
+    K = p[4]
+    Rgamma = p[5]
+    # drho:
+    R1 = TabularFunctions.tfvalue(I, p_tf...)
+    drho = R1 * (frho0 - rho)
+    # Kgamma:
+    gamma = Rgamma / CUDAnative.sqrt(I)
+    Kgamma = Kgamma_func(gamma, K)
+    return Kgamma * drho
+end
+
+
+"""
+Calculate the dependence of number of photons, K, needed to ionize one atom, on
+Keldysh parameter gamma.
+"""
+function Kgamma_func(x::T, K::T) where T<:AbstractFloat
+    # Keldysh gamma which defines the boundary between multiphoton and tunnel
+    # ionization regimes:
+    gamma0 = 1.5
+    p = 6   # order of supergaussians used for the transition function
+    if x >= 2 * gamma0
+        Kgamma = K
+    else
+        gauss = 1 - CUDAnative.exp(-CUDAnative.pow(x / gamma0, p)) +
+                CUDAnative.exp(-CUDAnative.pow((x - 2 * gamma0) / gamma0, p))
+        Kgamma = 1 + (K - 1) * 0.5 * gauss
+    end
+    return Kgamma
 end
 
 
