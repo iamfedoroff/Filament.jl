@@ -242,7 +242,7 @@ function rk2(u::T, h::T, func::Function, I::T, p::Tuple) where T<:AbstractFloat
 end
 
 
-function rk3(u::T, h::T, func::Function, E::T, p::Tuple) where T<:AbstractFloat
+function rk3(u::T, h::T, func::Function, I::T, p::Tuple) where T<:AbstractFloat
     k1 = func(u, I, p)
 
     tmp = u + h * convert(T, 0.5) * k1
