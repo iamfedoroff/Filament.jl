@@ -39,7 +39,7 @@ function main()
     # Prepare guards and model
     # **************************************************************************
     guard = Guards.Guard(unit, grid, field, medium, Input.p_guard...)
-    model = Models.Model(unit, grid, field, medium, Input.p_model...)
+    model = Models.Model(unit, grid, field, medium, guard, Input.p_model...)
 
     # **************************************************************************
     # Prepare output files

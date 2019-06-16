@@ -37,7 +37,7 @@ include(file_initial_condition)
 file_medium = abspath(file_medium)
 include(file_medium)
 
-keys = (KPARAXIAL = KPARAXIAL, QPARAXIAL = QPARAXIAL, RKORDER = RKORDER)
+keys = (KPARAXIAL = KPARAXIAL, QPARAXIAL = QPARAXIAL, ALG = ALG)
 
 if geometry == "R"
     p_unit = (ru, zu, Iu)

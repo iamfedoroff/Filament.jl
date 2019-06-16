@@ -1,103 +1,116 @@
 module RungeKuttas
 
-import CuArrays
 
-
-abstract type RungeKutta end
-
-
-struct RungeKutta2{T} <: RungeKutta
-    k1 :: CuArrays.CuArray{T}
-    k2 :: CuArrays.CuArray{T}
-    tmp :: CuArrays.CuArray{T}
-end
-
-
-struct RungeKutta3{T} <: RungeKutta
-    k1 :: CuArrays.CuArray{T}
-    k2 :: CuArrays.CuArray{T}
-    k3 :: CuArrays.CuArray{T}
-    tmp :: CuArrays.CuArray{T}
-end
-
-
-struct RungeKutta4{T} <: RungeKutta
-    k1 :: CuArrays.CuArray{T}
-    k2 :: CuArrays.CuArray{T}
-    k3 :: CuArrays.CuArray{T}
-    k4 :: CuArrays.CuArray{T}
-    tmp :: CuArrays.CuArray{T}
-end
-
-
-function RungeKutta(order::Int, T::Type, ndims::Int...)
-    if order == 2
-        k1 = CuArrays.cuzeros(T, ndims)
-        k2 = CuArrays.cuzeros(T, ndims)
-        tmp = CuArrays.cuzeros(T, ndims)
-        RK = RungeKutta2(k1, k2, tmp)
-    elseif order == 3
-        k1 = CuArrays.cuzeros(T, ndims)
-        k2 = CuArrays.cuzeros(T, ndims)
-        k3 = CuArrays.cuzeros(T, ndims)
-        tmp = CuArrays.cuzeros(T, ndims)
-        RK = RungeKutta3(k1, k2, k3, tmp)
-    elseif order == 4
-        k1 = CuArrays.cuzeros(T, ndims)
-        k2 = CuArrays.cuzeros(T, ndims)
-        k3 = CuArrays.cuzeros(T, ndims)
-        k4 = CuArrays.cuzeros(T, ndims)
-        tmp = CuArrays.cuzeros(T, ndims)
-        RK = RungeKutta4(k1, k2, k3, k4, tmp)
+function Problem(alg::String, u0::Union{AbstractFloat,AbstractArray}, func::Function, p::Tuple)
+    @assert alg in ("RK2", "RK3", "RK4")
+    if typeof(u0) <: AbstractFloat
+        if alg == "RK2"
+            stepfunc = rk2
+        elseif alg == "RK3"
+            stepfunc = rk3
+        elseif alg == "RK4"
+            stepfunc = rk4
+        end
+        cache = ()
     else
-        println("ERROR: Wrong Runge-Kutta order.")
-        exit()
+        tmp = similar(u0)
+        if alg == "RK2"
+            stepfunc = rk2!
+            k1 = similar(u0)
+            k2 = similar(u0)
+            cache = (k1, k2, tmp)
+        elseif alg == "RK3"
+            stepfunc = rk3!
+            k1 = similar(u0)
+            k2 = similar(u0)
+            k3 = similar(u0)
+            cache = (k1, k2, k3, tmp)
+        elseif alg == "RK4"
+            stepfunc = rk4!
+            k1 = similar(u0)
+            k2 = similar(u0)
+            k3 = similar(u0)
+            k4 = similar(u0)
+            cache = (k1, k2, k3, k4, tmp)
+        end
     end
-    return RK
+    return (u0=u0, stepfunc=stepfunc, cache=cache, func=func, p=p)
 end
 
 
-function solve!(RK::RungeKutta2, u::CuArrays.CuArray{Complex{T}}, h::T,
-                func!::Function, p::Tuple) where T
-    func!(RK.k1, u, p)
+function step(prob::NamedTuple, u, dt::AbstractFloat, args::Tuple=())
+    prob.stepfunc(u, dt, prob.cache, prob.func, prob.p, args)
+end
 
-    @. RK.tmp = u + h * 2. / 3. * RK.k1
-    func!(RK.k2, RK.tmp, p)
 
-    @. u = u + h / 4. * (RK.k1 + 3. * RK.k2)
+function rk2(u::T, dt::T, cache::Tuple, func::Function, p::Tuple, args::Tuple) where T<:AbstractFloat
+    k1 = func(u, p, args)
+    k2 = func(u + dt * 2 / 3 * k1, p, args)
+    return u + dt / 4 * (k1 + 3 * k2)
+end
+
+
+function rk2!(u::AbstractArray, dt::AbstractFloat, cache::Tuple, func::Function, p::Tuple, args::Tuple)
+    k1, k2, tmp = cache
+
+    func(k1, u, p, args)
+
+    @. tmp = u + dt * 2 / 3 * k1
+    func(k2, tmp, p, args)
+
+    @. u = u + dt / 4 * (k1 + 3 * k2)
     return nothing
 end
 
 
-function solve!(RK::RungeKutta3, u::CuArrays.CuArray{Complex{T}}, h::T,
-                func!::Function, p::Tuple) where T
-    func!(RK.k1, u, p)
+function rk3(u::T, dt::T, cache::Tuple, func::Function, p::Tuple, args::Tuple) where T<:AbstractFloat
+    k1 = func(u, p, args)
+    k2 = func(u + dt / 2 * k1, p, args)
+    k3 = func(u + dt * (-1 * k1 + 2 * k2), p, args)
+    return u + dt / 6 * (k1 + 4 * k2 + k3)
+end
 
-    @. RK.tmp = u + h * 0.5 * RK.k1
-    func!(RK.k2, RK.tmp, p)
 
-    @. RK.tmp = u + h * (-1. * RK.k1 + 2. * RK.k2)
-    func!(RK.k3, RK.tmp, p)
+function rk3!(u::AbstractArray, dt::AbstractFloat, cache::Tuple, func::Function, p::Tuple, args::Tuple)
+    k1, k2, k3, tmp = cache
 
-    @. u = u + h / 6. * (RK.k1 + 4. * RK.k2 + RK.k3)
+    func(k1, u, p, args)
+
+    @. tmp = u + dt / 2 * k1
+    func(k2, tmp, p, args)
+
+    @. tmp = u + dt * (-1 * k1 + 2 * k2)
+    func(k3, tmp, p, args)
+
+    @. u = u + dt / 6 * (k1 + 4 * k2 + k3)
     return nothing
 end
 
 
-function solve!(RK::RungeKutta4, u::CuArrays.CuArray{Complex{T}}, h::T,
-                func!::Function, p::Tuple) where T
-    func!(RK.k1, u, p)
+function rk4(u::T, dt::T, cache::Tuple, func::Function, p::Tuple, args::Tuple) where T<:AbstractFloat
+    k1 = func(u, p, args)
+    k2 = func(u + dt / 2 * k1, p, args)
+    k3 = func(u + dt / 2 * k2, p, args)
+    k4 = func(u + dt * k3, p, args)
+    return u + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+end
 
-    @. RK.tmp = u + h * 0.5 * RK.k1
-    func!(RK.k2, RK.tmp, p)
 
-    @. RK.tmp = u + h * 0.5 * RK.k2
-    func!(RK.k3, RK.tmp, p)
+function rk4!(u::AbstractArray, dt::AbstractFloat, cache::Tuple, func::Function, p::Tuple, args::Tuple)
+    k1, k2, k3, k4, tmp = cache
 
-    @. RK.tmp = u + h * RK.k3
-    func!(RK.k4, RK.tmp, p)
+    func(k1, u, p, args)
 
-    @. u = u + h / 6. * (RK.k1 + 2. * RK.k2 + 2. * RK.k3 + RK.k4)
+    @. tmp = u + dt / 2 * k1
+    func(k2, tmp, p, args)
+
+    @. tmp = u + dt / 2 * k2
+    func(k3, tmp, p, args)
+
+    @. tmp = u + dt * k3
+    func(k4, tmp, p, args)
+
+    @. u = u + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
     return nothing
 end
 
