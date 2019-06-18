@@ -27,7 +27,7 @@ struct Component{T<:AbstractFloat}
     K :: T
     Rava :: T
     Rgamma :: T
-    p_tf :: Tuple
+    tabfunc :: TabularFunctions.TabularFunction
 end
 
 
@@ -53,10 +53,9 @@ function Component(unit::Units.Unit, field::Fields.Field, medium::Media.Medium,
     Rgamma = field.w0 / QE * sqrt(MR * n0 * EPS0 * C0 * Ui / unit.I)
     Rgamma = FloatGPU(Rgamma)
 
-    tf = TabularFunctions.CuTabularFunction(FloatGPU, unit, fname_tabfunc)
-    p_tf = tf.x, tf.y, tf.dy
+    tabfunc = TabularFunctions.TabularFunction(FloatGPU, unit, fname_tabfunc)
 
-    return Component(name, frho0, K, Rava, Rgamma, p_tf)
+    return Component(name, frho0, K, Rava, Rgamma, tabfunc)
 end
 
 
@@ -116,16 +115,15 @@ function PlasmaEquation(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
         fname_tabfunc = comp_dict["tabular_function"]
         comp = Component(unit, field, medium, rho0, nuc, mr, name, frac, Ui, fname_tabfunc)
 
-        p = (comp.p_tf, comp.frho0, comp.Rava)
+        p = (comp.tabfunc, comp.frho0, comp.Rava)
         probs[i] = RungeKuttas.Problem(alg, FloatGPU(0), stepfunc, p)
 
-        kdrho_params[i] = (comp.p_tf, comp.frho0, comp.K, comp.Rgamma)
+        kdrho_params[i] = (comp.tabfunc, comp.frho0, comp.K, comp.Rgamma)
     end
 
     dev = CUDAnative.CuDevice(0)
     MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
-    # nthreads = min(grid.Nr, MAX_THREADS_PER_BLOCK)   # CUDA error: too many resources requested for launch
-    nthreads = min(grid.Nr, 512)
+    nthreads = min(grid.Nr, MAX_THREADS_PER_BLOCK)
     nblocks = Int(ceil(grid.Nr / nthreads))
 
     PlasmaEquation(probs, dt, fearg, kdrho_calc, kdrho_params, nthreads, nblocks)
@@ -174,36 +172,36 @@ end
 
 
 function stepfunc_field(rho::AbstractFloat, p::Tuple, args::Tuple)
-    p_tf, frho0 = p
+    tabfunc, frho0 = p
     I, = args
-    R1 = TabularFunctions.tfvalue(I, p_tf...)
+    R1 = tabfunc(I)
     return R1 * (frho0 - rho)
 end
 
 
 function stepfunc_field_avalanche(rho::AbstractFloat, p::Tuple, args::Tuple)
-    p_tf, frho0, Rava = p
+    tabfunc, frho0, Rava = p
     I, = args
-    R1 = TabularFunctions.tfvalue(I, p_tf...)
+    R1 = tabfunc(I)
     R2 = Rava * I
     return R1 * (frho0 - rho) + R2 * rho
 end
 
 
 function kdrho_func(rho::AbstractFloat, p::Tuple, args::Tuple)
-    p_tf, frho0, K = p
+    tabfunc, frho0, K = p
     I, = args
-    R1 = TabularFunctions.tfvalue(I, p_tf...)
+    R1 = tabfunc(I)
     drho = R1 * (frho0 - rho)
     return K * drho
 end
 
 
 function kdrho_func_Kgamma(rho::AbstractFloat, p::Tuple, args::Tuple)
-    p_tf, frho0, K, Rgamma = p
+    tabfunc, frho0, K, Rgamma = p
     I, = args
     # drho:
-    R1 = TabularFunctions.tfvalue(I, p_tf...)
+    R1 = tabfunc(I)
     drho = R1 * (frho0 - rho)
     # Kgamma:
     gamma = Rgamma / CUDAnative.sqrt(I)
