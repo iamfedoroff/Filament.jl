@@ -40,15 +40,14 @@ function calc_current_free(z::T,
                            F::CuArrays.CuArray{T},
                            E::CuArrays.CuArray{Complex{T}},
                            p::Tuple) where T
-    rho = p[1]
+    rho, = p
     @. F = rho * real(E)
     return nothing
 end
 
 
 function dzadapt_current_free(phimax::AbstractFloat, p::Tuple)
-    phi = p[1]
-    rho = p[2]
+    phi, rho = p
     rhomax = maximum(rho)
     return phimax / (phi * rhomax)
 end

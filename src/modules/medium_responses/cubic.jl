@@ -60,8 +60,7 @@ end
 
 
 function dzadapt_cubic(phimax::AbstractFloat, p::Tuple)
-    phi = p[1]
-    E = p[2]
+    phi, E = p
     Imax = maximum(abs2.(E))
     return phimax / (phi * Imax)
 end
