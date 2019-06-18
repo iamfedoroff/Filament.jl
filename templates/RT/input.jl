@@ -35,7 +35,7 @@ kguard = 45.   # [degrees] the cut-off angle for wave vectors
 wguard = 1e16   # [1/s] the cut-off angular frequency
 
 dzAdaptLevel = pi / 100.   # phase criterium for the adaptive z step
-Istop = 1e2   # [Iu] maixmum intensity in the problem (stop if exceeded)
+Istop = 1e3   # [Iu] maixmum intensity in the problem (stop if exceeded)
 
 ALG = "RK3"   # Solver algorithm for nonlinear part ("RK2", "RK3", or "RK4")
 
