@@ -390,7 +390,7 @@ function zstep(z::T, dz::T, grid::Grids.GridRT, field::Fields.FieldRT,
                guard::Guards.GuardRT, model::ModelRT) where T
     # Calculate plasma density -------------------------------------------------
     @timeit "plasma" begin
-        if ! isempty(model.PE.components)
+        if ! isempty(model.PE.probs)
             PlasmaEquations.solve!(model.PE, field.rho, field.Kdrho, field.E)
             CUDAdrv.synchronize()
         end
