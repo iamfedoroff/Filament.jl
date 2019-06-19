@@ -25,8 +25,8 @@ Ny = 2048  # number of points in y spatial domain
 zmax = 1.   # [zu] propagation distance
 dz_initial = zmax / 200.   # initial z step
 
-KPARAXIAL = 0   # switch for the paraxial approximation of the linear term
-QPARAXIAL = 1   # switch for the paraxial approximation of the nonlinear term
+KPARAXIAL = false   # paraxial approximation for the linear term
+QPARAXIAL = true   # paraxial approximation for the nonlinear term
 
 xguard = 0.   # [xu] the width of the lossy slab at the end of x grid
 yguard = 0.   # [xu] the width of the lossy slab at the end of y grid

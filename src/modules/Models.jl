@@ -61,7 +61,7 @@ function Model(unit::Units.UnitR, grid::Grids.GridR, field::Fields.FieldR,
                responses_list)
     # Linear propagator --------------------------------------------------------
     beta = Media.beta_func(medium, field.w0)
-    if keys.KPARAXIAL != 0
+    if keys.KPARAXIAL
         KZ = @. beta - (grid.k * unit.k)^2 / (2. * beta)
     else
         KZ = @. sqrt(beta^2 - (grid.k * unit.k)^2 + 0im)
@@ -78,7 +78,7 @@ function Model(unit::Units.UnitR, grid::Grids.GridR, field::Fields.FieldR,
     Qfactor = MU0 * mu * field.w0^2 / 2. * unit.z / Eu
 
     QZ = zeros(ComplexF64, grid.Nr)
-    if keys.QPARAXIAL != 0
+    if keys.QPARAXIAL
         @. QZ = Qfactor / beta
     else
         for i=1:grid.Nr
@@ -118,7 +118,7 @@ function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
     # Linear propagator --------------------------------------------------------
     beta = Media.beta_func.(Ref(medium), grid.w * unit.w)
     KZ = zeros(ComplexF64, (grid.Nr, grid.Nw))
-    if keys.KPARAXIAL != 0
+    if keys.KPARAXIAL
         for j=1:grid.Nw
             if beta[j] != 0.
                 for i=1:grid.Nr
@@ -153,7 +153,7 @@ function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
     Qfactor = @. MU0 * mu * (grid.w * unit.w)^2 / 2. * unit.z / Eu
 
     QZ = zeros(ComplexF64, (grid.Nr, grid.Nw))
-    if keys.QPARAXIAL != 0
+    if keys.QPARAXIAL
         for j=1:grid.Nw
             if beta[j] != 0.
                 for i=1:grid.Nr
@@ -208,7 +208,7 @@ function Model(unit::Units.UnitXY, grid::Grids.GridXY, field::Fields.FieldXY,
     # Linear propagator --------------------------------------------------------
     beta = Media.beta_func(medium, field.w0)
     KZ = zeros(ComplexF64, (grid.Nx, grid.Ny))
-    if keys.KPARAXIAL != 0
+    if keys.KPARAXIAL
         for j=1:grid.Ny
             for i=1:grid.Nx
                 KZ[i, j] = beta - ((grid.kx[i] * unit.kx)^2 + (grid.ky[j] * unit.ky)^2) / (2. * beta)
@@ -233,7 +233,7 @@ function Model(unit::Units.UnitXY, grid::Grids.GridXY, field::Fields.FieldXY,
     Qfactor = MU0 * mu * field.w0^2 / 2. * unit.z / Eu
 
     QZ = zeros(ComplexF64, (grid.Nx, grid.Ny))
-    if keys.QPARAXIAL != 0
+    if keys.QPARAXIAL
         @. QZ = Qfactor / beta
     else
         for j=1:grid.Ny
@@ -298,7 +298,7 @@ function stepfunc_field!(dE::CuArrays.CuArray{Complex{T}, 1},
     end
 
     # Nonparaxiality:
-    if QPARAXIAL != 0
+    if QPARAXIAL
         @. dE = -1im * QZ * dE
     else
         Hankel.dht!(HT, dE)
@@ -325,7 +325,7 @@ function stepfunc_field!(dE::CuArrays.CuArray{Complex{T}, 2},
     end
 
     # Nonparaxiality:
-    if QPARAXIAL != 0
+    if QPARAXIAL
         @. dE = -1im * QZ * dE
     else
         Fourier.fft!(FT, dE)
@@ -355,7 +355,7 @@ function stepfunc_spectrum!(dS::CuArrays.CuArray{Complex{T}, 2},
     end
 
     # Nonparaxiality:
-    if QPARAXIAL != 0
+    if QPARAXIAL
         @. dS = -1im * QZ * dS
     else
         Hankel.dht!(HT, dS)
