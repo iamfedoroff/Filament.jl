@@ -19,6 +19,7 @@ function init_cubic(unit, grid, field, medium, p)
     end
 
     p_calc = ()
+    pcalc = PFunctions.PFunction(calc, p_calc)
 
     mu = medium.permeability(w0)
     k0 = Media.k_func(medium, w0)
@@ -27,32 +28,33 @@ function init_cubic(unit, grid, field, medium, p)
     phi = QZ0 * abs(Rnl0)
 
     p_dzadapt = (phi, field.E)
+    pdzadapt = PFunctions.PFunction(dzadapt_cubic, p_dzadapt)
 
-    return Rnl, calc, p_calc, dzadapt_cubic, p_dzadapt
+    return Media.NonlinearResponse(Rnl, pcalc, pdzadapt)
 end
 
 
-function calc_cubic(z::T,
-                    F::CuArrays.CuArray{T, 2},
+function calc_cubic(F::CuArrays.CuArray{T, 2},
                     E::CuArrays.CuArray{Complex{T}, 2},
+                    args::Tuple,
                     p::Tuple) where T
     @. F = real(E)^3
     return nothing
 end
 
 
-function calc_cubic_nothg(z::T,
-                          F::CuArrays.CuArray{T, 2},
+function calc_cubic_nothg(F::CuArrays.CuArray{T, 2},
                           E::CuArrays.CuArray{Complex{T}, 2},
+                          args::Tuple,
                           p::Tuple) where T
     @. F = 3 / 4 * abs2(E) * real(E)
     return nothing
 end
 
 
-function calc_cubic_nothg(z::T,
-                          F::CuArrays.CuArray{Complex{T}},
+function calc_cubic_nothg(F::CuArrays.CuArray{Complex{T}},
                           E::CuArrays.CuArray{Complex{T}},
+                          args::Tuple,
                           p::Tuple) where T
     @. F = 3 / 4 * abs2(E) * E
     return nothing

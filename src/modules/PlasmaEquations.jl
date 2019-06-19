@@ -8,6 +8,7 @@ import Units
 import Grids
 import Fields
 import Media
+import PFunctions
 import RungeKuttas
 import TabularFunctions
 
@@ -60,11 +61,10 @@ end
 
 
 struct PlasmaEquation
-    probs :: Array{NamedTuple}
+    probs :: Array{RungeKuttas.Problem}
     dt :: AbstractFloat
     fearg :: Function
-    kdrho_calc :: Function
-    kdrho_params :: Array{Tuple}
+    kdrho_calcs :: Array{Function}
     nthreads :: Int
     nblocks :: Int
 end
@@ -105,8 +105,8 @@ function PlasmaEquation(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     mr = args["mr"]
     components_dict = args["components"]
     Ncomp = length(components_dict)
-    probs = Array{NamedTuple}(undef, Ncomp)
-    kdrho_params = Array{Tuple}(undef, Ncomp)
+    probs = Array{RungeKuttas.Problem}(undef, Ncomp)
+    kdrho_calcs = Array{Function}(undef, Ncomp)
     for i=1:Ncomp
         comp_dict = components_dict[i]
         name = comp_dict["name"]
@@ -116,9 +116,11 @@ function PlasmaEquation(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
         comp = Component(unit, field, medium, rho0, nuc, mr, name, frac, Ui, fname_tabfunc)
 
         p = (comp.tabfunc, comp.frho0, comp.Rava)
-        probs[i] = RungeKuttas.Problem(alg, FloatGPU(0), stepfunc, p)
+        pstepfunc = PFunctions.PFunction(stepfunc, p)
+        probs[i] = RungeKuttas.Problem(alg, FloatGPU(0), pstepfunc)
 
-        kdrho_params[i] = (comp.tabfunc, comp.frho0, comp.K, comp.Rgamma)
+        kdrho_p = (comp.tabfunc, comp.frho0, comp.K, comp.Rgamma)
+        kdrho_calcs[i] = PFunctions.PFunction(kdrho_calc, kdrho_p)
     end
 
     dev = CUDAnative.CuDevice(0)
@@ -126,7 +128,7 @@ function PlasmaEquation(unit::Units.Unit, grid::Grids.Grid, field::Fields.Field,
     nthreads = min(grid.Nr, MAX_THREADS_PER_BLOCK)
     nblocks = Int(ceil(grid.Nr / nthreads))
 
-    PlasmaEquation(probs, dt, fearg, kdrho_calc, kdrho_params, nthreads, nblocks)
+    return PlasmaEquation(probs, dt, fearg, kdrho_calcs, nthreads, nblocks)
 end
 
 
@@ -143,15 +145,15 @@ function solve!(PE::PlasmaEquation,
 
     for i=1:length(PE.probs)
         prob = PE.probs[i]
-        kdrho_p = PE.kdrho_params[i]
-        @CUDAnative.cuda blocks=nbl threads=nth solve_kernel(rho, kdrho, PE.dt, PE.fearg, E, prob, PE.kdrho_calc, kdrho_p)
+        kdrho_calc = PE.kdrho_calcs[i]
+        @CUDAnative.cuda blocks=nbl threads=nth solve_kernel(rho, kdrho, PE.dt, PE.fearg, E, prob, kdrho_calc)
         CUDAdrv.synchronize()
     end
     return nothing
 end
 
 
-function solve_kernel(rho, kdrho, dt, fearg, E, prob, kdrho_calc, kdrho_p)
+function solve_kernel(rho, kdrho, dt, fearg, E, prob, kdrho_calc)
     id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
     stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
     Nx, Nt = size(rho)
@@ -161,8 +163,8 @@ function solve_kernel(rho, kdrho, dt, fearg, E, prob, kdrho_calc, kdrho_p)
         for j=1:Nt-1
             Iarg = fearg(E[i, j])
             args = (Iarg, )
-            kdrho[i, j] = kdrho[i, j] + kdrho_calc(tmp, kdrho_p, args)   # i,j and not i,j+1 since E[i,j] -> Iarg
-            tmp = RungeKuttas.step(prob, tmp, dt, args)
+            kdrho[i, j] = kdrho[i, j] + kdrho_calc(tmp, args)   # i,j and not i,j+1 since E[i,j] -> Iarg
+            tmp = prob.step(tmp, dt, args)
             rho[i, j + 1] = rho[i, j + 1] + tmp
         end
         kdrho[i, end] = FloatGPU(0)
@@ -171,7 +173,7 @@ function solve_kernel(rho, kdrho, dt, fearg, E, prob, kdrho_calc, kdrho_p)
 end
 
 
-function stepfunc_field(rho::AbstractFloat, p::Tuple, args::Tuple)
+function stepfunc_field(rho::AbstractFloat, args::Tuple, p::Tuple)
     tabfunc, frho0 = p
     I, = args
     R1 = tabfunc(I)
@@ -179,7 +181,7 @@ function stepfunc_field(rho::AbstractFloat, p::Tuple, args::Tuple)
 end
 
 
-function stepfunc_field_avalanche(rho::AbstractFloat, p::Tuple, args::Tuple)
+function stepfunc_field_avalanche(rho::AbstractFloat, args::Tuple, p::Tuple)
     tabfunc, frho0, Rava = p
     I, = args
     R1 = tabfunc(I)
@@ -188,7 +190,7 @@ function stepfunc_field_avalanche(rho::AbstractFloat, p::Tuple, args::Tuple)
 end
 
 
-function kdrho_func(rho::AbstractFloat, p::Tuple, args::Tuple)
+function kdrho_func(rho::AbstractFloat, args::Tuple, p::Tuple)
     tabfunc, frho0, K = p
     I, = args
     R1 = tabfunc(I)
@@ -197,7 +199,7 @@ function kdrho_func(rho::AbstractFloat, p::Tuple, args::Tuple)
 end
 
 
-function kdrho_func_Kgamma(rho::AbstractFloat, p::Tuple, args::Tuple)
+function kdrho_func_Kgamma(rho::AbstractFloat, args::Tuple, p::Tuple)
     tabfunc, frho0, K, Rgamma = p
     I, = args
     # drho:

@@ -35,16 +35,18 @@ function init_raman(unit, grid, field, medium, p)
     end
 
     p_calc = (Hramanw, grid.FT)
+    pcalc = PFunctions.PFunction(calc, p_calc)
 
     p_dzadapt = ()
+    pdzadapt = PFunctions.PFunction(dzadapt_raman, p_dzadapt)
 
-    return Rnl, calc, p_calc, dzadapt_raman, p_dzadapt
+    return Media.NonlinearResponse(Rnl, pcalc, pdzadapt)
 end
 
 
-function calc_raman(z::T,
-                    F::CuArrays.CuArray{T},
+function calc_raman(F::CuArrays.CuArray{T},
                     E::CuArrays.CuArray{Complex{T}},
+                    args::Tuple,
                     p::Tuple) where T
     Hramanw, FT = p
     @. F = real(E)^2
@@ -54,9 +56,9 @@ function calc_raman(z::T,
 end
 
 
-function calc_raman_nothg(z::T,
-                          F::CuArrays.CuArray{T},
+function calc_raman_nothg(F::CuArrays.CuArray{T},
                           E::CuArrays.CuArray{Complex{T}},
+                          args::Tuple,
                           p::Tuple) where T
     Hramanw, FT = p
     @. F = FloatGPU(3. / 4.) * abs2(E)

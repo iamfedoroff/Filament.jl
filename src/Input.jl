@@ -9,6 +9,7 @@ import FFTW
 import Fourier
 import Units
 import Media
+import PFunctions
 
 import PyCall
 scipy_constants = PyCall.pyimport("scipy.constants")

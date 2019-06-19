@@ -16,6 +16,13 @@ struct Medium
 end
 
 
+struct NonlinearResponse{T}
+    Rnl :: T
+    calculate :: Function
+    dzadaptive :: Function
+end
+
+
 function refractive_index(medium, w)
     eps = medium.permittivity(w)
     mu = medium.permeability(w)

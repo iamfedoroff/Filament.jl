@@ -27,16 +27,18 @@ function init_current_losses(unit, grid, field, medium, p)
     end
 
     p_calc = (field.Kdrho, fearg)
+    pcalc = PFunctions.PFunction(calc_current_losses, p_calc)
 
     p_dzadapt = ()
+    pdzadapt = PFunctions.PFunction(dzadapt_current_losses, p_dzadapt)
 
-    return Rnl, calc_current_losses, p_calc, dzadapt_current_losses, p_dzadapt
+    return Media.NonlinearResponse(Rnl, pcalc, pdzadapt)
 end
 
 
-function calc_current_losses(z::T,
-                             F::CuArrays.CuArray{T},
+function calc_current_losses(F::CuArrays.CuArray{T},
                              E::CuArrays.CuArray{Complex{T}},
+                             args::Tuple,
                              p::Tuple) where T
     Kdrho, fearg = p
     @. F = fearg(E)

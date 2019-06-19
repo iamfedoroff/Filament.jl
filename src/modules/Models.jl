@@ -14,9 +14,9 @@ import Fields
 import Media
 import Hankel
 import Fourier
+import PFunctions
 import RungeKuttas
 import Guards
-import NonlinearResponses
 import PlasmaEquations
 
 scipy_constants = PyCall.pyimport("scipy.constants")
@@ -36,14 +36,14 @@ abstract type Model end
 
 struct ModelR{T} <: Model
     KZ :: CuArrays.CuArray{Complex{T}, 1}
-    prob :: NamedTuple
+    prob :: RungeKuttas.Problem
     responses :: Tuple
 end
 
 
 struct ModelRT{T} <: Model
     KZ :: CuArrays.CuArray{Complex{T}, 2}
-    prob :: NamedTuple
+    prob :: RungeKuttas.Problem
     responses :: Tuple
     PE :: PlasmaEquations.PlasmaEquation
 end
@@ -51,7 +51,7 @@ end
 
 struct ModelXY{T} <: Model
     KZ :: CuArrays.CuArray{Complex{T}, 2}
-    prob :: NamedTuple
+    prob :: RungeKuttas.Problem
     responses :: Tuple
 end
 
@@ -92,15 +92,21 @@ function Model(unit::Units.UnitR, grid::Grids.GridR, field::Fields.FieldR,
     QZ = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, QZ))
 
     # Nonlinear responses:
-    responses = NonlinearResponses.init(unit, grid, field, medium,
-                                        responses_list)
+    responses = []
+    for item in responses_list
+        init = item["init"]
+        response = init(unit, grid, field, medium, item)
+        push!(responses, response)
+    end
+    responses = tuple(responses...)
 
     # Temporary arrays:
     Ftmp = CuArrays.cuzeros(ComplexGPU, grid.Nr)
 
     # Problem:
     p = (responses, Ftmp, guard, keys.QPARAXIAL, QZ, grid.HT)
-    prob = RungeKuttas.Problem(keys.ALG, Ftmp, stepfunc_field!, p)
+    pstepfunc = PFunctions.PFunction(stepfunc_field!, p)
+    prob = RungeKuttas.Problem(keys.ALG, Ftmp, pstepfunc)
 
     return ModelR(KZ, prob, responses)
 end
@@ -169,8 +175,13 @@ function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
     QZ = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, QZ))
 
     # Nonlinear responses:
-    responses = NonlinearResponses.init(unit, grid, field, medium,
-                                        responses_list)
+    responses = []
+    for item in responses_list
+        init = item["init"]
+        response = init(unit, grid, field, medium, item)
+        push!(responses, response)
+    end
+    responses = tuple(responses...)
 
     # Temporary arrays:
     Ftmp = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
@@ -179,7 +190,8 @@ function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
 
     # Problem:
     p = (responses, grid.FT, Etmp, Ftmp, Stmp, guard, keys.QPARAXIAL, QZ, grid.HT)
-    prob = RungeKuttas.Problem(keys.ALG, Stmp, stepfunc_spectrum!, p)
+    pstepfunc = PFunctions.PFunction(stepfunc_spectrum!, p)
+    prob = RungeKuttas.Problem(keys.ALG, Stmp, pstepfunc)
 
     # Plasma equation ----------------------------------------------------------
     PE = PlasmaEquations.PlasmaEquation(unit, grid, field, medium,
@@ -237,30 +249,35 @@ function Model(unit::Units.UnitXY, grid::Grids.GridXY, field::Fields.FieldXY,
     QZ = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, QZ))
 
     # Nonlinear responses:
-    responses = NonlinearResponses.init(unit, grid, field, medium,
-                                        responses_list)
+    responses = []
+    for item in responses_list
+        init = item["init"]
+        response = init(unit, grid, field, medium, item)
+        push!(responses, response)
+    end
+    responses = tuple(responses...)
 
     # Temporary arrays:
     Ftmp = CuArrays.cuzeros(ComplexGPU, (grid.Nx, grid.Ny))
 
     # Problem:
     p = (responses, Ftmp, guard, keys.QPARAXIAL, QZ, grid.FT)
-    prob = RungeKuttas.Problem(keys.ALG, Ftmp, stepfunc_field!, p)
+    pstepfunc = PFunctions.PFunction(stepfunc_field!, p)
+    prob = RungeKuttas.Problem(keys.ALG, Ftmp, pstepfunc)
 
     return ModelXY(KZ, prob, responses)
 end
 
 
 function dzadapt(model::Model, phimax::AbstractFloat)
+    dz = Inf
     if ! isempty(model.responses)
-        dzs = []
         for resp in model.responses
-            dz = NonlinearResponses.dzadaptive(resp, phimax)
-            push!(dzs, dz)
+            dzr = resp.dzadaptive(phimax)
+            if dzr < dz
+                dz = dzr
+            end
         end
-        dz = minimum(dzs)
-    else
-        dz = Inf
     end
     return dz
 end
@@ -268,15 +285,14 @@ end
 
 function stepfunc_field!(dE::CuArrays.CuArray{Complex{T}, 1},
                          E::CuArrays.CuArray{Complex{T}, 1},
-                         p::Tuple, args::Tuple) where T
+                         args::Tuple, p::Tuple) where T
 
     responses, Ftmp, guard, QPARAXIAL, QZ, HT = p
-    z, = args
 
     fill!(dE, 0)
 
     for resp in responses
-        NonlinearResponses.calculate!(resp, z, Ftmp, E)
+        resp.calculate(Ftmp, E, args)
         Guards.apply_field_filter!(guard, Ftmp)
         @. dE = dE + resp.Rnl * Ftmp
     end
@@ -297,14 +313,13 @@ end
 
 function stepfunc_field!(dE::CuArrays.CuArray{Complex{T}, 2},
                          E::CuArrays.CuArray{Complex{T}, 2},
-                         p::Tuple, args::Tuple) where T
+                         args::Tuple, p::Tuple) where T
     responses, Ftmp, guard, QPARAXIAL, QZ, FT = p
-    z, = args
 
     fill!(dE, 0)
 
     for resp in responses
-        NonlinearResponses.calculate!(resp, z, Ftmp, E)
+        resp.calculate(Ftmp, E, args)
         Guards.apply_field_filter!(guard, Ftmp)
         @. dE = dE + resp.Rnl * Ftmp
     end
@@ -325,16 +340,15 @@ end
 
 function stepfunc_spectrum!(dS::CuArrays.CuArray{Complex{T}, 2},
                             S::CuArrays.CuArray{Complex{T}, 2},
-                            p::Tuple, args::Tuple) where T
+                            args::Tuple, p::Tuple) where T
     responses, FT, Etmp, Ftmp, Stmp, guard, QPARAXIAL, QZ, HT = p
-    z, = args
 
     Fourier.hilbert2!(FT, S, Etmp)   # spectrum real to signal analytic
 
     fill!(dS, 0)
 
     for resp in responses
-        NonlinearResponses.calculate!(resp, z, Ftmp, Etmp)
+        resp.calculate(Ftmp, Etmp, args)
         Guards.apply_field_filter!(guard, Ftmp)
         Fourier.rfft2!(FT, Ftmp, Stmp)   # time -> frequency
         update_dS!(dS, resp.Rnl, Stmp)   # dS = dS + Ra * Stmp
@@ -363,7 +377,7 @@ function zstep(z::T, dz::T, grid::Grids.GridR, field::Fields.FieldR,
     @timeit "nonlinearity" begin
         if ! isempty(model.responses)
            args = (z_gpu, )
-           RungeKuttas.step(model.prob, field.E, dz_gpu, args)
+           model.prob.step(field.E, dz_gpu, args)
            CUDAdrv.synchronize()
        end
     end
@@ -409,7 +423,7 @@ function zstep(z::T, dz::T, grid::Grids.GridRT, field::Fields.FieldRT,
     @timeit "nonlinearity" begin
         if ! isempty(model.responses)
            args = (z_gpu, )
-           RungeKuttas.step(model.prob, field.S, dz_gpu, args)
+           model.prob.step(field.S, dz_gpu, args)
            CUDAdrv.synchronize()
        end
     end
@@ -447,7 +461,7 @@ function zstep(z::T, dz::T, grid::Grids.GridXY, field::Fields.FieldXY,
     @timeit "nonlinearity" begin
         if ! isempty(model.responses)
            args = (z_gpu, )
-           RungeKuttas.step(model.prob, field.E, dz_gpu, args)
+           model.prob.step(field.E, dz_gpu, args)
            CUDAdrv.synchronize()
        end
     end
