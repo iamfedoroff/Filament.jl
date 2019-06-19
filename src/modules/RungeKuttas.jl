@@ -47,11 +47,6 @@ function Problem(alg::String, u0::Union{AbstractFloat,AbstractArray}, func::Func
 end
 
 
-function step(prob::NamedTuple, u, dt::AbstractFloat, args::Tuple=())
-    prob.step(u, dt, args)
-end
-
-
 function rk2(u::T, dt::T, args::Tuple, p::Tuple) where T<:AbstractFloat
     func, = p
     k1 = func(u, args)
