@@ -26,19 +26,17 @@ end
 # ------------------------------------------------------------------------------
 # Nonlinear response
 # ------------------------------------------------------------------------------
-# DEFPATH - default path for directory with media responses
+# DEFPATHNR - default path for directory with media responses
 
 n2 = 1e-23   # [m**2/W] nonlinear index
 graman = 0.5   # fraction of stimulated Raman contribution
 
-rho0 = 2.5e25   # [1/m**3] neutrals density [https://en.wikipedia.org/wiki/Number_density]
 nuc = 5e12   # [1/s] collision frequency [Sprangle, PRE, 69, 066415 (2004)]
 mr = 1.   # [me] reduced mass of electron and hole (effective mass)
 
 
 # Cubic nonlinearity -----------------------------------------------------------
-include(joinpath(DEFPATH, "cubic.jl"))
-
+include(joinpath(DEFPATHNR, "cubic.jl"))
 cubic = Dict(
     "init" => init_cubic,   # initialization function
     "THG" => true,   # switch for third harmonic generation
@@ -62,8 +60,7 @@ function raman_response(t)
 end
 
 
-include(joinpath(DEFPATH, "raman.jl"))
-
+include(joinpath(DEFPATHNR, "raman.jl"))
 raman = Dict(
     "init" => init_raman,   # initialization function
     "THG" => true,   # switch for third harmonic generation
@@ -73,8 +70,7 @@ raman = Dict(
 
 
 # Free current -----------------------------------------------------------------
-include(joinpath(DEFPATH, "current_free.jl"))
-
+include(joinpath(DEFPATHNR, "current_free.jl"))
 current_free = Dict(
     "init" => init_current_free,   # initialization function
     "nuc" => nuc,   # [1/s] collision frequency [Sprangle, PRE, 69, 066415 (2004)]
@@ -83,8 +79,7 @@ current_free = Dict(
 
 
 # Multiphoton absorption -------------------------------------------------------
-include(joinpath(DEFPATH, "current_losses.jl"))
-
+include(joinpath(DEFPATHNR, "current_losses.jl"))
 current_losses = Dict(
     "init" => init_current_losses,   # initialization function
     "EREAL" => false,   # switch for the ionization rate argument: real(E)^2 vs abs2(E)
@@ -113,7 +108,6 @@ end
 
 
 include("lattice.jl")
-
 lattice = Dict(
     "init" => init_lattice,
     "dnr_func" => dnr_func,
@@ -121,35 +115,52 @@ lattice = Dict(
     )
 
 
-# List of nonlinear responses included in the model:
+# List of nonlinear responses included in the model ----------------------------
 responses = [cubic, raman, current_free, current_losses, lattice]
 
 
 # ------------------------------------------------------------------------------
 # Equation for electron density
 # ------------------------------------------------------------------------------
-# Components:
+# DEFPATHPE - default path for directory with plasma equation terms
+
+# Components -------------------------------------------------------------------
 # Multiphoton ionization rates are from [Kasparian, APB, 71, 877 (2000)]
-N2 = Dict("name" => "nitrogen",
-          "fraction" => 0.79,
+N2 = Dict("fraction" => 0.79,
           "ionization_energy" => 15.576,   # in eV
           "tabular_function" => "multiphoton_N2.tf")
 
-O2 = Dict("name" => "oxygen",
-          "fraction" => 0.21,
+O2 = Dict("fraction" => 0.21,
           "ionization_energy" => 12.063,   # in eV
           "tabular_function" => "multiphoton_O2.tf")
 
 components = [N2, O2]
 
 
-plasma_equation = Dict(
-    "ALG" => "RK3",   # solver algorithm ("RK2", "RK3", or "RK4")
-    "AVALANCHE" => true,   # switch for avalanche ionization
+# Equation terms ---------------------------------------------------------------
+include(joinpath(DEFPATHPE, "photoionization.jl"))
+photoionization = Dict(
+    "init" => init_photoionization,   # initialization function
+    "rho_nt" => 2.5e25,   # [1/m^3] neutrals density [https://en.wikipedia.org/wiki/Number_density]
     "EREAL" => false,   # switch for the ionization rate argument: real(E)^2 vs abs2(E)
-    "KGAMMA" => true,   # multiphoton ionization order K depends on Keldysh gamma
-    "rho0" => rho0,   # [1/m**3] neutrals density
-    "nuc" => nuc,   # [1/s] collision frequency
-    "mr" => mr,   # [me] reduced mass of electron and hole (effective mass)
     "components" => components,
     )
+
+include(joinpath(DEFPATHPE, "avalanche.jl"))
+avalanche = Dict(
+    "init" => init_avalanche,   # initialization function
+    "mr" => mr,   # [me] reduced mass of electron and hole (effective mass)
+    "nuc" => nuc,   # [1/s] collision frequency
+    "components" => components,
+    )
+
+terms = [photoionization, avalanche]
+
+
+# Plasma equation --------------------------------------------------------------
+plasma_equation = Dict(
+    "ALG" => "RK3",   # solver algorithm ("RK2", "RK3", or "RK4")
+    "rho0" => 0.,   # [1/m^3] background electron density
+    "terms" => terms,
+    "Kdrho_term" => photoionization,
+)

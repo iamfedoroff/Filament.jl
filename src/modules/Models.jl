@@ -14,9 +14,8 @@ import Fields
 import Media
 import Hankel
 import Fourier
-import PFunctions
-import RungeKuttas
 import Guards
+import Equations
 import PlasmaEquations
 
 scipy_constants = PyCall.pyimport("scipy.constants")
@@ -36,14 +35,14 @@ abstract type Model end
 
 struct ModelR{T} <: Model
     KZ :: CuArrays.CuArray{Complex{T}, 1}
-    prob :: RungeKuttas.Problem
+    prob :: Equations.Problem
     responses :: Tuple
 end
 
 
 struct ModelRT{T} <: Model
     KZ :: CuArrays.CuArray{Complex{T}, 2}
-    prob :: RungeKuttas.Problem
+    prob :: Equations.Problem
     responses :: Tuple
     PE :: PlasmaEquations.PlasmaEquation
 end
@@ -51,7 +50,7 @@ end
 
 struct ModelXY{T} <: Model
     KZ :: CuArrays.CuArray{Complex{T}, 2}
-    prob :: RungeKuttas.Problem
+    prob :: Equations.Problem
     responses :: Tuple
 end
 
@@ -105,8 +104,8 @@ function Model(unit::Units.UnitR, grid::Grids.GridR, field::Fields.FieldR,
 
     # Problem:
     p = (responses, Ftmp, guard, keys.QPARAXIAL, QZ, grid.HT)
-    pstepfunc = PFunctions.PFunction(stepfunc_field!, p)
-    prob = RungeKuttas.Problem(keys.ALG, Ftmp, pstepfunc)
+    pstepfunc = Equations.PFunction(stepfunc_field!, p)
+    prob = Equations.Problem(keys.ALG, Ftmp, pstepfunc)
 
     return ModelR(KZ, prob, responses)
 end
@@ -190,13 +189,14 @@ function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
 
     # Problem:
     p = (responses, grid.FT, Etmp, Ftmp, Stmp, guard, keys.QPARAXIAL, QZ, grid.HT)
-    pstepfunc = PFunctions.PFunction(stepfunc_spectrum!, p)
-    prob = RungeKuttas.Problem(keys.ALG, Stmp, pstepfunc)
+    pstepfunc = Equations.PFunction(stepfunc_spectrum!, p)
+    prob = Equations.Problem(keys.ALG, Stmp, pstepfunc)
 
     # Plasma equation ----------------------------------------------------------
-    PE = PlasmaEquations.PlasmaEquation(unit, grid, field, medium,
-                                        plasma_equation)
-    PlasmaEquations.solve!(PE, field.rho, field.Kdrho, field.E)
+    dt = FloatGPU(grid.dt)
+    w0 = field.w0
+    PE = PlasmaEquations.PlasmaEquation(unit, dt, n0, w0, plasma_equation)
+    PE.solve!(field.rho, field.Kdrho, field.E)
 
     return ModelRT(KZ, prob, responses, PE)
 end
@@ -262,8 +262,8 @@ function Model(unit::Units.UnitXY, grid::Grids.GridXY, field::Fields.FieldXY,
 
     # Problem:
     p = (responses, Ftmp, guard, keys.QPARAXIAL, QZ, grid.FT)
-    pstepfunc = PFunctions.PFunction(stepfunc_field!, p)
-    prob = RungeKuttas.Problem(keys.ALG, Ftmp, pstepfunc)
+    pstepfunc = Equations.PFunction(stepfunc_field!, p)
+    prob = Equations.Problem(keys.ALG, Ftmp, pstepfunc)
 
     return ModelXY(KZ, prob, responses)
 end
@@ -404,8 +404,8 @@ function zstep(z::T, dz::T, grid::Grids.GridRT, field::Fields.FieldRT,
                guard::Guards.GuardRT, model::ModelRT) where T
     # Calculate plasma density -------------------------------------------------
     @timeit "plasma" begin
-        if ! isempty(model.PE.probs)
-            PlasmaEquations.solve!(model.PE, field.rho, field.Kdrho, field.E)
+        if ! isempty(model.responses)
+            model.PE.solve!(field.rho, field.Kdrho, field.E)
             CUDAdrv.synchronize()
         end
     end

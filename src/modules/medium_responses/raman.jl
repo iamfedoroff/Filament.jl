@@ -35,10 +35,10 @@ function init_raman(unit, grid, field, medium, p)
     end
 
     p_calc = (Hramanw, grid.FT)
-    pcalc = PFunctions.PFunction(calc, p_calc)
+    pcalc = Equations.PFunction(calc, p_calc)
 
     p_dzadapt = ()
-    pdzadapt = PFunctions.PFunction(dzadapt_raman, p_dzadapt)
+    pdzadapt = Equations.PFunction(dzadapt_raman, p_dzadapt)
 
     return Media.NonlinearResponse(Rnl, pcalc, pdzadapt)
 end

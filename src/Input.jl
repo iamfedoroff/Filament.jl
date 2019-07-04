@@ -5,11 +5,13 @@ import CUDAnative
 import CuArrays
 import CUDAdrv
 import FFTW
+import StaticArrays
 
 import Fourier
 import Units
 import Media
-import PFunctions
+import Equations
+import TabularFunctions
 
 import PyCall
 scipy_constants = PyCall.pyimport("scipy.constants")
@@ -23,7 +25,8 @@ const HBAR = scipy_constants.hbar   # the Planck constant (divided by 2*pi) [J*s
 const FloatGPU = Float32
 const ComplexGPU = ComplexF32
 
-const DEFPATH = joinpath(@__DIR__, "modules", "medium_responses")
+const DEFPATHNR = joinpath(@__DIR__, "modules", "medium_responses")
+const DEFPATHPE = joinpath(@__DIR__, "modules", "plasma_equation_terms")
 
 # Read input file and change current working directory:
 file_input = abspath(ARGS[1])

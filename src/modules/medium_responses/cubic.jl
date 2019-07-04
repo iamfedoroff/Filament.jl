@@ -19,7 +19,7 @@ function init_cubic(unit, grid, field, medium, p)
     end
 
     p_calc = ()
-    pcalc = PFunctions.PFunction(calc, p_calc)
+    pcalc = Equations.PFunction(calc, p_calc)
 
     mu = medium.permeability(w0)
     k0 = Media.k_func(medium, w0)
@@ -28,7 +28,7 @@ function init_cubic(unit, grid, field, medium, p)
     phi = QZ0 * abs(Rnl0)
 
     p_dzadapt = (phi, field.E)
-    pdzadapt = PFunctions.PFunction(dzadapt_cubic, p_dzadapt)
+    pdzadapt = Equations.PFunction(dzadapt_cubic, p_dzadapt)
 
     return Media.NonlinearResponse(Rnl, pcalc, pdzadapt)
 end

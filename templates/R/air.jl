@@ -26,16 +26,17 @@ end
 # ------------------------------------------------------------------------------
 # Nonlinear response
 # ------------------------------------------------------------------------------
+# DEFPATHNR - default path for directory with media responses
+
 n2 = 1e-23   # [m**2/W] nonlinear index
 
 # Cubic nonlinearity -----------------------------------------------------------
-include(joinpath(DEFPATH, "cubic.jl"))
-
+include(joinpath(DEFPATHNR, "cubic.jl"))
 cubic = Dict(
     "init" => init_cubic,   # initialization function
     "THG" => false,   # switch for third harmonic generation
     "n2" => n2,   # [m**2/W] nonlinear index
     )
 
-# List of nonlinear responses included in the model:
+# List of nonlinear responses included in the model ----------------------------
 responses = [cubic]

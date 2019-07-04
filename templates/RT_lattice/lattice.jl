@@ -19,10 +19,10 @@ function init_lattice(unit, grid, field, medium, p)
     dnr = CuArrays.CuArray(convert(Array{FloatGPU, 1}, dnr))
 
     p_calc = (dnr, dnz_func, unit.z)
-    pcalc = PFunctions.PFunction(calc_lattice, p_calc)
+    pcalc = Equations.PFunction(calc_lattice, p_calc)
 
     p_dzadapt = ()
-    pdzadapt = PFunctions.PFunction(dzadapt_lattice, p_dzadapt)
+    pdzadapt = Equations.PFunction(dzadapt_lattice, p_dzadapt)
 
     return Media.NonlinearResponse(Rnl, pcalc, pdzadapt)
 end

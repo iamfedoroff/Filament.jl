@@ -23,7 +23,7 @@ function init_current_free(unit, grid, field, medium, p)
     Rnl = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, Rnl))
 
     p_calc = (field.rho, )
-    pcalc = PFunctions.PFunction(calc_current_free, p_calc)
+    pcalc = Equations.PFunction(calc_current_free, p_calc)
 
     mu = medium.permeability(w0)
     k0 = Media.k_func(medium, w0)
@@ -32,7 +32,7 @@ function init_current_free(unit, grid, field, medium, p)
     phi = QZ0 * abs(real(Rnl0))
 
     p_dzadapt = (phi, field.rho)
-    pdzadapt = PFunctions.PFunction(dzadapt_current_free, p_dzadapt)
+    pdzadapt = Equations.PFunction(dzadapt_current_free, p_dzadapt)
 
     return Media.NonlinearResponse(Rnl, pcalc, pdzadapt)
 end
