@@ -93,45 +93,29 @@ responses = [cubic, raman, current_free, current_losses]
 # ------------------------------------------------------------------------------
 # Equation for electron density
 # ------------------------------------------------------------------------------
-# DEFPATHPE - default path for directory with plasma equation terms
-
-# Components -------------------------------------------------------------------
 # Multiphoton ionization rates are from [Kasparian, APB, 71, 877 (2000)]
-N2 = Dict("fraction" => 0.79,
-          "ionization_energy" => 15.576,   # in eV
-          "tabular_function" => "multiphoton_N2.tf")
+N2 = Dict(
+    "fraction" => 0.79,
+    "ionization_energy" => 15.576,   # in eV
+    "ionization_rate" => "multiphoton_N2.tf",
+    )
 
-O2 = Dict("fraction" => 0.21,
-          "ionization_energy" => 12.063,   # in eV
-          "tabular_function" => "multiphoton_O2.tf")
+O2 = Dict(
+    "fraction" => 0.21,
+    "ionization_energy" => 12.063,   # in eV
+    "ionization_rate" => "multiphoton_O2.tf",
+    )
 
 components = [N2, O2]
 
-
-# Equation terms ---------------------------------------------------------------
-include(joinpath(DEFPATHPE, "photoionization.jl"))
-photoionization = Dict(
-    "init" => init_photoionization,   # initialization function
-    "rho_nt" => 2.5e25,   # [1/m^3] neutrals density [https://en.wikipedia.org/wiki/Number_density]
-    "EREAL" => false,   # switch for the ionization rate argument: real(E)^2 vs abs2(E)
-    "components" => components,
-    )
-
-include(joinpath(DEFPATHPE, "avalanche.jl"))
-avalanche = Dict(
-    "init" => init_avalanche,   # initialization function
-    "mr" => mr,   # [me] reduced mass of electron and hole (effective mass)
-    "nuc" => nuc,   # [1/s] collision frequency
-    "components" => components,
-    )
-
-terms = [photoionization, avalanche]
-
-
-# Plasma equation --------------------------------------------------------------
+# DEFPATHPE - default path for directory with plasma equations
+include(joinpath(DEFPATHPE, "photoionization_avalanche.jl"))
 plasma_equation = Dict(
+    "init" => init_photoionization_avalanche,   # initialization function
     "ALG" => "RK3",   # solver algorithm ("RK2", "RK3", or "RK4")
-    "rho0" => 0.,   # [1/m^3] background electron density
-    "terms" => terms,
-    "Kdrho_term" => photoionization,
-)
+    "EREAL" => false,   # switch for the ionization rate argument: real(E)^2 vs abs2(E)
+    "rho_nt" => 2.5e25,   # [1/m^3] neutrals density [https://en.wikipedia.org/wiki/Number_density]
+    "nuc" => nuc,   # [1/s] collision frequency
+    "mr" => mr,   # [me] reduced mass of electron and hole (effective mass)
+    "components" => components,
+    )

@@ -1,26 +1,29 @@
-module TabularFunctions
+module TabulatedFunctions
 
 import DelimitedFiles
 import StaticArrays
 import CUDAnative
 
-import Units
 
-
-struct TabularFunction{T<:AbstractArray} <: Function
+struct TFunction{T<:AbstractArray} <: Function
     x :: T
     y :: T
     # dy :: T
 end
 
 
-function TabularFunction(T::Type, unit::Units.Unit, fname::String)
+function TFunction(fname::String, xu::F, yu::F) where F<:AbstractFloat
+    return TFunction(Float32, fname, xu, yu)
+end
+
+
+function TFunction(T::Type, fname::String, xu::F, yu::F) where F<:AbstractFloat
     data = transpose(DelimitedFiles.readdlm(fname))
     x = data[1, :]
     y = data[2, :]
 
-    x = x / unit.I
-    y = y * unit.t
+    x = x * xu
+    y = y * yu
 
     # Most of the ionization rates are well described by rate functions (at
     # least at the intensities that correspond to the multiphoton
@@ -30,7 +33,7 @@ function TabularFunction(T::Type, unit::Units.Unit, fname::String)
     @. y = log10(y)
 
     N = length(x)
-    dy = zeros(N)
+    dy = zeros(T, N)
     for i=1:N-1
         dy[i] = (y[i + 1] - y[i]) / (x[i + 1] - x[i])
     end
@@ -39,25 +42,22 @@ function TabularFunction(T::Type, unit::Units.Unit, fname::String)
     y = StaticArrays.SVector{N, T}(y)
     dy = StaticArrays.SVector{N, T}(dy)
 
-    # return TabularFunction(x, y, dy)
-    return TabularFunction(x, y)
+    # return TFunction(x, y, dy)
+    return TFunction(x, y)
 end
 
 
-function (tf::TabularFunction)(x::T) where T<:AbstractFloat
-    # xc = log10(x)
+function (tf::TFunction)(x::T) where T<:AbstractFloat
     xc = CUDAnative.log10(x)
     if xc < tf.x[1]
         yc = convert(T, 0)
     elseif xc >= tf.x[end]
-        # yc = convert(T, 10)^tf.y[end]
         yc = CUDAnative.pow(convert(T, 10), tf.y[end])
     else
         ic = searchsorted(tf.x, xc)
         dy = tangent(tf.x, tf.y, ic)
         yc = tf.y[ic] + dy * (xc - tf.x[ic])
         # yc = tf.y[ic] + tf.dy[ic] * (xc - tf.x[ic])
-        # yc = convert(T, 10)^yc
         yc = CUDAnative.pow(convert(T, 10), yc)
     end
     return yc
@@ -76,7 +76,6 @@ end
 
 function searchsorted(x::AbstractArray, xc::AbstractFloat)
     xcnorm = (xc - x[1]) / (x[end] - x[1])
-    # return Int(floor(xcnorm * length(x) + 1))
     return Int(CUDAnative.floor(xcnorm * length(x) + 1))
 end
 

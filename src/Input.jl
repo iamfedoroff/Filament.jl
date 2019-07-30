@@ -11,7 +11,7 @@ import Fourier
 import Units
 import Media
 import Equations
-import TabularFunctions
+import TabulatedFunctions
 
 import PyCall
 scipy_constants = PyCall.pyimport("scipy.constants")
@@ -26,7 +26,7 @@ const FloatGPU = Float32
 const ComplexGPU = ComplexF32
 
 const DEFPATHNR = joinpath(@__DIR__, "modules", "medium_responses")
-const DEFPATHPE = joinpath(@__DIR__, "modules", "plasma_equation_terms")
+const DEFPATHPE = joinpath(@__DIR__, "modules", "plasma_equations")
 
 # Read input file and change current working directory:
 file_input = abspath(ARGS[1])
