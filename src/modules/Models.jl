@@ -100,7 +100,7 @@ function Model(unit::Units.UnitR, grid::Grids.GridR, field::Fields.FieldR,
     responses = tuple(responses...)
 
     # Temporary arrays:
-    Ftmp = CuArrays.cuzeros(ComplexGPU, grid.Nr)
+    Ftmp = CuArrays.zeros(ComplexGPU, grid.Nr)
 
     # Problem:
     p = (responses, Ftmp, guard, keys.QPARAXIAL, QZ, grid.HT)
@@ -183,9 +183,9 @@ function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
     responses = tuple(responses...)
 
     # Temporary arrays:
-    Ftmp = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
-    Etmp = CuArrays.cuzeros(ComplexGPU, (grid.Nr, grid.Nt))
-    Stmp = CuArrays.cuzeros(ComplexGPU, (grid.Nr, grid.Nw))
+    Ftmp = CuArrays.zeros(FloatGPU, (grid.Nr, grid.Nt))
+    Etmp = CuArrays.zeros(ComplexGPU, (grid.Nr, grid.Nt))
+    Stmp = CuArrays.zeros(ComplexGPU, (grid.Nr, grid.Nw))
 
     # Problem:
     p = (responses, grid.FT, Etmp, Ftmp, Stmp, guard, keys.QPARAXIAL, QZ, grid.HT)
@@ -258,7 +258,7 @@ function Model(unit::Units.UnitXY, grid::Grids.GridXY, field::Fields.FieldXY,
     responses = tuple(responses...)
 
     # Temporary arrays:
-    Ftmp = CuArrays.cuzeros(ComplexGPU, (grid.Nx, grid.Ny))
+    Ftmp = CuArrays.zeros(ComplexGPU, (grid.Nx, grid.Ny))
 
     # Problem:
     p = (responses, Ftmp, guard, keys.QPARAXIAL, QZ, grid.FT)

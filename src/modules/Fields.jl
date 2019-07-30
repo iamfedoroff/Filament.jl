@@ -65,13 +65,13 @@ function Field(unit::Units.UnitRT, grid::Grids.GridRT, lam0::Float64,
     E = initial_condition(grid.r, grid.t, unit.r, unit.t, unit.I)
     E = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, E))
 
-    S = CuArrays.cuzeros(ComplexGPU, (grid.Nr, grid.Nw))
+    S = CuArrays.zeros(ComplexGPU, (grid.Nr, grid.Nw))
     Fourier.rfft2!(grid.FT, E, S)   # time -> frequency
 
     Fourier.hilbert2!(grid.FT, S, E)   # spectrum real to signal analytic
 
-    rho = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
-    Kdrho = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
+    rho = CuArrays.zeros(FloatGPU, (grid.Nr, grid.Nt))
+    Kdrho = CuArrays.zeros(FloatGPU, (grid.Nr, grid.Nt))
 
     return FieldRT(lam0, f0, w0, E, S, rho, Kdrho)
 end

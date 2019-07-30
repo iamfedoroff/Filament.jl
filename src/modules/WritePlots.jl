@@ -71,7 +71,7 @@ function PlotVarData(unit::Units.UnitR, grid::Grids.GridR)
         PlotVar("P", "W", unit.r^2 * unit.I),
         ]
     I = zeros(FloatGPU, grid.Nr)
-    Igpu = CuArrays.cuzeros(FloatGPU, grid.Nr)
+    Igpu = CuArrays.zeros(FloatGPU, grid.Nr)
     return PlotVarDataR(plotvars, 0., 0., 0., I, Igpu)
 end
 
@@ -86,7 +86,7 @@ function PlotVarData(unit::Units.UnitRT, grid::Grids.GridRT)
         PlotVar("rpl", "m", unit.r),
         PlotVar("W", "J", unit.r^2 * unit.t * unit.I),
         ]
-    I = CuArrays.cuzeros(FloatGPU, (grid.Nr, grid.Nt))
+    I = CuArrays.zeros(FloatGPU, (grid.Nr, grid.Nt))
     F = zeros(FloatGPU, grid.Nr)
     rho = zeros(FloatGPU, grid.Nr)
     S = zeros(FloatGPU, grid.Nw)
@@ -102,7 +102,7 @@ function PlotVarData(unit::Units.UnitXY, grid::Grids.GridXY)
         PlotVar("P", "W", unit.x * unit.y * unit.I),
         ]
     I = zeros(FloatGPU, (grid.Nx, grid.Ny))
-    Igpu = CuArrays.cuzeros(FloatGPU, (grid.Nx, grid.Ny))
+    Igpu = CuArrays.zeros(FloatGPU, (grid.Nx, grid.Ny))
     return PlotVarDataXY(plotvars, 0., 0., 0., 0., I, Igpu)
 end
 

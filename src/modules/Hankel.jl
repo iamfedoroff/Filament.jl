@@ -75,7 +75,7 @@ function HankelTransform(R::Float64, ndims::Int...; p::Int=0)
     JV = CuArrays.CuArray(convert(Array{FloatGPU, 1}, JV))
     VJ = CuArrays.CuArray(convert(Array{FloatGPU, 1}, VJ))
     JR = CuArrays.CuArray(convert(Array{FloatGPU, 1}, JR))
-    DM = CuArrays.cuzeros(ComplexGPU, ndims)
+    DM = CuArrays.zeros(ComplexGPU, ndims)
 
     dev = CUDAnative.CuDevice(0)
     MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)

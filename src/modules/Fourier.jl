@@ -61,18 +61,18 @@ function FourierTransformRT(Nr::Int, Nt::Int)
         Nw = div(Nt + 1, 2)
     end
 
-    Er2 = CuArrays.cuzeros(FloatGPU, (Nr, Nt))
-    Sc = CuArrays.cuzeros(ComplexGPU, Nt)
-    Sc2 = CuArrays.cuzeros(ComplexGPU, (Nr, Nt))
-    Sr = CuArrays.cuzeros(ComplexGPU, Nw)
-    Sr2 = CuArrays.cuzeros(ComplexGPU, (Nr, Nw))
+    Er2 = CuArrays.zeros(FloatGPU, (Nr, Nt))
+    Sc = CuArrays.zeros(ComplexGPU, Nt)
+    Sc2 = CuArrays.zeros(ComplexGPU, (Nr, Nt))
+    Sr = CuArrays.zeros(ComplexGPU, Nw)
+    Sr2 = CuArrays.zeros(ComplexGPU, (Nr, Nw))
 
-    pifft = FFTW.plan_ifft(CuArrays.cuzeros(ComplexGPU, Nt))
-    pifft2 = FFTW.plan_ifft(CuArrays.cuzeros(ComplexGPU, (Nr, Nt)), [2])
-    prfft = FFTW.plan_rfft(CuArrays.cuzeros(FloatGPU, Nt))
-    prfft2 = FFTW.plan_rfft(CuArrays.cuzeros(FloatGPU, (Nr, Nt)), [2])
-    pirfft = FFTW.plan_irfft(CuArrays.cuzeros(ComplexGPU, Nw), Nt)
-    pirfft2 = FFTW.plan_irfft(CuArrays.cuzeros(ComplexGPU, (Nr, Nw)), Nt, [2])
+    pifft = FFTW.plan_ifft(CuArrays.zeros(ComplexGPU, Nt))
+    pifft2 = FFTW.plan_ifft(CuArrays.zeros(ComplexGPU, (Nr, Nt)), [2])
+    prfft = FFTW.plan_rfft(CuArrays.zeros(FloatGPU, Nt))
+    prfft2 = FFTW.plan_rfft(CuArrays.zeros(FloatGPU, (Nr, Nt)), [2])
+    pirfft = FFTW.plan_irfft(CuArrays.zeros(ComplexGPU, Nw), Nt)
+    pirfft2 = FFTW.plan_irfft(CuArrays.zeros(ComplexGPU, (Nr, Nw)), Nt, [2])
 
     dev = CUDAnative.CuDevice(0)
     MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
@@ -97,8 +97,8 @@ end
 function FourierTransformXY(Nx::Int, Ny::Int)
     CuArrays.allowscalar(false)   # disable slow fallback methods
 
-    pfft = FFTW.plan_fft(CuArrays.cuzeros(ComplexGPU, (Nx, Ny)))
-    pifft = FFTW.plan_ifft(CuArrays.cuzeros(ComplexGPU, (Nx, Ny)))
+    pfft = FFTW.plan_fft(CuArrays.zeros(ComplexGPU, (Nx, Ny)))
+    pifft = FFTW.plan_ifft(CuArrays.zeros(ComplexGPU, (Nx, Ny)))
 
     return FourierTransformXY(Nx, Ny, pfft, pifft)
 end
