@@ -5,10 +5,9 @@ import StaticArrays
 import CUDAnative
 
 
-struct TFunction{T<:AbstractArray} <: Function
-    x :: T
+struct TFunction{R<:AbstractRange, T<:AbstractArray} <: Function
+    x :: R
     y :: T
-    # dy :: T
 end
 
 
@@ -32,17 +31,14 @@ function TFunction(T::Type, fname::String, xu::F, yu::F) where F<:AbstractFloat
     @. x = log10(x)
     @. y = log10(y)
 
+    # Check for sorted and evenly spaced x values:
+    allclose(x) = all(y -> isapprox(y, x[1]), x)
+    @assert issorted(x)
+    @assert allclose(diff(x))
+
     N = length(x)
-    dy = zeros(T, N)
-    for i=1:N-1
-        dy[i] = (y[i + 1] - y[i]) / (x[i + 1] - x[i])
-    end
-
-    x = StaticArrays.SVector{N, T}(x)
+    x = range(convert(T, x[1]), convert(T, x[end]), length=N)
     y = StaticArrays.SVector{N, T}(y)
-    dy = StaticArrays.SVector{N, T}(dy)
-
-    # return TFunction(x, y, dy)
     return TFunction(x, y)
 end
 
@@ -54,29 +50,28 @@ function (tf::TFunction)(x::T) where T<:AbstractFloat
     elseif xc >= tf.x[end]
         yc = CUDAnative.pow(convert(T, 10), tf.y[end])
     else
-        ic = searchsorted(tf.x, xc)
-        dy = tangent(tf.x, tf.y, ic)
-        yc = tf.y[ic] + dy * (xc - tf.x[ic])
-        # yc = tf.y[ic] + tf.dy[ic] * (xc - tf.x[ic])
+        i = findindex(tf.x, xc)
+        dy = slope(tf.x, tf.y, i)
+        yc = tf.y[i] + dy * (xc - tf.x[i])
         yc = CUDAnative.pow(convert(T, 10), yc)
     end
     return yc
 end
 
 
-function tangent(x::AbstractArray{T}, y::AbstractArray{T}, i::Int) where T<:AbstractFloat
-    if i <= length(x) - 1
+function slope(x::AbstractArray{T}, y::AbstractArray{T}, i::Int) where T<:AbstractFloat
+    if i < length(x)
         dy = (y[i + 1] - y[i]) / (x[i + 1] - x[i])
     else
-        dy = convert(T, 0)
+        dy = (y[end] - y[end - 1]) / (x[end] - x[end - 1])
     end
     return dy
 end
 
 
-function searchsorted(x::AbstractArray, xc::AbstractFloat)
-    xcnorm = (xc - x[1]) / (x[end] - x[1])
-    return Int(CUDAnative.floor(xcnorm * length(x) + 1))
+function findindex(x::AbstractArray{T}, xc::T) where T<:AbstractFloat
+    ldx = (xc - x[1]) / (x[2] - x[1])   # number of steps dx from x[1] to xc
+    return Int(floor(ldx)) + 1
 end
 
 
