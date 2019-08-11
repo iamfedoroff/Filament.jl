@@ -45,33 +45,24 @@ end
 
 function (tf::TFunction)(x::T) where T<:AbstractFloat
     xc = CUDAnative.log10(x)
-    if xc < tf.x[1]
-        yc = convert(T, 0)
+    if xc <= tf.x[1]
+        dy = (tf.y[2] - tf.y[1]) / (tf.x[2] - tf.x[1])
+        yc = tf.y[2] + dy * (xc - tf.x[2])
     elseif xc >= tf.x[end]
-        yc = CUDAnative.pow(convert(T, 10), tf.y[end])
+        dy = (tf.y[end] - tf.y[end - 1]) / (tf.x[end] - tf.x[end - 1])
+        yc = tf.y[end - 1] + dy * (xc - tf.x[end - 1])
     else
         i = findindex(tf.x, xc)
-        dy = slope(tf.x, tf.y, i)
+        dy = (tf.y[i + 1] - tf.y[i]) / (tf.x[i + 1] - tf.x[i])
         yc = tf.y[i] + dy * (xc - tf.x[i])
-        yc = CUDAnative.pow(convert(T, 10), yc)
     end
-    return yc
-end
-
-
-function slope(x::AbstractArray{T}, y::AbstractArray{T}, i::Int) where T<:AbstractFloat
-    if i < length(x)
-        dy = (y[i + 1] - y[i]) / (x[i + 1] - x[i])
-    else
-        dy = (y[end] - y[end - 1]) / (x[end] - x[end - 1])
-    end
-    return dy
+    return CUDAnative.pow(convert(T, 10), yc)
 end
 
 
 function findindex(x::AbstractArray{T}, xc::T) where T<:AbstractFloat
     ldx = (xc - x[1]) / (x[2] - x[1])   # number of steps dx from x[1] to xc
-    return Int(floor(ldx)) + 1
+    return Int(CUDAnative.floor(ldx)) + 1
 end
 
 
