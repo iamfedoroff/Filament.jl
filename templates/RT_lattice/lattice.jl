@@ -20,18 +20,14 @@ function init_lattice(unit, grid, field, medium, p)
 
     p_calc = (dnr, dnz_func, unit.z)
     pcalc = Equations.PFunction(calc_lattice, p_calc)
-
-    p_dzadapt = ()
-    pdzadapt = Equations.PFunction(dzadapt_lattice, p_dzadapt)
-
-    return Media.NonlinearResponse(Rnl, pcalc, pdzadapt)
+    return Media.NonlinearResponse(Rnl, pcalc)
 end
 
 
-function calc_lattice(F::CuArrays.CuArray{T},
-                      E::CuArrays.CuArray{Complex{T}},
+function calc_lattice(F::AbstractArray{T},
+                      E::AbstractArray{Complex{T}},
                       args::Tuple,
-                      p::Tuple) where T
+                      p::Tuple) where T<:AbstractFloat
     dnr, dnz_func, zu = p
     z, = args
 
@@ -39,8 +35,4 @@ function calc_lattice(F::CuArrays.CuArray{T},
 
     @. F = (2 * (dnr * dnz) + (dnr * dnz)^2) * real(E)
     return nothing
-end
-
-function dzadapt_lattice(phimax::AbstractFloat, p::Tuple)
-    return Inf
 end

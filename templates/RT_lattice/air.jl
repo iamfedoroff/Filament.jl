@@ -28,9 +28,7 @@ end
 # ------------------------------------------------------------------------------
 # DEFPATHNR - default path for directory with media responses
 
-n2 = 1e-23   # [m**2/W] nonlinear index
-graman = 0.5   # fraction of stimulated Raman contribution
-
+n2 = 0.5e-23   # [m**2/W] nonlinear index
 nuc = 5e12   # [1/s] collision frequency [Sprangle, PRE, 69, 066415 (2004)]
 mr = 1.   # [me] reduced mass of electron and hole (effective mass)
 
@@ -40,7 +38,7 @@ include(joinpath(DEFPATHNR, "cubic.jl"))
 cubic = Dict(
     "init" => init_cubic,   # initialization function
     "THG" => true,   # switch for third harmonic generation
-    "n2" => (1. - graman) * n2,   # [m**2/W] nonlinear index
+    "n2" => n2,   # [m**2/W] nonlinear index
     )
 
 
@@ -64,7 +62,7 @@ include(joinpath(DEFPATHNR, "raman.jl"))
 raman = Dict(
     "init" => init_raman,   # initialization function
     "THG" => true,   # switch for third harmonic generation
-    "n2" =>  graman * n2,   # [m**2/W] nonlinear index
+    "n2" => n2,   # [m**2/W] nonlinear index
     "raman_response" => raman_response,   # response function
     )
 

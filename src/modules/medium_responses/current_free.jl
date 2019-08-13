@@ -24,32 +24,15 @@ function init_current_free(unit, grid, field, medium, p)
 
     p_calc = (field.rho, )
     pcalc = Equations.PFunction(calc_current_free, p_calc)
-
-    mu = medium.permeability(w0)
-    k0 = Media.k_func(medium, w0)
-    QZ0 = MU0 * mu * w0^2 / (2. * k0) * unit.z / Eu
-    Rnl0 = 1im / w0 * QE^2 / MR / (nuc - 1im * w0) * unit.rho * Eu
-    phi = QZ0 * abs(real(Rnl0))
-
-    p_dzadapt = (phi, field.rho)
-    pdzadapt = Equations.PFunction(dzadapt_current_free, p_dzadapt)
-
-    return Media.NonlinearResponse(Rnl, pcalc, pdzadapt)
+    return Media.NonlinearResponse(Rnl, pcalc)
 end
 
 
-function calc_current_free(F::CuArrays.CuArray{T},
-                           E::CuArrays.CuArray{Complex{T}},
+function calc_current_free(F::AbstractArray{T},
+                           E::AbstractArray{Complex{T}},
                            args::Tuple,
-                           p::Tuple) where T
+                           p::Tuple) where T<:AbstractFloat
     rho, = p
     @. F = rho * real(E)
     return nothing
-end
-
-
-function dzadapt_current_free(phimax::AbstractFloat, p::Tuple)
-    phi, rho = p
-    rhomax = maximum(rho)
-    return phimax / (phi * rhomax)
 end

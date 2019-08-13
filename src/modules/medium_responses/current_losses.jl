@@ -4,14 +4,15 @@
 function init_current_losses(unit, grid, field, medium, p)
     EREAL = p["EREAL"]
 
-    n0 = Media.refractive_index(medium, field.w0)
+    w0 = field.w0
+    n0 = Media.refractive_index(medium, w0)
     Eu = Units.E(unit, real(n0))
 
     Rnl = zeros(ComplexF64, grid.Nw)
     for i=1:grid.Nw
         if grid.w[i] != 0.
             Rnl[i] = 1im / (grid.w[i] * unit.w) *
-                     HBAR * field.w0 * unit.rho / (unit.t * Eu)
+                     HBAR * w0 * unit.rho / (unit.t * Eu)
         end
     end
 
@@ -28,18 +29,14 @@ function init_current_losses(unit, grid, field, medium, p)
 
     p_calc = (field.Kdrho, fearg)
     pcalc = Equations.PFunction(calc_current_losses, p_calc)
-
-    p_dzadapt = ()
-    pdzadapt = Equations.PFunction(dzadapt_current_losses, p_dzadapt)
-
-    return Media.NonlinearResponse(Rnl, pcalc, pdzadapt)
+    return Media.NonlinearResponse(Rnl, pcalc)
 end
 
 
-function calc_current_losses(F::CuArrays.CuArray{T},
-                             E::CuArrays.CuArray{Complex{T}},
+function calc_current_losses(F::AbstractArray{T},
+                             E::AbstractArray{Complex{T}},
                              args::Tuple,
-                             p::Tuple) where T
+                             p::Tuple) where T<:AbstractFloat
     Kdrho, fearg = p
     @. F = fearg(E)
     inverse!(F)
@@ -48,7 +45,7 @@ function calc_current_losses(F::CuArrays.CuArray{T},
 end
 
 
-function inverse!(F::CuArrays.CuArray{T}) where T
+function inverse!(F::AbstractArray{T}) where T<:AbstractFloat
     N = length(F)
     dev = CUDAnative.CuDevice(0)
     MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
@@ -71,9 +68,4 @@ function inverse_kernel(F)
         end
     end
     return nothing
-end
-
-
-function dzadapt_current_losses(phimax::AbstractFloat, p::Tuple)
-    return Inf
 end

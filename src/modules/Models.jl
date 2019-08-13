@@ -269,20 +269,6 @@ function Model(unit::Units.UnitXY, grid::Grids.GridXY, field::Fields.FieldXY,
 end
 
 
-function dzadapt(model::Model, phimax::AbstractFloat)
-    dz = Inf
-    if ! isempty(model.responses)
-        for resp in model.responses
-            dzr = resp.dzadaptive(phimax)
-            if dzr < dz
-                dz = dzr
-            end
-        end
-    end
-    return dz
-end
-
-
 function stepfunc_field!(dE::CuArrays.CuArray{Complex{T}, 1},
                          E::CuArrays.CuArray{Complex{T}, 1},
                          args::Tuple, p::Tuple) where T

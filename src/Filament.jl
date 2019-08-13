@@ -10,6 +10,7 @@ import Fields
 import Media
 import Guards
 import Models
+import AdaptiveSteps
 import Infos
 import WritePlots
 
@@ -36,10 +37,11 @@ function main()
     medium = Media.Medium(Input.permittivity, Input.permeability, Input.n2)
 
     # **************************************************************************
-    # Prepare guards and model
+    # Prepare guards, model, and adaptive z step
     # **************************************************************************
     guard = Guards.Guard(unit, grid, field, medium, Input.p_guard...)
     model = Models.Model(unit, grid, field, medium, guard, Input.p_model...)
+    dzadaptive = AdaptiveSteps.AStep(unit, medium, field, Input.p_dzadaptive...)
 
     # **************************************************************************
     # Prepare output files
@@ -92,15 +94,15 @@ function main()
             println("z=$(Formatting.fmt("18.12e", z))[zu] " *
                     "I=$(Formatting.fmt("18.12e", pdata.Imax))[Iu] " *
                     "rho=$(Formatting.fmt("18.12e", pdata.rhomax))[rhou]")
+
+            dz = dzadaptive(pdata.Imax, pdata.rhomax)
         else
             println("z=$(Formatting.fmt("18.12e", z))[zu] " *
                     "I=$(Formatting.fmt("18.12e", pdata.Imax))[Iu] ")
+
+            dz = dzadaptive(pdata.Imax)
         end
 
-        @timeit "dzadapt" begin
-            dz = Models.dzadapt(model, Input.dzAdaptLevel)   # adaptive z step
-            CUDAdrv.synchronize()
-        end
         dz = min(Input.dz_initial, Input.dz_plothdf, dz)
         z = z + dz
 

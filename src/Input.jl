@@ -48,6 +48,7 @@ if geometry == "R"
     p_grid = (rmax, Nr)
     p_guard = (rguard, kguard)
     p_model = (keys, responses)
+    p_dzadaptive = (dzAdaptLevel, )
 elseif geometry == "T"
     println("T geometry is not implemented yet.")
     exit()
@@ -56,11 +57,13 @@ elseif geometry == "RT"
     p_grid = (rmax, Nr, tmin, tmax, Nt)
     p_guard = (rguard, tguard, kguard, wguard)
     p_model = (keys, responses, plasma_equation)
+    p_dzadaptive = (dzAdaptLevel, mr, nuc)
 elseif geometry == "XY"
     p_unit = (xu, yu, zu, Iu)
     p_grid = (xmin, xmax, Nx, ymin, ymax, Ny)
     p_guard = (xguard, yguard, kxguard, kyguard)
     p_model = (keys, responses)
+    p_dzadaptive = (dzAdaptLevel, )
 elseif geometry == "XYT"
     println("XYT geometry is not implemented yet.")
     exit()

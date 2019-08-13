@@ -6,26 +6,20 @@ function init_raman(unit, grid, field, medium, p)
     n2 = p["n2"]
     raman_response = p["raman_response"]
 
-    n0 = Media.refractive_index(medium, field.w0)
+    w0 = field.w0
+    n0 = Media.refractive_index(medium, w0)
     Eu = Units.E(unit, real(n0))
-    chi3 = 4. / 3. * real(n0)^2 * EPS0 * C0 * n2
+    chi3 = Media.chi3_func(medium, w0)
     Rnl = EPS0 * chi3 * Eu^3
-    Rnl = FloatGPU(Rnl)
+    Rnl = convert(FloatGPU, Rnl)
 
     # For assymetric grids, where abs(tmin) != tmax, we need tshift to put
     # H(t) into the grid center (see "circular convolution"):
     tshift = grid.tmin + 0.5 * (grid.tmax - grid.tmin)
     Hraman = @. raman_response((grid.t - tshift) * unit.t)
     Hraman = Hraman * grid.dt * unit.t
-
-    if abs(1. - sum(Hraman)) > 1e-3
-        println("WARNING: The integral of Raman response function should be" *
-                " normalized to 1.")
-    end
-
     Hraman = Fourier.ifftshift(Hraman)
     Hramanw = FFTW.rfft(Hraman)   # time -> frequency
-
     Hramanw = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, Hramanw))
 
     if THG
@@ -36,18 +30,14 @@ function init_raman(unit, grid, field, medium, p)
 
     p_calc = (Hramanw, grid.FT)
     pcalc = Equations.PFunction(calc, p_calc)
-
-    p_dzadapt = ()
-    pdzadapt = Equations.PFunction(dzadapt_raman, p_dzadapt)
-
-    return Media.NonlinearResponse(Rnl, pcalc, pdzadapt)
+    return Media.NonlinearResponse(Rnl, pcalc)
 end
 
 
-function calc_raman(F::CuArrays.CuArray{T},
-                    E::CuArrays.CuArray{Complex{T}},
+function calc_raman(F::AbstractArray{T},
+                    E::AbstractArray{Complex{T}},
                     args::Tuple,
-                    p::Tuple) where T
+                    p::Tuple) where T<:AbstractFloat
     Hramanw, FT = p
     @. F = real(E)^2
     Fourier.convolution2!(FT, Hramanw, F)
@@ -56,18 +46,13 @@ function calc_raman(F::CuArrays.CuArray{T},
 end
 
 
-function calc_raman_nothg(F::CuArrays.CuArray{T},
-                          E::CuArrays.CuArray{Complex{T}},
+function calc_raman_nothg(F::AbstractArray{T},
+                          E::AbstractArray{Complex{T}},
                           args::Tuple,
-                          p::Tuple) where T
+                          p::Tuple) where T<:AbstractFloat
     Hramanw, FT = p
     @. F = FloatGPU(3. / 4.) * abs2(E)
     Fourier.convolution2!(FT, Hramanw, F)
     @. F = F * real(E)
     return nothing
-end
-
-
-function dzadapt_raman(phimax::AbstractFloat, p::Tuple)
-    return Inf
 end
