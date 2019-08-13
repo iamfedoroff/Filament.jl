@@ -1,6 +1,7 @@
 function init_photoionization(unit, n0, w0, params)
     alg = params["ALG"]
     EREAL = params["EREAL"]
+    KDEP = params["KDEP"]
     rho_nt = params["rho_nt"]
     components = params["components"]
 
@@ -16,10 +17,9 @@ function init_photoionization(unit, n0, w0, params)
     tabfuncs = Array{Function}(undef, Ncomp)
     frhonts = zeros(Ncomp)
     Ks = zeros(Ncomp)
-
     for (i, comp) in enumerate(components)
         frac = comp["fraction"]
-        Ui = comp["ionization_energy"]
+        Uiev = comp["ionization_energy"]
         tfname = comp["ionization_rate"]
 
         # Photoionization:
@@ -31,10 +31,9 @@ function init_photoionization(unit, n0, w0, params)
         frhonts[i] = frhont
 
         # K * drho/dt:
-        Ui = Ui * QE   # eV -> J
+        Ui = Uiev * QE   # eV -> J
         Ks[i] = ceil(Ui / (HBAR * w0))
     end
-
     tabfuncs = StaticArrays.SVector{Ncomp}(tabfuncs)
     frhonts = StaticArrays.SVector{Ncomp, FloatGPU}(frhonts)
     Ks = StaticArrays.SVector{Ncomp, FloatGPU}(Ks)
@@ -50,21 +49,23 @@ function init_photoionization(unit, n0, w0, params)
     extract(u::StaticArrays.SVector) = sum(u)
 
     # Function to calculate K * drho/dt:
-    p = (tabfuncs, fiarg, frhonts, Ks)
+    p = (tabfuncs, fiarg, frhonts, Ks, KDEP)
     kdrho_func = Equations.PFunction(kdrho_photoionization, p)
 
     return prob, extract, kdrho_func
 end
 
 
-function stepfunc_photoionization(rho, args, p)
+function stepfunc_photoionization(rho::AbstractArray{T},
+                                  args::Tuple,
+                                  p::Tuple) where T<:AbstractFloat
     tabfuncs, fiarg, frhonts = p
     E, = args
 
     I = fiarg(E)
 
     Neq = length(rho)
-    drho = StaticArrays.SVector{Neq, FloatGPU}(rho)
+    drho = StaticArrays.SVector{Neq, T}(rho)
     for i=1:Neq
         tf = tabfuncs[i]
         R1 = tf(I)
@@ -78,11 +79,20 @@ function stepfunc_photoionization(rho, args, p)
 end
 
 
-function kdrho_photoionization(rho, args, p)
-    tabfuncs, fiarg, frhonts, Ks = p
+function kdrho_photoionization(rho::AbstractArray{T},
+                               args::Tuple,
+                               p::Tuple) where T<:AbstractFloat
+    tabfuncs, fiarg, frhonts, Ks, KDEP = p
     E, = args
 
     I = fiarg(E)
+    if KDEP
+        if I <= 0
+            Ilog = convert(T, -30)   # I=1e-30 in order to avoid -Inf in log(0)
+        else
+            Ilog = CUDAnative.log10(I)
+        end
+    end
 
     Neq = length(rho)
     kdrho = convert(FloatGPU, 0)
@@ -92,8 +102,14 @@ function kdrho_photoionization(rho, args, p)
 
         frhont = frhonts[i]
 
+        if KDEP
+            K = TabulatedFunctions.dtf(tf, Ilog)
+        else
+            K = Ks[i]
+        end
+
         drho = R1 * (frhont - rho[i])
-        kdrho = kdrho + Ks[i] * drho
+        kdrho = kdrho + K * drho
     end
     return kdrho
 end

@@ -1,6 +1,7 @@
 function init_photoionization_avalanche(unit, n0, w0, params)
     alg = params["ALG"]
     EREAL = params["EREAL"]
+    KDEP = params["KDEP"]
     rho_nt = params["rho_nt"]
     nuc = params["nuc"]
     mr = params["mr"]
@@ -19,10 +20,9 @@ function init_photoionization_avalanche(unit, n0, w0, params)
     frhonts = zeros(Ncomp)
     Ravas = zeros(Ncomp)
     Ks = zeros(Ncomp)
-
     for (i, comp) in enumerate(components)
         frac = comp["fraction"]
-        Ui = comp["ionization_energy"]
+        Uiev = comp["ionization_energy"]
         tfname = comp["ionization_rate"]
 
         # Photoionization:
@@ -34,7 +34,7 @@ function init_photoionization_avalanche(unit, n0, w0, params)
         frhonts[i] = frhont
 
         # Impact ionization:
-        Ui = Ui * QE   # eV -> J
+        Ui = Uiev * QE   # eV -> J
         MR = mr * ME   # reduced mass of electron and hole (effective mass)
         sigmaB = QE^2 / MR * nuc / (nuc^2 + w0^2)
         Rava = sigmaB / Ui
@@ -45,7 +45,6 @@ function init_photoionization_avalanche(unit, n0, w0, params)
         # K * drho/dt:
         Ks[i] = ceil(Ui / (HBAR * w0))
     end
-
     tabfuncs = StaticArrays.SVector{Ncomp}(tabfuncs)
     frhonts = StaticArrays.SVector{Ncomp, FloatGPU}(frhonts)
     Ravas = StaticArrays.SVector{Ncomp, FloatGPU}(Ravas)
@@ -62,14 +61,16 @@ function init_photoionization_avalanche(unit, n0, w0, params)
     extract(u::StaticArrays.SVector) = sum(u)
 
     # Function to calculate K * drho/dt:
-    p = (tabfuncs, fiarg, frhonts, Ks)
+    p = (tabfuncs, fiarg, frhonts, Ks, KDEP)
     kdrho_func = Equations.PFunction(kdrho_photoionization_avalanche, p)
 
     return prob, extract, kdrho_func
 end
 
 
-function stepfunc_photoionization_avalanche(rho, args, p)
+function stepfunc_photoionization_avalanche(rho::AbstractArray{T},
+                                            args::Tuple,
+                                            p::Tuple) where T<:AbstractFloat
     tabfuncs, fiarg, frhonts, Ravas = p
     E, = args
 
@@ -77,7 +78,7 @@ function stepfunc_photoionization_avalanche(rho, args, p)
     E2 = real(E)^2
 
     Neq = length(rho)
-    drho = StaticArrays.SVector{Neq, FloatGPU}(rho)
+    drho = StaticArrays.SVector{Neq, T}(rho)
     for i=1:Neq
         tf = tabfuncs[i]
         R1 = tf(I)
@@ -94,22 +95,37 @@ function stepfunc_photoionization_avalanche(rho, args, p)
 end
 
 
-function kdrho_photoionization_avalanche(rho, args, p)
-    tabfuncs, fiarg, frhonts, Ks = p
+function kdrho_photoionization_avalanche(rho::AbstractArray{T},
+                                         args::Tuple,
+                                         p::Tuple) where T<:AbstractFloat
+    tabfuncs, fiarg, frhonts, Ks, KDEP = p
     E, = args
 
     I = fiarg(E)
+    if KDEP
+        if I <= 0
+            Ilog = convert(T, -30)   # I=1e-30 in order to avoid -Inf in log(0)
+        else
+            Ilog = CUDAnative.log10(I)
+        end
+    end
 
     Neq = length(rho)
-    kdrho = convert(FloatGPU, 0)
+    kdrho = convert(T, 0)
     for i=1:Neq
         tf = tabfuncs[i]
         R1 = tf(I)
 
         frhont = frhonts[i]
 
+        if KDEP
+            K = TabulatedFunctions.dtf(tf, Ilog)
+        else
+            K = Ks[i]
+        end
+
         drho = R1 * (frhont - rho[i])
-        kdrho = kdrho + Ks[i] * drho
+        kdrho = kdrho + K * drho
     end
     return kdrho
 end
