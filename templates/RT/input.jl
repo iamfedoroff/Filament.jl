@@ -37,7 +37,7 @@ wguard = 1e16   # [1/s] the cut-off angular frequency
 dzAdaptLevel = pi / 100.   # phase criterium for the adaptive z step
 Istop = 1e3   # [Iu] maixmum intensity in the problem (stop if exceeded)
 
-ALG = "RK3"   # Solver algorithm for nonlinear part ("RK2", "RK3", or "RK4")
+ALG = "RK3"   # Solver algorithm for nonlinear part ("RK2", "RK3", "RK4", or "Tsit5")
 
 # Plots ------------------------------------------------------------------------
 dz_plothdf = 0.1   # [zu] z step for writing the field into the HDF5 file
