@@ -30,6 +30,7 @@ end
 
 function calc_current_free(F::AbstractArray{T},
                            E::AbstractArray{Complex{T}},
+                           z::T,
                            args::Tuple,
                            p::Tuple) where T<:AbstractFloat
     rho, = p

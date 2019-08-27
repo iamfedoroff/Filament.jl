@@ -26,10 +26,10 @@ end
 
 function calc_lattice(F::AbstractArray{T},
                       E::AbstractArray{Complex{T}},
+                      z::T,
                       args::Tuple,
                       p::Tuple) where T<:AbstractFloat
     dnr, dnz_func, zu = p
-    z, = args
 
     dnz = dnz_func(z, zu)
 

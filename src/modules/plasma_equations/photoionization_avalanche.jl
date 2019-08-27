@@ -54,8 +54,8 @@ function init_photoionization_avalanche(unit, n0, w0, params)
     Neq = Ncomp   # number of equations
     rho0 = StaticArrays.SVector{Neq, FloatGPU}(zeros(Neq))   # initial condition
     p = (tabfuncs, fiarg, frhonts, Ravas)   # step function parameters
-    pstepfunc = Equations.PFunction(stepfunc_photoionization_avalanche, p)
-    prob = Equations.Problem(alg, rho0, pstepfunc)
+    pfunc = Equations.PFunction(func_photoionization_avalanche, p)
+    prob = Equations.Problem(alg, rho0, pfunc)
 
     # Function to extract electron density out of the problem solution:
     extract(u::StaticArrays.SVector) = sum(u)
@@ -68,9 +68,10 @@ function init_photoionization_avalanche(unit, n0, w0, params)
 end
 
 
-function stepfunc_photoionization_avalanche(rho::AbstractArray{T},
-                                            args::Tuple,
-                                            p::Tuple) where T<:AbstractFloat
+function func_photoionization_avalanche(rho::AbstractArray{T},
+                                        t::T,
+                                        args::Tuple,
+                                        p::Tuple) where T<:AbstractFloat
     tabfuncs, fiarg, frhonts, Ravas = p
     E, = args
 
@@ -96,6 +97,7 @@ end
 
 
 function kdrho_photoionization_avalanche(rho::AbstractArray{T},
+                                         t::T,
                                          args::Tuple,
                                          p::Tuple) where T<:AbstractFloat
     tabfuncs, fiarg, frhonts, Ks, KDEP = p

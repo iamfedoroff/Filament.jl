@@ -104,8 +104,8 @@ function Model(unit::Units.UnitR, grid::Grids.GridR, field::Fields.FieldR,
 
     # Problem:
     p = (responses, Ftmp, guard, keys.QPARAXIAL, QZ, grid.HT)
-    pstepfunc = Equations.PFunction(stepfunc_field!, p)
-    prob = Equations.Problem(keys.ALG, Ftmp, pstepfunc)
+    pfunc = Equations.PFunction(func_field!, p)
+    prob = Equations.Problem(keys.ALG, Ftmp, pfunc)
 
     return ModelR(KZ, prob, responses)
 end
@@ -189,14 +189,14 @@ function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
 
     # Problem:
     p = (responses, grid.FT, Etmp, Ftmp, Stmp, guard, keys.QPARAXIAL, QZ, grid.HT)
-    pstepfunc = Equations.PFunction(stepfunc_spectrum!, p)
-    prob = Equations.Problem(keys.ALG, Stmp, pstepfunc)
+    pfunc = Equations.PFunction(func_spectrum!, p)
+    prob = Equations.Problem(keys.ALG, Stmp, pfunc)
 
     # Plasma equation ----------------------------------------------------------
-    dt = FloatGPU(grid.dt)
+    t = StepRangeLen{FloatGPU, FloatGPU, FloatGPU}(range(grid.t[1], grid.t[end], length=grid.Nt))
     w0 = field.w0
-    PE = PlasmaEquations.PlasmaEquation(unit, dt, n0, w0, plasma_equation)
-    PE.solve!(field.rho, field.Kdrho, field.E)
+    PE = PlasmaEquations.PlasmaEquation(unit, n0, w0, plasma_equation)
+    PE.solve!(field.rho, field.Kdrho, t, field.E)
 
     return ModelRT(KZ, prob, responses, PE)
 end
@@ -262,23 +262,25 @@ function Model(unit::Units.UnitXY, grid::Grids.GridXY, field::Fields.FieldXY,
 
     # Problem:
     p = (responses, Ftmp, guard, keys.QPARAXIAL, QZ, grid.FT)
-    pstepfunc = Equations.PFunction(stepfunc_field!, p)
-    prob = Equations.Problem(keys.ALG, Ftmp, pstepfunc)
+    pfunc = Equations.PFunction(func_field!, p)
+    prob = Equations.Problem(keys.ALG, Ftmp, pfunc)
 
     return ModelXY(KZ, prob, responses)
 end
 
 
-function stepfunc_field!(dE::CuArrays.CuArray{Complex{T}, 1},
-                         E::CuArrays.CuArray{Complex{T}, 1},
-                         args::Tuple, p::Tuple) where T
+function func_field!(dE::CuArrays.CuArray{Complex{T}, 1},
+                     E::CuArrays.CuArray{Complex{T}, 1},
+                     z::T,
+                     args::Tuple,
+                     p::Tuple) where T<:AbstractFloat
 
     responses, Ftmp, guard, QPARAXIAL, QZ, HT = p
 
     fill!(dE, 0)
 
     for resp in responses
-        resp.calculate(Ftmp, E, args)
+        resp.calculate(Ftmp, E, z, args)
         Guards.apply_field_filter!(guard, Ftmp)
         @. dE = dE + resp.Rnl * Ftmp
     end
@@ -297,15 +299,17 @@ function stepfunc_field!(dE::CuArrays.CuArray{Complex{T}, 1},
 end
 
 
-function stepfunc_field!(dE::CuArrays.CuArray{Complex{T}, 2},
-                         E::CuArrays.CuArray{Complex{T}, 2},
-                         args::Tuple, p::Tuple) where T
+function func_field!(dE::CuArrays.CuArray{Complex{T}, 2},
+                     E::CuArrays.CuArray{Complex{T}, 2},
+                     z::T,
+                     args::Tuple,
+                     p::Tuple) where T<:AbstractFloat
     responses, Ftmp, guard, QPARAXIAL, QZ, FT = p
 
     fill!(dE, 0)
 
     for resp in responses
-        resp.calculate(Ftmp, E, args)
+        resp.calculate(Ftmp, E, z, args)
         Guards.apply_field_filter!(guard, Ftmp)
         @. dE = dE + resp.Rnl * Ftmp
     end
@@ -324,9 +328,11 @@ function stepfunc_field!(dE::CuArrays.CuArray{Complex{T}, 2},
 end
 
 
-function stepfunc_spectrum!(dS::CuArrays.CuArray{Complex{T}, 2},
-                            S::CuArrays.CuArray{Complex{T}, 2},
-                            args::Tuple, p::Tuple) where T
+function func_spectrum!(dS::CuArrays.CuArray{Complex{T}, 2},
+                        S::CuArrays.CuArray{Complex{T}, 2},
+                        z::T,
+                        args::Tuple,
+                        p::Tuple) where T<:AbstractFloat
     responses, FT, Etmp, Ftmp, Stmp, guard, QPARAXIAL, QZ, HT = p
 
     Fourier.hilbert2!(FT, S, Etmp)   # spectrum real to signal analytic
@@ -334,7 +340,7 @@ function stepfunc_spectrum!(dS::CuArrays.CuArray{Complex{T}, 2},
     fill!(dS, 0)
 
     for resp in responses
-        resp.calculate(Ftmp, Etmp, args)
+        resp.calculate(Ftmp, Etmp, z, args)
         Guards.apply_field_filter!(guard, Ftmp)
         Fourier.rfft2!(FT, Ftmp, Stmp)   # time -> frequency
         update_dS!(dS, resp.Rnl, Stmp)   # dS = dS + Ra * Stmp
@@ -362,8 +368,8 @@ function zstep(z::T, dz::T, grid::Grids.GridR, field::Fields.FieldR,
     # Nonlinearity -------------------------------------------------------------
     @timeit "nonlinearity" begin
         if ! isempty(model.responses)
-           args = (z_gpu, )
-           model.prob.step(field.E, dz_gpu, args)
+           args = ()
+           model.prob.step(field.E, z_gpu, dz_gpu, args)
            CUDAdrv.synchronize()
        end
     end
@@ -391,7 +397,8 @@ function zstep(z::T, dz::T, grid::Grids.GridRT, field::Fields.FieldRT,
     # Calculate plasma density -------------------------------------------------
     @timeit "plasma" begin
         if ! isempty(model.responses)
-            model.PE.solve!(field.rho, field.Kdrho, field.E)
+            t = StepRangeLen{FloatGPU, FloatGPU, FloatGPU}(range(grid.t[1], grid.t[end], length=grid.Nt))
+            model.PE.solve!(field.rho, field.Kdrho, t, field.E)
             CUDAdrv.synchronize()
         end
     end
@@ -408,8 +415,8 @@ function zstep(z::T, dz::T, grid::Grids.GridRT, field::Fields.FieldRT,
     # Nonlinearity -------------------------------------------------------------
     @timeit "nonlinearity" begin
         if ! isempty(model.responses)
-           args = (z_gpu, )
-           model.prob.step(field.S, dz_gpu, args)
+           args = ()
+           model.prob.step(field.S, z_gpu, dz_gpu, args)
            CUDAdrv.synchronize()
        end
     end
@@ -446,8 +453,8 @@ function zstep(z::T, dz::T, grid::Grids.GridXY, field::Fields.FieldXY,
     # Nonlinearity -------------------------------------------------------------
     @timeit "nonlinearity" begin
         if ! isempty(model.responses)
-           args = (z_gpu, )
-           model.prob.step(field.E, dz_gpu, args)
+           args = ()
+           model.prob.step(field.E, z_gpu, dz_gpu, args)
            CUDAdrv.synchronize()
        end
     end

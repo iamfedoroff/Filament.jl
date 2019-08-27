@@ -36,6 +36,7 @@ end
 
 function calc_raman(F::AbstractArray{T},
                     E::AbstractArray{Complex{T}},
+                    z::T,
                     args::Tuple,
                     p::Tuple) where T<:AbstractFloat
     Hramanw, FT = p
@@ -48,6 +49,7 @@ end
 
 function calc_raman_nothg(F::AbstractArray{T},
                           E::AbstractArray{Complex{T}},
+                          z::T,
                           args::Tuple,
                           p::Tuple) where T<:AbstractFloat
     Hramanw, FT = p

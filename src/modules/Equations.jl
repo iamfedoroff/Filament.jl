@@ -22,21 +22,16 @@ end
 
 function Problem(alg::String, u0::Union{AbstractFloat,StaticArrays.SVector}, func::Function)
     @assert alg in ("RK2", "RK3", "RK4", "Tsit5")
-    T = eltype(u0)
     if alg == "RK2"
         step = step_rk2
-        cs, as, bs = tableau_rk2(T)
     elseif alg == "RK3"
         step = step_rk3
-        cs, as, bs = tableau_rk3(T)
     elseif alg == "RK4"
         step = step_rk4
-        cs, as, bs = tableau_rk4(T)
     elseif alg == "Tsit5"
         step = step_tsit5
-        cs, as, bs, bhats = tableau_tsit5(T)
     end
-    p = (func, cs, as, bs)
+    p = (func, )
     pstep = PFunction(step, p)
     return Problem(u0, pstep)
 end
@@ -44,39 +39,34 @@ end
 
 function Problem(alg::String, u0::AbstractArray, func::Function)
     @assert alg in ("RK2", "RK3", "RK4", "Tsit5")
-    T = eltype(u0)
     utmp = similar(u0)
     if alg == "RK2"
         step = step_rk2!
-        cs, as, bs = tableau_rk2(T)
         k1 = similar(u0)
         k2 = similar(u0)
-        p = (func, cs, as, bs, k1, k2, utmp)
+        p = (func, k1, k2, utmp)
     elseif alg == "RK3"
         step = step_rk3!
-        cs, as, bs = tableau_rk3(T)
         k1 = similar(u0)
         k2 = similar(u0)
         k3 = similar(u0)
-        p = (func, cs, as, bs, k1, k2, k3, utmp)
+        p = (func, k1, k2, k3, utmp)
     elseif alg == "RK4"
         step = step_rk4!
-        cs, as, bs = tableau_rk4(T)
         k1 = similar(u0)
         k2 = similar(u0)
         k3 = similar(u0)
         k4 = similar(u0)
-        p = (func, cs, as, bs, k1, k2, k3, k4, utmp)
+        p = (func, k1, k2, k3, k4, utmp)
     elseif alg == "Tsit5"
         step = step_tsit5!
-        cs, as, bs, bhats = tableau_tsit5(T)
         k1 = similar(u0)
         k2 = similar(u0)
         k3 = similar(u0)
         k4 = similar(u0)
         k5 = similar(u0)
         k6 = similar(u0)
-        p = (func, cs, as, bs, k1, k2, k3, k4, k5, k6, utmp)
+        p = (func, k1, k2, k3, k4, k5, k6, utmp)
     end
     pstep = PFunction(step, p)
     return Problem(u0, pstep)
@@ -97,33 +87,37 @@ function tableau_rk2(T::Type)
 end
 
 
-function step_rk2(u::Union{AbstractFloat,StaticArrays.SVector}, dt::AbstractFloat, args::Tuple, p::Tuple)
-    func, cs, as, bs = p
+function step_rk2(u::Union{AbstractFloat,StaticArrays.SVector}, t::T, dt::T, args::Tuple, p::Tuple) where T<:AbstractFloat
+    func, = p
 
+    cs, as, bs = tableau_rk2(T)
     a21, = as
     b1, b2 = bs
     c2, = cs
 
-    k1 = func(u, args)
+    k1 = func(u, t, args)
 
     utmp = u + dt * a21 * k1
-    k2 = func(utmp, args)
+    ttmp = t + c2 * dt
+    k2 = func(utmp, ttmp, args)
 
     return u + dt * (b1 * k1 + b2 * k2)
 end
 
 
-function step_rk2!(u::AbstractArray, dt::AbstractFloat, args::Tuple, p::Tuple)
-    func!, cs, as, bs, k1, k2, utmp = p
+function step_rk2!(u::AbstractArray, t::T, dt::T, args::Tuple, p::Tuple) where T<:AbstractFloat
+    func!, k1, k2, utmp = p
 
+    cs, as, bs = tableau_rk2(T)
     a21, = as
     b1, b2 = bs
     c2, = cs
 
-    func!(k1, u, args)
+    func!(k1, u, t, args)
 
     @. utmp = u + dt * a21 * k1
-    func!(k2, utmp, args)
+    ttmp = t + c2 * dt
+    func!(k2, utmp, ttmp, args)
 
     @. u = u + dt * (b1 * k1 + b2 * k2)
     return nothing
@@ -144,39 +138,45 @@ function tableau_rk3(T::Type)
 end
 
 
-function step_rk3(u::Union{AbstractFloat,StaticArrays.SVector}, dt::AbstractFloat, args::Tuple, p::Tuple)
-    func, cs, as, bs = p
+function step_rk3(u::Union{AbstractFloat,StaticArrays.SVector}, t::T, dt::T, args::Tuple, p::Tuple) where T<:AbstractFloat
+    func, = p
 
+    cs, as, bs = tableau_rk3(T)
     a21, a31, a32 = as
     b1, b2, b3 = bs
     c2, c3 = cs
 
-    k1 = func(u, args)
+    k1 = func(u, t, args)
 
     utmp = u + dt * a21 * k1
-    k2 = func(utmp, args)
+    ttmp = t + c2 * dt
+    k2 = func(utmp, ttmp, args)
 
     utmp = u + dt * (a31 * k1 + a32 * k2)
-    k3 = func(utmp, args)
+    ttmp = t + c3 * dt
+    k3 = func(utmp, ttmp, args)
 
     return u + dt * (b1 * k1 + b2 * k2 + b3 * k3)
 end
 
 
-function step_rk3!(u::AbstractArray, dt::AbstractFloat, args::Tuple, p::Tuple)
-    func!, cs, as, bs, k1, k2, k3, utmp = p
+function step_rk3!(u::AbstractArray, t::T, dt::T, args::Tuple, p::Tuple) where T<:AbstractFloat
+    func!, k1, k2, k3, utmp = p
 
+    cs, as, bs = tableau_rk3(T)
     a21, a31, a32 = as
     b1, b2, b3 = bs
     c2, c3 = cs
 
-    func!(k1, u, args)
+    func!(k1, u, t, args)
 
     @. utmp = u + dt * a21 * k1
-    func!(k2, utmp, args)
+    ttmp = t + c2 * dt
+    func!(k2, utmp, ttmp, args)
 
     @. utmp = u + dt * (a31 * k1 + a32 * k2)
-    func!(k3, utmp, args)
+    ttmp = t + c3 * dt
+    func!(k3, utmp, ttmp, args)
 
     @. u = u + dt * (b1 * k1 + b2 * k2 + b3 * k3)
     return nothing
@@ -197,45 +197,53 @@ function tableau_rk4(T::Type)
 end
 
 
-function step_rk4(u::Union{AbstractFloat,StaticArrays.SVector}, dt::AbstractFloat, args::Tuple, p::Tuple)
-    func, cs, as, bs = p
+function step_rk4(u::Union{AbstractFloat,StaticArrays.SVector}, t::T, dt::T, args::Tuple, p::Tuple) where T<:AbstractFloat
+    func, = p
 
+    cs, as, bs = tableau_rk4(T)
     c2, c3, c4 = cs
     a21, a31, a32, a41, a42, a43 = as
     b1, b2, b3, b4 = bs
 
-    k1 = func(u, args)
+    k1 = func(u, t, args)
 
     utmp = u + dt * a21 * k1
-    k2 = func(utmp, args)
+    ttmp = t + c2 * dt
+    k2 = func(utmp, ttmp, args)
 
     utmp = u + dt * (a31 * k1 + a32 * k2)
-    k3 = func(utmp, args)
+    ttmp = t + c3 * dt
+    k3 = func(utmp, ttmp, args)
 
     utmp = u + dt * (a41 * k1 + a42 * k2 + a43 * k3)
-    k4 = func(utmp, args)
+    ttmp = t + c4 * dt
+    k4 = func(utmp, ttmp, args)
 
     return u + dt * (b1 * k1 + b2 * k2 + b3 * k3 + b4 * k4)
 end
 
 
-function step_rk4!(u::AbstractArray, dt::AbstractFloat, args::Tuple, p::Tuple)
-    func!, cs, as, bs, k1, k2, k3, k4, utmp = p
+function step_rk4!(u::AbstractArray, t::T, dt::T, args::Tuple, p::Tuple) where T<:AbstractFloat
+    func!, k1, k2, k3, k4, utmp = p
 
+    cs, as, bs = tableau_rk4(T)
     c2, c3, c4 = cs
     a21, a31, a32, a41, a42, a43 = as
     b1, b2, b3, b4 = bs
 
-    func!(k1, u, args)
+    func!(k1, u, t, args)
 
     @. utmp = u + dt * a21 * k1
-    func!(k2, utmp, args)
+    ttmp = t + c2 * dt
+    func!(k2, utmp, ttmp, args)
 
     @. utmp = u + dt * (a31 * k1 + a32 * k2)
-    func!(k3, utmp, args)
+    ttmp = t + c3 * dt
+    func!(k3, utmp, ttmp, args)
 
     @. utmp = u + dt * (a41 * k1 + a42 * k2 + a43 * k3)
-    func!(k4, utmp, args)
+    ttmp = t + c4 * dt
+    func!(k4, utmp, ttmp, args)
 
     @. u = u + dt * (b1 * k1 + b2 * k2 + b3 * k3 + b4 * k4)
     return nothing
@@ -268,71 +276,76 @@ function tableau_tsit5(T::Type)
           1.379008574103742,   # b4
           -3.290069515436081,   # b5
           2.324710524099774)   # b6
-    bhats = (0.00178001105222577714,   # bhat1
-             0.0008164344596567469,   # bhat2
-             -0.007880878010261995,   # bhat3
-             0.1447110071732629,   # bhat4
-             -0.5823571654525552,   # bhat5
-             0.45808210592918697)   # bhat6
     cs = @. convert(T, cs)
     as = @. convert(T, as)
     bs = @. convert(T, bs)
-    bhats = @. convert(T, bhats)
-    return cs, as, bs, bhats
+    return cs, as, bs
 end
 
 
-function step_tsit5(u::Union{AbstractFloat,StaticArrays.SVector}, dt::AbstractFloat, args::Tuple, p::Tuple)
-    func, cs, as, bs = p
+function step_tsit5(u::Union{AbstractFloat,StaticArrays.SVector}, t::T, dt::T, args::Tuple, p::Tuple) where T<:AbstractFloat
+    func, = p
 
+    cs, as, bs = tableau_tsit5(T)
     c1, c2, c3, c4, c5, c6 = cs
     a21, a31, a32, a41, a42, a43, a51, a52, a53, a54, a61, a62, a63, a64, a65 = as
     b1, b2, b3, b4, b5, b6 = bs
 
-    k1 = func(u, args)
+    k1 = func(u, t, args)
 
     utmp = u + dt * a21 * k1
-    k2 = func(utmp, args)
+    ttmp = t + c2 * dt
+    k2 = func(utmp, ttmp, args)
 
     utmp = u + dt * (a31 * k1 + a32 * k2)
-    k3 = func(utmp, args)
+    ttmp = t + c3 * dt
+    k3 = func(utmp, ttmp, args)
 
     utmp = u + dt * (a41 * k1 + a42 * k2 + a43 * k3)
-    k4 = func(utmp, args)
+    ttmp = t + c4 * dt
+    k4 = func(utmp, ttmp, args)
 
     utmp = u + dt * (a51 * k1 + a52 * k2 + a53 * k3 + a54 * k4)
-    k5 = func(utmp, args)
+    ttmp = t + c5 * dt
+    k5 = func(utmp, ttmp, args)
 
     utmp = u + dt * (a61 * k1 + a62 * k2 + a63 * k3 + a64 * k4 + a65 * k5)
-    k6 = func(utmp, args)
+    ttmp = t + c6 * dt
+    k6 = func(utmp, ttmp, args)
 
     return u + dt * (b1 * k1 + b2 * k2 + b3 * k3 + b4 * k4 + b5 * k5 + b6 * k6)
 end
 
 
-function step_tsit5!(u::AbstractArray, dt::AbstractFloat, args::Tuple, p::Tuple)
-    func!, cs, as, bs, k1, k2, k3, k4, k5, k6, utmp = p
+function step_tsit5!(u::AbstractArray, t::T, dt::T, args::Tuple, p::Tuple) where T<:AbstractFloat
+    func!, k1, k2, k3, k4, k5, k6, utmp = p
 
+    cs, as, bs = tableau_tsit5(T)
     c1, c2, c3, c4, c5, c6 = cs
     a21, a31, a32, a41, a42, a43, a51, a52, a53, a54, a61, a62, a63, a64, a65 = as
     b1, b2, b3, b4, b5, b6 = bs
 
-    func!(k1, u, args)
+    func!(k1, u, t, args)
 
     @. utmp = u + dt * a21 * k1
-    func!(k2, utmp, args)
+    ttmp = t + c2 * dt
+    func!(k2, utmp, ttmp, args)
 
     @. utmp = u + dt * (a31 * k1 + a32 * k2)
-    func!(k3, utmp, args)
+    ttmp = t + c3 * dt
+    func!(k3, utmp, ttmp, args)
 
     @. utmp = u + dt * (a41 * k1 + a42 * k2 + a43 * k3)
-    func!(k4, utmp, args)
+    ttmp = t + c4 * dt
+    func!(k4, utmp, ttmp, args)
 
     @. utmp = u + dt * (a51 * k1 + a52 * k2 + a53 * k3 + a54 * k4)
-    func!(k5, utmp, args)
+    ttmp = t + c5 * dt
+    func!(k5, utmp, ttmp, args)
 
     @. utmp = u + dt * (a61 * k1 + a62 * k2 + a63 * k3 + a64 * k4 + a65 * k5)
-    func!(k6, utmp, args)
+    ttmp = t + c6 * dt
+    func!(k6, utmp, ttmp, args)
 
     @. u = u + dt * (b1 * k1 + b2 * k2 + b3 * k3 + b4 * k4 + b5 * k5 + b6 * k6)
     return nothing
