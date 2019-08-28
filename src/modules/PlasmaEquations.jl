@@ -30,13 +30,17 @@ function solve!(rho::AbstractArray{T,1},
     prob, extract, kdrho_func = p
     Nt = length(rho)
     dt = t[2] - t[1]
-    tmp = prob.u0
+    utmp = prob.u0
     rho[1] = extract(prob.u0)
     for j=1:Nt-1
         args = (E[j], )
-        tmp = prob.step(tmp, t[j], dt, args)
-        rho[j+1] = extract(tmp)
-        kdrho[j] = kdrho_func(tmp, t[j], args)
+        utmp, tnew = prob.step(utmp, t[j], dt, args)
+        while tnew < t[j] + dt   # not t[j+1] to avoid truncation errors
+            dtnew = t[j+1] - tnew
+            utmp, tnew = prob.step(utmp, tnew, dtnew, args)
+        end
+        rho[j+1] = extract(utmp)
+        kdrho[j] = kdrho_func(utmp, t[j], args)
     end
     return nothing
 end
@@ -51,13 +55,17 @@ function solve!(rho::AbstractArray{T,2},
     Nr, Nt = size(rho)
     dt = t[2] - t[1]
     for i=1:Nr
-        tmp = prob.u0
+        utmp = prob.u0
         rho[i, 1] = extract(prob.u0)
         for j=1:Nt-1
             args = (E[i, j], )
-            tmp = prob.step(tmp, t[j], dt, args)
-            rho[i, j+1] = extract(tmp)
-            kdrho[i, j] = kdrho_func(tmp, t[j], args)
+            utmp, tnew = prob.step(utmp, t[j], dt, args)
+            while tnew < t[j] + dt   # not t[j+1] to avoid truncation errors
+                dtnew = t[j+1] - tnew
+                utmp, tnew = prob.step(utmp, tnew, dtnew, args)
+            end
+            rho[i, j+1] = extract(utmp)
+            kdrho[i, j] = kdrho_func(utmp, t[j], args)
         end
     end
     return nothing
@@ -84,13 +92,18 @@ function solve_kernel(rho, kdrho, t, E, p)
     Nr, Nt = size(rho)
     dt = t[2] - t[1]
     for i=id:stride:Nr
-        tmp = prob.u0
+        utmp = prob.u0
         rho[i, 1] = extract(prob.u0)
         for j=1:Nt-1
             args = (E[i, j], )
-            tmp = prob.step(tmp, t[j], dt, args)
-            rho[i, j+1] = extract(tmp)
-            kdrho[i, j] = kdrho_func(tmp, t[j], args)
+            utmp, tnew = prob.step(utmp, t[j], dt, args)
+            while tnew < t[j] + dt   # not t[j+1] to avoid truncation errors
+                dtnew = t[j+1] - tnew
+                utmp, tnew = prob.step(utmp, tnew, dtnew, args)
+                utmp = zero(prob.u0)
+            end
+            rho[i, j+1] = extract(utmp)
+            kdrho[i, j] = kdrho_func(utmp, t[j], args)
         end
     end
     return nothing

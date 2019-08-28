@@ -110,7 +110,7 @@ components = [N2, O2]
 include(joinpath(DEFPATHPE, "photoionization_avalanche.jl"))
 plasma_equation = Dict(
     "init" => init_photoionization_avalanche,   # initialization function
-    "ALG" => "RK3",   # solver algorithm ("RK2", "RK3", "RK4", or "Tsit5")
+    "ALG" => "RK3",   # solver algorithm ("RK2", "RK3", "RK4", "Tsit5", or "ATsit5")
     "EREAL" => false,   # switch for the ionization rate argument: real(E)^2 vs abs2(E)
     "KDEP" => true,   # turn on/off the dependence of the multiphoton order K on intensity
     "rho_nt" => 2.5e25,   # [1/m^3] neutrals density [https://en.wikipedia.org/wiki/Number_density]

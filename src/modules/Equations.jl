@@ -1,6 +1,7 @@
 module Equations
 
 import StaticArrays
+import CUDAnative
 
 
 struct PFunction{F<:Function, T<:Tuple} <: Function
@@ -21,7 +22,7 @@ end
 
 
 function Problem(alg::String, u0::Union{AbstractFloat,StaticArrays.SVector}, func::Function)
-    @assert alg in ("RK2", "RK3", "RK4", "Tsit5")
+    @assert alg in ("RK2", "RK3", "RK4", "Tsit5", "ATsit5")
     if alg == "RK2"
         step = step_rk2
     elseif alg == "RK3"
@@ -30,6 +31,8 @@ function Problem(alg::String, u0::Union{AbstractFloat,StaticArrays.SVector}, fun
         step = step_rk4
     elseif alg == "Tsit5"
         step = step_tsit5
+    elseif alg == "ATsit5"
+        step = step_atsit5
     end
     p = (func, )
     pstep = PFunction(step, p)
@@ -38,7 +41,7 @@ end
 
 
 function Problem(alg::String, u0::AbstractArray, func::Function)
-    @assert alg in ("RK2", "RK3", "RK4", "Tsit5")
+    @assert alg in ("RK2", "RK3", "RK4", "Tsit5", "ATsit5")
     utmp = similar(u0)
     if alg == "RK2"
         step = step_rk2!
@@ -67,6 +70,17 @@ function Problem(alg::String, u0::AbstractArray, func::Function)
         k5 = similar(u0)
         k6 = similar(u0)
         p = (func, k1, k2, k3, k4, k5, k6, utmp)
+    elseif alg == "ATsit5"
+        step = step_atsit5!
+        k1 = similar(u0)
+        k2 = similar(u0)
+        k3 = similar(u0)
+        k4 = similar(u0)
+        k5 = similar(u0)
+        k6 = similar(u0)
+        uhat = similar(u0)
+        etmp = similar(real(u0))   # real valued array for error estimation
+        p = (func, k1, k2, k3, k4, k5, k6, utmp, uhat, etmp)
     end
     pstep = PFunction(step, p)
     return Problem(u0, pstep)
@@ -101,7 +115,9 @@ function step_rk2(u::Union{AbstractFloat,StaticArrays.SVector}, t::T, dt::T, arg
     ttmp = t + c2 * dt
     k2 = func(utmp, ttmp, args)
 
-    return u + dt * (b1 * k1 + b2 * k2)
+    unew = u + dt * (b1 * k1 + b2 * k2)
+    tnew = t + dt
+    return (unew, tnew)
 end
 
 
@@ -120,7 +136,8 @@ function step_rk2!(u::AbstractArray, t::T, dt::T, args::Tuple, p::Tuple) where T
     func!(k2, utmp, ttmp, args)
 
     @. u = u + dt * (b1 * k1 + b2 * k2)
-    return nothing
+    tnew = t + dt
+    return tnew
 end
 
 
@@ -156,7 +173,9 @@ function step_rk3(u::Union{AbstractFloat,StaticArrays.SVector}, t::T, dt::T, arg
     ttmp = t + c3 * dt
     k3 = func(utmp, ttmp, args)
 
-    return u + dt * (b1 * k1 + b2 * k2 + b3 * k3)
+    unew = u + dt * (b1 * k1 + b2 * k2 + b3 * k3)
+    tnew = t + dt
+    return (unew, tnew)
 end
 
 
@@ -179,7 +198,8 @@ function step_rk3!(u::AbstractArray, t::T, dt::T, args::Tuple, p::Tuple) where T
     func!(k3, utmp, ttmp, args)
 
     @. u = u + dt * (b1 * k1 + b2 * k2 + b3 * k3)
-    return nothing
+    tnew = t + dt
+    return tnew
 end
 
 
@@ -219,7 +239,9 @@ function step_rk4(u::Union{AbstractFloat,StaticArrays.SVector}, t::T, dt::T, arg
     ttmp = t + c4 * dt
     k4 = func(utmp, ttmp, args)
 
-    return u + dt * (b1 * k1 + b2 * k2 + b3 * k3 + b4 * k4)
+    unew = u + dt * (b1 * k1 + b2 * k2 + b3 * k3 + b4 * k4)
+    tnew = t + dt
+    return (unew, tnew)
 end
 
 
@@ -246,7 +268,8 @@ function step_rk4!(u::AbstractArray, t::T, dt::T, args::Tuple, p::Tuple) where T
     func!(k4, utmp, ttmp, args)
 
     @. u = u + dt * (b1 * k1 + b2 * k2 + b3 * k3 + b4 * k4)
-    return nothing
+    tnew = t + dt
+    return tnew
 end
 
 
@@ -254,7 +277,7 @@ end
 # Tsit5
 # ******************************************************************************
 function tableau_tsit5(T::Type)
-    cs = (0.161, 0.327, 0.9, 0.9800255409045097, 1., 1.)   # c2, c3, c4, c5, c6
+    cs = (0.161, 0.327, 0.9, 0.9800255409045097, 1.)   # c2, c3, c4, c5, c6
     as = (0.161,   # a21
           -0.008480655492356989,   # a31
           0.335480655492357,   # a32
@@ -287,7 +310,7 @@ function step_tsit5(u::Union{AbstractFloat,StaticArrays.SVector}, t::T, dt::T, a
     func, = p
 
     cs, as, bs = tableau_tsit5(T)
-    c1, c2, c3, c4, c5, c6 = cs
+    c2, c3, c4, c5, c6 = cs
     a21, a31, a32, a41, a42, a43, a51, a52, a53, a54, a61, a62, a63, a64, a65 = as
     b1, b2, b3, b4, b5, b6 = bs
 
@@ -313,7 +336,9 @@ function step_tsit5(u::Union{AbstractFloat,StaticArrays.SVector}, t::T, dt::T, a
     ttmp = t + c6 * dt
     k6 = func(utmp, ttmp, args)
 
-    return u + dt * (b1 * k1 + b2 * k2 + b3 * k3 + b4 * k4 + b5 * k5 + b6 * k6)
+    unew = u + dt * (b1 * k1 + b2 * k2 + b3 * k3 + b4 * k4 + b5 * k5 + b6 * k6)
+    tnew = t + dt
+    return (unew, tnew)
 end
 
 
@@ -321,7 +346,7 @@ function step_tsit5!(u::AbstractArray, t::T, dt::T, args::Tuple, p::Tuple) where
     func!, k1, k2, k3, k4, k5, k6, utmp = p
 
     cs, as, bs = tableau_tsit5(T)
-    c1, c2, c3, c4, c5, c6 = cs
+    c2, c3, c4, c5, c6 = cs
     a21, a31, a32, a41, a42, a43, a51, a52, a53, a54, a61, a62, a63, a64, a65 = as
     b1, b2, b3, b4, b5, b6 = bs
 
@@ -348,7 +373,155 @@ function step_tsit5!(u::AbstractArray, t::T, dt::T, args::Tuple, p::Tuple) where
     func!(k6, utmp, ttmp, args)
 
     @. u = u + dt * (b1 * k1 + b2 * k2 + b3 * k3 + b4 * k4 + b5 * k5 + b6 * k6)
-    return nothing
+    tnew = t + dt
+    return tnew
+end
+
+
+# ******************************************************************************
+# ATsit5
+# ******************************************************************************
+function tableau_atsit5(T::Type)
+    cs, as, bs = tableau_tsit5(T)
+    bhats = (0.00178001105222577714,   # bhat1
+             0.0008164344596567469,   # bhat2
+             -0.007880878010261995,   # bhat3
+             0.1447110071732629,   # bhat4
+             -0.5823571654525552,   # bhat5
+             0.45808210592918697)   # bhat6
+    bhats = @. convert(T, bhats)
+    return cs, as, bs, bhats
+end
+
+
+function step_atsit5(u::Union{AbstractFloat,StaticArrays.SVector}, t::T, dt0::T, args::Tuple, p::Tuple) where T<:AbstractFloat
+    func, = p
+
+    cs, as, bs, bhats = tableau_atsit5(T)
+    c2, c3, c4, c5, c6 = cs
+    a21, a31, a32, a41, a42, a43, a51, a52, a53, a54, a61, a62, a63, a64, a65 = as
+    b1, b2, b3, b4, b5, b6 = bs
+    bhat1, bhat2, bhat3, bhat4, bhat5, bhat6 = bhats
+
+    err = Inf
+    dt = dt0
+    unew = zero(u)
+
+    while err > 1
+        k1 = func(u, t, args)
+
+        utmp = u + dt * a21 * k1
+        ttmp = t + c2 * dt
+        k2 = func(utmp, ttmp, args)
+
+        utmp = u + dt * (a31 * k1 + a32 * k2)
+        ttmp = t + c3 * dt
+        k3 = func(utmp, ttmp, args)
+
+        utmp = u + dt * (a41 * k1 + a42 * k2 + a43 * k3)
+        ttmp = t + c4 * dt
+        k4 = func(utmp, ttmp, args)
+
+        utmp = u + dt * (a51 * k1 + a52 * k2 + a53 * k3 + a54 * k4)
+        ttmp = t + c5 * dt
+        k5 = func(utmp, ttmp, args)
+
+        utmp = u + dt * (a61 * k1 + a62 * k2 + a63 * k3 + a64 * k4 + a65 * k5)
+        ttmp = t + c6 * dt
+        k6 = func(utmp, ttmp, args)
+
+        unew = u + dt * (b1 * k1 + b2 * k2 + b3 * k3 + b4 * k4 + b5 * k5 + b6 * k6)
+
+        # Error estimation:
+        atol = convert(T, 1e-3)   # absolute tolerance
+        rtol = convert(T, 1e-3)   # relative tolerance
+
+        uhat = u + dt * (bhat1 * k1 + bhat2 * k2 + bhat3 * k3 + bhat4 * k4 +
+                         bhat5 * k5 + bhat6 * k6)
+
+        etmp = @. atol + rtol * max(abs(u), abs(utmp))
+        etmp = @. abs(utmp - uhat) / etmp
+        # etmp = @. etmp^2
+        # err = sqrt(sum(etmp) / length(etmp))
+        # if err > 1
+        #     dt = convert(T, 0.9) * dt / err^convert(T, 0.2)   # 0.2 = 1/5
+        # end
+        etmp = @. CUDAnative.pow(etmp, 2)
+        err = CUDAnative.sqrt(CUDAnative.sum(etmp) / length(etmp))
+        if err > 1
+            dt = convert(T, 0.9) * dt / CUDAnative.pow(err, convert(T, 0.2))   # 0.2 = 1/5
+        end
+    end
+
+    tnew = t + dt
+    return (unew, tnew)
+end
+
+
+function step_atsit5!(u::AbstractArray, t::T, dt0::T, args::Tuple, p::Tuple) where T<:AbstractFloat
+    func!, k1, k2, k3, k4, k5, k6, utmp, uhat, etmp = p
+
+    cs, as, bs, bhats = tableau_atsit5(T)
+    c2, c3, c4, c5, c6 = cs
+    a21, a31, a32, a41, a42, a43, a51, a52, a53, a54, a61, a62, a63, a64, a65 = as
+    b1, b2, b3, b4, b5, b6 = bs
+    bhat1, bhat2, bhat3, bhat4, bhat5, bhat6 = bhats
+
+    err = Inf
+    dt = dt0
+
+    while err > 1
+        func!(k1, u, t, args)
+
+        @. utmp = u + dt * a21 * k1
+        ttmp = t + c2 * dt
+        func!(k2, utmp, ttmp, args)
+
+        @. utmp = u + dt * (a31 * k1 + a32 * k2)
+        ttmp = t + c3 * dt
+        func!(k3, utmp, ttmp, args)
+
+        @. utmp = u + dt * (a41 * k1 + a42 * k2 + a43 * k3)
+        ttmp = t + c4 * dt
+        func!(k4, utmp, ttmp, args)
+
+        @. utmp = u + dt * (a51 * k1 + a52 * k2 + a53 * k3 + a54 * k4)
+        ttmp = t + c5 * dt
+        func!(k5, utmp, ttmp, args)
+
+        @. utmp = u + dt * (a61 * k1 + a62 * k2 + a63 * k3 + a64 * k4 + a65 * k5)
+        ttmp = t + c6 * dt
+        func!(k6, utmp, ttmp, args)
+
+        @. utmp = u + dt * (b1 * k1 + b2 * k2 + b3 * k3 + b4 * k4 + b5 * k5 + b6 * k6)
+
+        # Error estimation:
+        atol = convert(T, 1e-3)   # absolute tolerance
+        rtol = convert(T, 1e-3)   # relative tolerance
+
+        @. uhat = u + dt * (bhat1 * k1 + bhat2 * k2 + bhat3 * k3 + bhat4 * k4 +
+                            bhat5 * k5 + bhat6 * k6)
+
+        @. etmp = atol + rtol * max(abs(u), abs(utmp))
+        @. etmp = (abs(utmp - uhat) / etmp)^2
+        err = sqrt(sum(etmp) / length(etmp))
+        if err > 1
+            dt = convert(T, 0.9) * dt / err^convert(T, 0.2)   # 0.2 = 1/5
+            # dt = convert(T, 0.9) * dt / CUDAnative.pow(err, convert(T, 0.2))   # 0.2 = 1/5
+        end
+    end
+
+    @. u = utmp
+    tnew = t + dt
+    return tnew
+end
+
+
+"""
+Complex version of CUDAnative.abs function.
+"""
+@inline function CUDAnative.abs(x::Complex{T}) where T
+    return CUDAnative.sqrt(x.re * x.re + x.im * x.im)
 end
 
 

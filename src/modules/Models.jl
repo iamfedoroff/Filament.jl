@@ -362,14 +362,19 @@ end
 
 function zstep(z::T, dz::T, grid::Grids.GridR, field::Fields.FieldR,
                guard::Guards.GuardR, model::ModelR) where T
-    z_gpu = FloatGPU(z)
-    dz_gpu = FloatGPU(dz)
+    z = convert(FloatGPU, z)
+    dz = convert(FloatGPU, dz)
 
     # Nonlinearity -------------------------------------------------------------
     @timeit "nonlinearity" begin
         if ! isempty(model.responses)
            args = ()
-           model.prob.step(field.E, z_gpu, dz_gpu, args)
+           znew = model.prob.step(field.E, z, dz, args)
+           znext = z + dz
+           while znew < znext
+               dznew = znext - znew
+               znew = model.prob.step(field.E, znew, dznew, args)
+           end
            CUDAdrv.synchronize()
        end
     end
@@ -377,7 +382,7 @@ function zstep(z::T, dz::T, grid::Grids.GridR, field::Fields.FieldR,
     # Linear propagator --------------------------------------------------------
     @timeit "linear" begin
         Hankel.dht!(grid.HT, field.E)
-        @. field.E = field.E * CUDAnative.exp(-1im * model.KZ * dz_gpu)
+        @. field.E = field.E * CUDAnative.exp(-1im * model.KZ * dz)
         Guards.apply_spectral_filter!(guard, field.E)
         Hankel.idht!(grid.HT, field.E)
         CUDAdrv.synchronize()
@@ -394,6 +399,9 @@ end
 
 function zstep(z::T, dz::T, grid::Grids.GridRT, field::Fields.FieldRT,
                guard::Guards.GuardRT, model::ModelRT) where T
+    z = convert(FloatGPU, z)
+    dz = convert(FloatGPU, dz)
+
     # Calculate plasma density -------------------------------------------------
     @timeit "plasma" begin
         if ! isempty(model.responses)
@@ -402,9 +410,6 @@ function zstep(z::T, dz::T, grid::Grids.GridRT, field::Fields.FieldRT,
             CUDAdrv.synchronize()
         end
     end
-
-    z_gpu = FloatGPU(z)
-    dz_gpu = FloatGPU(dz)
 
     # Field -> temporal spectrum -----------------------------------------------
     @timeit "field -> spectr" begin
@@ -416,7 +421,12 @@ function zstep(z::T, dz::T, grid::Grids.GridRT, field::Fields.FieldRT,
     @timeit "nonlinearity" begin
         if ! isempty(model.responses)
            args = ()
-           model.prob.step(field.S, z_gpu, dz_gpu, args)
+           znew = model.prob.step(field.S, z, dz, args)
+           znext = z + dz
+           while znew < znext
+               dznew = znext - znew
+               znew = model.prob.step(field.S, znew, dznew, args)
+           end
            CUDAdrv.synchronize()
        end
     end
@@ -424,7 +434,7 @@ function zstep(z::T, dz::T, grid::Grids.GridRT, field::Fields.FieldRT,
     # Linear propagator --------------------------------------------------------
     @timeit "linear" begin
         Hankel.dht!(grid.HT, field.S)
-        @. field.S = field.S * CUDAnative.exp(-1im * model.KZ * dz_gpu)
+        @. field.S = field.S * CUDAnative.exp(-1im * model.KZ * dz)
         Guards.apply_spectral_filter!(guard, field.S)
         Hankel.idht!(grid.HT, field.S)
         CUDAdrv.synchronize()
@@ -447,14 +457,19 @@ end
 
 function zstep(z::T, dz::T, grid::Grids.GridXY, field::Fields.FieldXY,
                guard::Guards.GuardXY, model::ModelXY) where T
-    z_gpu = FloatGPU(z)
-    dz_gpu = FloatGPU(dz)
+    z = convert(FloatGPU, z)
+    dz = convert(FloatGPU, dz)
 
     # Nonlinearity -------------------------------------------------------------
     @timeit "nonlinearity" begin
         if ! isempty(model.responses)
            args = ()
-           model.prob.step(field.E, z_gpu, dz_gpu, args)
+           znew = model.prob.step(field.E, z, dz, args)
+           znext = z + dz
+           while znew < znext
+               dznew = znext - znew
+               znew = model.prob.step(field.E, znew, dznew, args)
+           end
            CUDAdrv.synchronize()
        end
     end
@@ -462,7 +477,7 @@ function zstep(z::T, dz::T, grid::Grids.GridXY, field::Fields.FieldXY,
     # Linear propagator --------------------------------------------------------
     @timeit "linear" begin
         Fourier.fft!(grid.FT, field.E)
-        @. field.E = field.E * CUDAnative.exp(-1im * model.KZ * dz_gpu)
+        @. field.E = field.E * CUDAnative.exp(-1im * model.KZ * dz)
         Guards.apply_spectral_filter!(guard, field.E)
         Fourier.ifft!(grid.FT, field.E)
         CUDAdrv.synchronize()
