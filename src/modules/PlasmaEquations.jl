@@ -100,7 +100,6 @@ function solve_kernel(rho, kdrho, t, E, p)
             while tnew < t[j] + dt   # not t[j+1] to avoid truncation errors
                 dtnew = t[j+1] - tnew
                 utmp, tnew = prob.step(utmp, tnew, dtnew, args)
-                utmp = zero(prob.u0)
             end
             rho[i, j+1] = extract(utmp)
             kdrho[i, j] = kdrho_func(utmp, t[j], args)
