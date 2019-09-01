@@ -33,7 +33,7 @@ yguard = 0.   # [xu] the width of the lossy slab at the end of y grid
 kxguard = 90.   # [degrees] the cut-off angle for wave vectors in x grid
 kyguard = 90.   # [degrees] the cut-off angle for wave vectors in y grid
 
-dzAdaptLevel = pi / 100.   # phase criterium for the adaptive z step
+dzphimax = pi / 100.   # maximum nonlinear phase for adaptive z step
 Istop = 1e3   # [Iu] maixmum intensity in the problem (stop if exceeded)
 
 ALG = "RK4"   # Solver algorithm for nonlinear part ("RK2", "RK3", "RK4", "Tsit5", or "ATsit5")
