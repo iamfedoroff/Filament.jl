@@ -1,3 +1,6 @@
+import Pkg
+Pkg.activate(dirname(@__DIR__))
+
 using TimerOutputs
 import Formatting
 import Dates
