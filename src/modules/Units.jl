@@ -7,56 +7,56 @@ const C0 = scipy_constants.c   # speed of light in vacuum
 const EPS0 = scipy_constants.epsilon_0   # the electric constant (vacuum permittivity) [F/m]
 
 
-abstract type Unit end
+abstract type Unit{T<:AbstractFloat} end
 
 
-struct UnitR <: Unit
-    r :: Float64
-    k :: Float64
-    z :: Float64
-    I :: Float64
+struct UnitR{T} <: Unit{T}
+    r :: T
+    k :: T
+    z :: T
+    I :: T
 end
 
 
-struct UnitRT <: Unit
-    r :: Float64
-    k :: Float64
-    z :: Float64
-    t :: Float64
-    w :: Float64
-    lam :: Float64
-    I :: Float64
-    rho :: Float64
+struct UnitRT{T} <: Unit{T}
+    r :: T
+    k :: T
+    z :: T
+    t :: T
+    w :: T
+    lam :: T
+    I :: T
+    rho :: T
 end
 
 
-struct UnitXY <: Unit
-    x :: Float64
-    y :: Float64
-    kx :: Float64
-    ky :: Float64
-    z :: Float64
-    I :: Float64
+struct UnitXY{T} <: Unit{T}
+    x :: T
+    y :: T
+    kx :: T
+    ky :: T
+    z :: T
+    I :: T
 end
 
 
-function Unit(ru::Float64, zu::Float64, Iu::Float64)
-    ku = 1. / ru
+function Unit(ru::T, zu::T, Iu::T) where T<:AbstractFloat
+    ku = 1 / ru
     return UnitR(ru, ku, zu, Iu)
 end
 
 
-function Unit(ru::Float64, zu::Float64, tu::Float64, Iu::Float64, rhou::Float64)
-    ku = 1. / ru
-    wu = 1. / tu
+function Unit(ru::T, zu::T, tu::T, Iu::T, rhou::T) where T<:AbstractFloat
+    ku = 1 / ru
+    wu = 1 / tu
     lamu = tu
     return UnitRT(ru, ku, zu, tu, wu, lamu, Iu, rhou)
 end
 
 
-function Unit(xu::Float64, yu::Float64, zu::Float64, Iu::Float64)
-    kxu = 1. / xu
-    kyu = 1. / yu
+function Unit(xu::T, yu::T, zu::T, Iu::T) where T<:AbstractFloat
+    kxu = 1 / xu
+    kyu = 1 / yu
     return UnitXY(xu, yu, kxu, kyu, zu, Iu)
 end
 
@@ -64,9 +64,9 @@ end
 """
 Units of electric field (depends on refractive index n)
 """
-function E(unit::Unit, n)
+function E(unit::Unit, n::Union{AbstractFloat, Complex})
     Eu = sqrt(unit.I / (0.5 * real(n) * EPS0 * C0))
-    return Eu
+    return convert(typeof(unit.I), Eu)
 end
 
 
