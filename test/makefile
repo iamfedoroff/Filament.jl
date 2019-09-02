@@ -1,5 +1,5 @@
 run:
-	cd ../templates/R; make; echo
-	cd ../templates/XY; make; echo
-	cd ../templates/RT; make; echo
-	cd ../templates/RT_lattice; make
+	cd ../examples/R; make; echo
+	cd ../examples/XY; make; echo
+	cd ../examples/RT; make; echo
+	cd ../examples/RT_lattice; make
