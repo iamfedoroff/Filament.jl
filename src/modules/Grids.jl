@@ -21,16 +21,13 @@ struct GridR <: Grid
     rmax :: Float64
     Nr :: Int
 
-    HT :: Hankel.HankelTransform
-
     r :: Array{Float64, 1}
     dr :: Array{Float64, 1}
     rdr :: CuArrays.CuArray{FloatGPU, 1}
-    dr_mean :: Float64
     v :: Array{Float64, 1}
     k :: Array{Float64, 1}
-    dk_mean :: Float64
-    kc :: Float64
+
+    HT :: Hankel.HankelTransform
 end
 
 
@@ -44,30 +41,24 @@ struct GridRT <: Grid
     tmax :: Float64
     Nt :: Int
 
-    HT :: Hankel.HankelTransform
-
     r :: Array{Float64, 1}
     dr :: Array{Float64, 1}
     rdr :: CuArrays.CuArray{FloatGPU, 1}
-    dr_mean :: Float64
     v :: Array{Float64, 1}
     k :: Array{Float64, 1}
-    dk_mean :: Float64
-    kc :: Float64
 
     t :: Array{Float64, 1}
     dt :: Float64
     f :: Array{Float64, 1}
     Nf :: Int
     df :: Float64
-    fc :: Float64
     w :: Array{Float64, 1}
     Nw :: Int
     dw :: Float64
-    wc :: Float64
     lam :: Array{Float64, 1}
     Nlam :: Int
 
+    HT :: Hankel.HankelTransform
     FT :: Fourier.FourierTransform
 end
 
@@ -88,14 +79,12 @@ struct GridXY <: Grid
     kx :: Array{Float64, 1}
     Nkx :: Int
     dkx :: Float64
-    kxc :: Float64
 
     y :: Array{Float64, 1}
     dy :: Float64
     ky :: Array{Float64, 1}
     Nky :: Int
     dky :: Float64
-    kyc :: Float64
 
     FT :: Fourier.FourierTransform
 end
@@ -113,19 +102,13 @@ function Grid(rmax, Nr)
     for i=1:Nr
         dr[i] = step(i, r)
     end
-
     rdr = r .* dr   # for calculation of spatial integrals
     rdr = CuArrays.CuArray(convert(Array{FloatGPU, 1}, rdr))
 
-    dr_mean = sum(diff(r)) / length(diff(r))   # spatial step
-
     v = HT.v   # spatial frequency
     k = 2. * pi * v   # spatial angular frequency
-    dk_mean = sum(diff(k)) / length(diff(k))   # spatial frequency step
-    kc = 2. * pi * 0.5 / dr_mean   # spatial Nyquist frequency
 
-    return GridR(geometry, rmax, Nr,
-                 HT, r, dr, rdr, dr_mean, v, k, dk_mean, kc)
+    return GridR(geometry, rmax, Nr, r, dr, rdr, v, k, HT)
 end
 
 
@@ -141,16 +124,11 @@ function Grid(rmax, Nr, tmin, tmax, Nt)
     for i=1:Nr
         dr[i] = step(i, r)
     end
-
     rdr = r .* dr   # for calculation of spatial integrals
     rdr = CuArrays.CuArray(convert(Array{FloatGPU, 1}, rdr))
 
-    dr_mean = sum(diff(r)) / length(diff(r))   # spatial step
-
     v = HT.v   # spatial frequency
-    k = 2. * pi * v   # spatial angular frequency
-    dk_mean = sum(diff(k)) / length(diff(k))   # spatial frequency step
-    kc = 2. * pi * 0.5 / dr_mean   # spatial Nyquist frequency
+    k = 2 * pi * v   # spatial angular frequency
 
     t = range(tmin, tmax, length=Nt)   # temporal coordinates
     dt = t[2] - t[1]   # temporal step
@@ -158,16 +136,14 @@ function Grid(rmax, Nr, tmin, tmax, Nt)
     f = Fourier.rfftfreq(Nt, dt)   # temporal frequency
     Nf = length(f)   # length of temporal frequency array
     df = f[2] - f[1]   # temporal frequency step
-    fc = 0.5 / dt   # temporal Nyquist frequency
 
-    w = 2. * pi * f   # temporal angular frequency
+    w = 2 * pi * f   # temporal angular frequency
     Nw = length(w)   # length of temporal angular frequency array
     dw = w[2] - w[1]   # temporal angular frequency step
-    wc = 2. * pi * fc   # temporal angular Nyquist frequency
 
     lam = zeros(Nf)   # wavelengths
     for i=1:Nf
-        if f == 0.
+        if f == 0
             lam[i] = Inf
         else
             lam[i] = C0 / f[i]
@@ -180,8 +156,8 @@ function Grid(rmax, Nr, tmin, tmax, Nt)
     FT = Fourier.FourierTransformRT(Nr, Nt)   # Fourier transform
 
     return GridRT(geometry, rmax, Nr, tmin, tmax, Nt,
-                  HT, r, dr, rdr, dr_mean, v, k, dk_mean, kc,
-                  t, dt, f, Nf, df, fc, w, Nw, dw, wc, lam, Nlam, FT)
+                  r, dr, rdr, v, k,
+                  t, dt, f, Nf, df, w, Nw, dw, lam, Nlam, HT, FT)
 end
 
 
@@ -197,17 +173,15 @@ function Grid(xmin, xmax, Nx, ymin, ymax, Ny)
     kx = 2. * pi * Fourier.fftfreq(Nx, dx)   # x angular spatial frequency
     Nkx = length(kx)
     dkx = kx[2] - kx[1]   # x angular spatial frequency step
-    kxc = 2. * pi * 0.5 / dkx   # x angular spatial Nyquist frequency
 
     ky = 2. * pi * Fourier.fftfreq(Ny, dy)   # y angular spatial frequency
     Nky = length(ky)
     dky = ky[2] - ky[1]   # y angular spatial frequency step
-    kyc = 2. * pi * 0.5 / dky   # y angular spatial Nyquist frequency
 
     FT = Fourier.FourierTransformXY(Nx, Ny)   # Fourier transform
 
     return GridXY(geometry, xmin, xmax, Nx, ymin, ymax, Ny,
-                  x, dx, kx, Nkx, dkx, kxc, y, dy, ky, Nky, dky, kyc, FT)
+                  x, dx, kx, Nkx, dkx, y, dy, ky, Nky, dky, FT)
 end
 
 
@@ -226,7 +200,7 @@ end
 
 
 function radius(x::Array{Float64, 1}, y::Array{FloatGPU, 1},
-                level::Float64=exp(-1.))
+                level::Float64=exp(-1))
     Nx = length(x)
     ylevel = maximum(y) * level
 
