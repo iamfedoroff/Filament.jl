@@ -25,6 +25,8 @@ Ny = 2048  # number of points in y spatial domain
 zmax = 1.   # [zu] propagation distance
 dz_initial = zmax / 200.   # initial z step
 
+NONLINEARITY = true   # presence of nonlinear terms
+
 KPARAXIAL = false   # paraxial approximation for the linear term
 QPARAXIAL = true   # paraxial approximation for the nonlinear term
 

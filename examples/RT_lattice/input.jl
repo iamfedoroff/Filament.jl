@@ -26,6 +26,8 @@ Nt = 2048   # number of points in the time domain
 zmax = 4.   # [zu] propagation distance
 dz_initial = 0.01   # initial z step
 
+NONLINEARITY = true   # presence of nonlinear terms
+
 KPARAXIAL = false   # paraxial approximation for the linear term
 QPARAXIAL = true   # paraxial approximation for the nonlinear term
 

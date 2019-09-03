@@ -37,6 +37,7 @@ struct ModelR{T} <: Model
     KZ :: CuArrays.CuArray{Complex{T}, 1}
     prob :: Equations.Problem
     responses :: Tuple
+    keys :: NamedTuple
 end
 
 
@@ -45,6 +46,7 @@ struct ModelRT{T} <: Model
     prob :: Equations.Problem
     responses :: Tuple
     PE :: PlasmaEquations.PlasmaEquation
+    keys :: NamedTuple
 end
 
 
@@ -52,6 +54,7 @@ struct ModelXY{T} <: Model
     KZ :: CuArrays.CuArray{Complex{T}, 2}
     prob :: Equations.Problem
     responses :: Tuple
+    keys :: NamedTuple
 end
 
 
@@ -107,7 +110,10 @@ function Model(unit::Units.UnitR, grid::Grids.GridR, field::Fields.FieldR,
     pfunc = Equations.PFunction(func_field!, p)
     prob = Equations.Problem(keys.ALG, Ftmp, pfunc)
 
-    return ModelR(KZ, prob, responses)
+    # Keys:
+    keys = (NONLINEARITY=keys.NONLINEARITY, )
+
+    return ModelR(KZ, prob, responses, keys)
 end
 
 
@@ -198,7 +204,10 @@ function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
     PE = PlasmaEquations.PlasmaEquation(unit, n0, w0, plasma_equation)
     PE.solve!(field.rho, field.Kdrho, t, field.E)
 
-    return ModelRT(KZ, prob, responses, PE)
+    # Keys ---------------------------------------------------------------------
+    keys = (NONLINEARITY=keys.NONLINEARITY, )
+
+    return ModelRT(KZ, prob, responses, PE, keys)
 end
 
 
@@ -265,7 +274,10 @@ function Model(unit::Units.UnitXY, grid::Grids.GridXY, field::Fields.FieldXY,
     pfunc = Equations.PFunction(func_field!, p)
     prob = Equations.Problem(keys.ALG, Ftmp, pfunc)
 
-    return ModelXY(KZ, prob, responses)
+    # Keys:
+    keys = (NONLINEARITY=keys.NONLINEARITY, )
+
+    return ModelXY(KZ, prob, responses, keys)
 end
 
 
@@ -367,7 +379,7 @@ function zstep(z::T, dz::T, grid::Grids.GridR, field::Fields.FieldR,
 
     # Nonlinearity -------------------------------------------------------------
     @timeit "nonlinearity" begin
-        if ! isempty(model.responses)
+        if model.keys.NONLINEARITY & (! isempty(model.responses))
            args = ()
            znew = model.prob.step(field.E, z, dz, args)
            znext = z + dz
@@ -404,7 +416,7 @@ function zstep(z::T, dz::T, grid::Grids.GridRT, field::Fields.FieldRT,
 
     # Calculate plasma density -------------------------------------------------
     @timeit "plasma" begin
-        if ! isempty(model.responses)
+        if model.keys.NONLINEARITY & (! isempty(model.responses))
             t = StepRangeLen{FloatGPU, FloatGPU, FloatGPU}(range(grid.t[1], grid.t[end], length=grid.Nt))
             model.PE.solve!(field.rho, field.Kdrho, t, field.E)
             CUDAdrv.synchronize()
@@ -419,7 +431,7 @@ function zstep(z::T, dz::T, grid::Grids.GridRT, field::Fields.FieldRT,
 
     # Nonlinearity -------------------------------------------------------------
     @timeit "nonlinearity" begin
-        if ! isempty(model.responses)
+        if model.keys.NONLINEARITY & (! isempty(model.responses))
            args = ()
            znew = model.prob.step(field.S, z, dz, args)
            znext = z + dz
@@ -462,7 +474,7 @@ function zstep(z::T, dz::T, grid::Grids.GridXY, field::Fields.FieldXY,
 
     # Nonlinearity -------------------------------------------------------------
     @timeit "nonlinearity" begin
-        if ! isempty(model.responses)
+        if model.keys.NONLINEARITY & (! isempty(model.responses))
            args = ()
            znew = model.prob.step(field.E, z, dz, args)
            znext = z + dz
