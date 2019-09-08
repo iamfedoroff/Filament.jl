@@ -202,7 +202,9 @@ function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
     t = StepRangeLen{FloatGPU, FloatGPU, FloatGPU}(range(grid.t[1], grid.t[end], length=grid.Nt))
     w0 = field.w0
     PE = PlasmaEquations.PlasmaEquation(unit, n0, w0, plasma_equation)
-    PE.solve!(field.rho, field.Kdrho, t, field.E)
+    if keys.NONLINEARITY
+        PE.solve!(field.rho, field.Kdrho, t, field.E)
+    end
 
     # Keys ---------------------------------------------------------------------
     keys = (NONLINEARITY=keys.NONLINEARITY, )
