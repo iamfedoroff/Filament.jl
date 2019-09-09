@@ -94,16 +94,22 @@ function main()
     while z < Input.zmax
 
         if occursin("T", grid.geometry)
+            if Input.NONLINEARITY
+                dz = dzadaptive(pdata.Imax, pdata.rhomax)
+            else
+                dz = Input.dz_initial
+            end
             println("z=$(Formatting.fmt("18.12e", z))[zu] " *
                     "I=$(Formatting.fmt("18.12e", pdata.Imax))[Iu] " *
                     "rho=$(Formatting.fmt("18.12e", pdata.rhomax))[rhou]")
-
-            dz = dzadaptive(pdata.Imax, pdata.rhomax)
         else
+            if Input.NONLINEARITY
+                dz = dzadaptive(pdata.Imax)
+            else
+                dz = Input.dz_initial
+            end
             println("z=$(Formatting.fmt("18.12e", z))[zu] " *
                     "I=$(Formatting.fmt("18.12e", pdata.Imax))[Iu] ")
-
-            dz = dzadaptive(pdata.Imax)
         end
 
         dz = min(Input.dz_initial, Input.dz_plothdf, dz)
