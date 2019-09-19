@@ -314,19 +314,13 @@ function PlotHDF(fname::String, unit::Units.UnitRT, grid::Grids.GridRT)
     group_grid["Nt"] = grid.Nt
 
     group_zdat = fp[GROUP_ZDAT]
-    HDF5.d_create(group_zdat, "z", FloatGPU, ((1,), (-1,)), "chunk", (1,))
-    HDF5.d_create(group_zdat, "Fzx", FloatGPU,
-                  # ((1, grid.Nr), (-1, grid.Nr)),
-                  ((grid.Nr, 1), (grid.Nr, -1)),
-                  "chunk", (1, 1))
-    HDF5.d_create(group_zdat, "Nezx", FloatGPU,
-                  # ((1, grid.Nr), (-1, grid.Nr)),
-                  ((grid.Nr, 1), (grid.Nr, -1)),
-                  "chunk", (1, 1))
-    HDF5.d_create(group_zdat, "iSzf", FloatGPU,
-                  # ((1, grid.Nw), (-1, grid.Nw)),
-                  ((grid.Nw, 1), (grid.Nw, -1)),
-                  "chunk", (1, 1))
+    d_create(group_zdat, "z", FloatGPU, ((1,), (-1,)))
+    # d_create(group_zdat, "Fzx", FloatGPU, ((1, grid.Nr), (-1, grid.Nr)))
+    d_create(group_zdat, "Fzx", FloatGPU, ((grid.Nr, 1), (grid.Nr, -1)))
+    # d_create(group_zdat, "Nezx", FloatGPU, ((1, grid.Nr), (-1, grid.Nr)))
+    d_create(group_zdat, "Nezx", FloatGPU, ((grid.Nr, 1), (grid.Nr, -1)))
+    # d_create(group_zdat, "iSzf", FloatGPU, ((1, grid.Nw), (-1, grid.Nw)))
+    d_create(group_zdat, "iSzf", FloatGPU, ((grid.Nw, 1), (grid.Nw, -1)))
 
     HDF5.close(fp)
 
@@ -482,6 +476,83 @@ function writeComplexArray(group, dataset,
     HDF5.h5d_close(dset_compound)
     HDF5.h5t_close(d_type_compound)
     return nothing
+end
+
+
+"""
+Guess an appropriate chunk layout for a dataset, given its shape and the size of
+each element in bytes. Will allocate chunks only as large as MAX_SIZE. Chunks
+are generally close to some power-of-2 fraction of each axis, slightly favoring
+bigger values for the last index.
+
+Adapted from h5py package:
+https://github.com/h5py/h5py/blob/95ff80e0187e8c0c341d097550f09de42d2a4379/h5py/_hl/filters.py#L291
+"""
+function guess_chunk(shape, typesize)
+    CHUNK_BASE = 16 * 1024    # Multiplier by which chunks are adjusted
+    CHUNK_MIN = 8 * 1024      # Soft lower limit (8k)
+    CHUNK_MAX = 1024 * 1024   # Hard upper limit (1M)
+
+    # For unlimited dimensions we have to guess 1024
+    _shape = tuple([x != -1 ? x : 1024 for x in shape]...)
+
+    ndims = length(_shape)
+    if ndims == 0
+        error("Chunks not allowed for scalar datasets.")
+    end
+
+    chunks = [_shape...]
+    if ! all(isfinite.(chunks))
+        error("Illegal value in chunk tuple")
+    end
+
+    # Determine the optimal chunk size in bytes using a PyTables expression.
+    # This is kept as a float.
+    dset_size = prod(chunks) * typesize
+    target_size = CHUNK_BASE * (2^log10(dset_size / (1024 * 1024)))
+
+    if target_size > CHUNK_MAX
+        target_size = CHUNK_MAX
+    elseif target_size < CHUNK_MIN
+        target_size = CHUNK_MIN
+    end
+
+    idx = 0
+    while true
+        # Repeatedly loop over the axes, dividing them by 2.  Stop when:
+        # 1a. We're smaller than the target chunk size, OR
+        # 1b. We're within 50% of the target chunk size, AND
+        #  2. The chunk is smaller than the maximum chunk size
+
+        chunk_bytes = prod(chunks) * typesize
+
+        condition1a = chunk_bytes < target_size
+        condition1b = abs(chunk_bytes - target_size) / target_size < 0.5
+        condition2 = chunk_bytes < CHUNK_MAX
+        if condition1a | condition1b & condition2
+            break
+        end
+
+        if prod(chunks) == 1
+            break   # Element size larger than CHUNK_MAX
+        end
+
+        chunks[idx % ndims + 1] = ceil(chunks[idx % ndims + 1] / 2)
+        idx = idx + 1
+    end
+
+    return tuple(chunks...)
+end
+
+
+function d_create(parent::Union{HDF5.HDF5File, HDF5.HDF5Group},
+                  path::String,
+                  dtype::Type,
+                  dspace_dims::Tuple{Dims,Dims})
+     shape = dspace_dims[2]
+     typesize = sizeof(dtype)
+     chunks = guess_chunk(shape, typesize)
+     HDF5.d_create(parent, path, dtype, dspace_dims, "chunk", chunks)
 end
 
 
