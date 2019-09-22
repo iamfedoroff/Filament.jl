@@ -4,8 +4,6 @@ import Formatting
 import CuArrays
 import HDF5
 
-import PyCall
-
 import Units
 import Grids
 import Fields
@@ -259,7 +257,7 @@ function PlotHDF(fname::String, unit::Units.UnitR, grid::Grids.GridR)
     HDF5.g_create(fp, GROUP_FDAT)
     HDF5.g_create(fp, GROUP_ZDAT)
 
-    # fp["version"] = PFVERSION
+    fp["version"] = PFVERSION
 
     group_unit = fp[GROUP_UNIT]
     group_unit["r"] = unit.r
@@ -267,18 +265,11 @@ function PlotHDF(fname::String, unit::Units.UnitR, grid::Grids.GridR)
     group_unit["I"] = unit.I
 
     group_grid = fp[GROUP_GRID]
-    # group_grid["geometry"] = grid.geometry
+    group_grid["geometry"] = grid.geometry
     group_grid["rmax"] = grid.rmax
     group_grid["Nr"] = grid.Nr
 
     HDF5.close(fp)
-
-    # Write version and grid geometry which are compatable with h5py:
-    h5py = PyCall.pyimport("h5py")
-    fp = h5py.File(fname, "a")
-    fp.create_dataset("version", data=PFVERSION)
-    fp.create_dataset(GROUP_GRID * "/geometry", data=grid.geometry)
-    fp.close()
 
     numplot = 0
     previous_z = -Inf
@@ -296,7 +287,7 @@ function PlotHDF(fname::String, unit::Units.UnitRT, grid::Grids.GridRT)
     HDF5.g_create(fp, GROUP_FDAT)
     HDF5.g_create(fp, GROUP_ZDAT)
 
-    # fp["version"] = PFVERSION
+    fp["version"] = PFVERSION
 
     group_unit = fp[GROUP_UNIT]
     group_unit["r"] = unit.r
@@ -306,7 +297,7 @@ function PlotHDF(fname::String, unit::Units.UnitRT, grid::Grids.GridRT)
     group_unit["Ne"] = unit.rho
 
     group_grid = fp[GROUP_GRID]
-    # group_grid["geometry"] = grid.geometry
+    group_grid["geometry"] = grid.geometry
     group_grid["rmax"] = grid.rmax
     group_grid["Nr"] = grid.Nr
     group_grid["tmin"] = grid.tmin
@@ -324,13 +315,6 @@ function PlotHDF(fname::String, unit::Units.UnitRT, grid::Grids.GridRT)
 
     HDF5.close(fp)
 
-    # Write version and grid geometry which are compatable with h5py:
-    h5py = PyCall.pyimport("h5py")
-    fp = h5py.File(fname, "a")
-    fp.create_dataset("version", data=PFVERSION)
-    fp.create_dataset(GROUP_GRID * "/geometry", data=grid.geometry)
-    fp.close()
-
     numplot = 0
     previous_z = -Inf
     iz = 0
@@ -347,7 +331,7 @@ function PlotHDF(fname::String, unit::Units.UnitXY, grid::Grids.GridXY)
     HDF5.g_create(fp, GROUP_FDAT)
     HDF5.g_create(fp, GROUP_ZDAT)
 
-    # fp["version"] = PFVERSION
+    fp["version"] = PFVERSION
 
     group_unit = fp[GROUP_UNIT]
     group_unit["x"] = unit.x
@@ -356,7 +340,7 @@ function PlotHDF(fname::String, unit::Units.UnitXY, grid::Grids.GridXY)
     group_unit["I"] = unit.I
 
     group_grid = fp[GROUP_GRID]
-    # group_grid["geometry"] = grid.geometry
+    group_grid["geometry"] = grid.geometry
     group_grid["xmin"] = grid.xmin
     group_grid["xmax"] = grid.xmax
     group_grid["Nx"] = grid.Nx
@@ -365,13 +349,6 @@ function PlotHDF(fname::String, unit::Units.UnitXY, grid::Grids.GridXY)
     group_grid["Ny"] = grid.Ny
 
     HDF5.close(fp)
-
-    # Write version and grid geometry which are compatable with h5py:
-    h5py = PyCall.pyimport("h5py")
-    fp = h5py.File(fname, "a")
-    fp.create_dataset("version", data=PFVERSION)
-    fp.create_dataset(GROUP_GRID * "/geometry", data=grid.geometry)
-    fp.close()
 
     numplot = 0
     previous_z = -Inf
