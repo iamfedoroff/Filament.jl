@@ -412,7 +412,11 @@ end
 
 
 function write_field(group, dataset, field::Fields.FieldRT)
-    group[dataset] = CuArrays.collect(transpose(real.(field.E)))
+    E = CuArrays.collect(transpose(real.(field.E)))
+    shape = size(E)
+    typesize = sizeof(eltype(E))
+    chunk = guess_chunk(shape, typesize)
+    group[dataset, "chunk", chunk, "shuffle", (), "compress", 9] = E
     return nothing
 end
 
@@ -528,8 +532,8 @@ function d_create(parent::Union{HDF5.HDF5File, HDF5.HDF5Group},
                   dspace_dims::Tuple{Dims,Dims})
      shape = dspace_dims[2]
      typesize = sizeof(dtype)
-     chunks = guess_chunk(shape, typesize)
-     HDF5.d_create(parent, path, dtype, dspace_dims, "chunk", chunks)
+     chunk = guess_chunk(shape, typesize)
+     HDF5.d_create(parent, path, dtype, dspace_dims, "chunk", chunk)
 end
 
 
