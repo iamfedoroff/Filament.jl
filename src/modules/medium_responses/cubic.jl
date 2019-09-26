@@ -8,7 +8,7 @@ function init_cubic(unit, grid, field, medium, p)
     w0 = field.w0
     n0 = Media.refractive_index(medium, w0)
     Eu = Units.E(unit, real(n0))
-    chi3 = Media.chi3_func(medium, w0)
+    chi3 = 4 / 3 * real(n0)^2 * EPS0 * C0 * n2
     Rnl = EPS0 * chi3 * Eu^3
     Rnl = convert(FloatGPU, Rnl)
 
