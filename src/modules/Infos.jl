@@ -80,9 +80,8 @@ function vcs_revision()
     cwdir = pwd()
     try
         cd(@__DIR__)
-        hg_num = read(@cmd("hg id -n"), String)
-        hg_id = read(@cmd("hg id"), String)
-        revision = string(strip(hg_num), ":", strip(hg_id))
+        revision = read(@cmd("git rev-parse HEAD"), String)
+        revision = string(strip(revision))
     catch
     end
     cd(cwdir)
