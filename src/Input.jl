@@ -56,6 +56,7 @@ if geometry == "R"
     p_dzadaptive = (dzphimax, )
 elseif geometry == "T"
     p_unit = (zu, tu, Iu, rhou)
+    p_grid = (tmin, tmax, Nt)
 elseif geometry == "RT"
     p_unit = (ru, zu, tu, Iu, rhou)
     p_grid = (rmax, Nr, tmin, tmax, Nt)

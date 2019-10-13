@@ -31,6 +31,28 @@ struct GridR <: Grid
 end
 
 
+struct GridT <: Grid
+    geometry :: String
+
+    tmin :: Float64
+    tmax :: Float64
+    Nt :: Int
+
+    t :: Array{Float64, 1}
+    dt :: Float64
+    f :: Array{Float64, 1}
+    Nf :: Int
+    df :: Float64
+    w :: Array{Float64, 1}
+    Nw :: Int
+    dw :: Float64
+    lam :: Array{Float64, 1}
+    Nlam :: Int
+
+    # FT :: Fourier.FourierTransform
+end
+
+
 struct GridRT <: Grid
     geometry :: String
 
@@ -90,7 +112,25 @@ struct GridXY <: Grid
 end
 
 
-function Grid(rmax, Nr)
+function Grid(geometry::String, p::Tuple)
+    if geometry == "R"
+        unit = GridR(p...)
+    elseif geometry == "T"
+        unit = GridT(p...)
+    elseif geometry == "RT"
+        unit = GridRT(p...)
+    elseif geometry == "XY"
+        unit = GridXY(p...)
+    elseif geometry == "XYT"
+        throw(DomainError("XYT geometry is not implemented yet."))
+    else
+        throw(DomainError("Wrong grid geometry."))
+    end
+    return unit
+end
+
+
+function GridR(rmax, Nr)
     geometry = "R"
 
     HT = Hankel.HankelTransform(rmax, Nr)   # Hankel transform
@@ -112,7 +152,40 @@ function Grid(rmax, Nr)
 end
 
 
-function Grid(rmax, Nr, tmin, tmax, Nt)
+function GridT(tmin, tmax, Nt)
+    geometry = "T"
+
+    t = range(tmin, tmax, length=Nt)   # temporal coordinates
+    dt = t[2] - t[1]   # temporal step
+
+    f = Fourier.rfftfreq(Nt, dt)   # temporal frequency
+    Nf = length(f)   # length of temporal frequency array
+    df = f[2] - f[1]   # temporal frequency step
+
+    w = 2 * pi * f   # temporal angular frequency
+    Nw = length(w)   # length of temporal angular frequency array
+    dw = w[2] - w[1]   # temporal angular frequency step
+
+    lam = zeros(Nf)   # wavelengths
+    for i=1:Nf
+        if f == 0
+            lam[i] = Inf
+        else
+            lam[i] = C0 / f[i]
+        end
+    end
+    Nlam = length(lam)
+    # dlam = lam[3] - lam[2]   # wavelength step
+    # lamc = 0.5 / self.dlam   # Nyquist wavelength (need check!)
+
+    # FT = Fourier.FourierTransformRT(Nr, Nt)   # Fourier transform
+
+    return GridT(geometry, tmin, tmax, Nt,
+                  t, dt, f, Nf, df, w, Nw, dw, lam, Nlam)
+end
+
+
+function GridRT(rmax, Nr, tmin, tmax, Nt)
     geometry = "RT"
 
     HT = Hankel.HankelTransform(rmax, Nr, Nt)   # Hankel transform
@@ -161,7 +234,7 @@ function Grid(rmax, Nr, tmin, tmax, Nt)
 end
 
 
-function Grid(xmin, xmax, Nx, ymin, ymax, Ny)
+function GridXY(xmin, xmax, Nx, ymin, ymax, Ny)
     geometry = "XY"
 
     x = range(xmin, xmax, length=Nx)   # x spatial coordinates

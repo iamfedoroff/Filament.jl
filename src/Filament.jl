@@ -26,7 +26,7 @@ function main()
     # Prepare units and grid
     # **************************************************************************
     unit = Units.Unit(Input.geometry, Input.p_unit)
-    grid = Grids.Grid(Input.p_grid...)
+    grid = Grids.Grid(Input.geometry, Input.p_grid)
 
     # **************************************************************************
     # Prepare field
