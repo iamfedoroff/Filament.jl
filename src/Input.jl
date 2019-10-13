@@ -41,8 +41,12 @@ include(file_initial_condition)
 file_medium = abspath(file_medium)
 include(file_medium)
 
-keys = (NONLINEARITY=NONLINEARITY, KPARAXIAL=KPARAXIAL, QPARAXIAL=QPARAXIAL,
-        ALG=ALG)
+if geometry == "T"
+    keys = (NONLINEARITY=NONLINEARITY, ALG=ALG)
+else
+    keys = (NONLINEARITY=NONLINEARITY, KPARAXIAL=KPARAXIAL, QPARAXIAL=QPARAXIAL,
+            ALG=ALG)
+end
 
 if geometry == "R"
     p_unit = (ru, zu, Iu)
@@ -51,8 +55,7 @@ if geometry == "R"
     p_model = (keys, responses)
     p_dzadaptive = (dzphimax, )
 elseif geometry == "T"
-    println("T geometry is not implemented yet.")
-    exit()
+    p_unit = (zu, tu, Iu, rhou)
 elseif geometry == "RT"
     p_unit = (ru, zu, tu, Iu, rhou)
     p_grid = (rmax, Nr, tmin, tmax, Nt)
@@ -66,11 +69,9 @@ elseif geometry == "XY"
     p_model = (keys, responses)
     p_dzadaptive = (dzphimax, )
 elseif geometry == "XYT"
-    println("XYT geometry is not implemented yet.")
-    exit()
+    throw(DomainError("XYT geometry is not implemented yet."))
 else
-    println("ERROR: Wrong grid geometry.")
-    exit()
+    throw(DomainError("Wrong grid geometry."))
 end
 
 end

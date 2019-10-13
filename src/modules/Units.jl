@@ -18,6 +18,16 @@ struct UnitR{T} <: Unit{T}
 end
 
 
+struct UnitT{T} <: Unit{T}
+    z :: T
+    t :: T
+    w :: T
+    lam :: T
+    I :: T
+    rho :: T
+end
+
+
 struct UnitRT{T} <: Unit{T}
     r :: T
     k :: T
@@ -40,13 +50,38 @@ struct UnitXY{T} <: Unit{T}
 end
 
 
-function Unit(ru::T, zu::T, Iu::T) where T<:AbstractFloat
+function Unit(geometry::String, p::Tuple)
+    if geometry == "R"
+        unit = UnitR(p...)
+    elseif geometry == "T"
+        unit = UnitT(p...)
+    elseif geometry == "RT"
+        unit = UnitRT(p...)
+    elseif geometry == "XY"
+        unit = UnitXY(p...)
+    elseif geometry == "XYT"
+        throw(DomainError("XYT geometry is not implemented yet."))
+    else
+        throw(DomainError("Wrong grid geometry."))
+    end
+    return unit
+end
+
+
+function UnitR(ru::T, zu::T, Iu::T) where T<:AbstractFloat
     ku = 1 / ru
     return UnitR(ru, ku, zu, Iu)
 end
 
 
-function Unit(ru::T, zu::T, tu::T, Iu::T, rhou::T) where T<:AbstractFloat
+function UnitT(zu::T, tu::T, Iu::T, rhou::T) where T<:AbstractFloat
+    wu = 1 / tu
+    lamu = tu
+    return UnitT(zu, tu, wu, lamu, Iu, rhou)
+end
+
+
+function UnitRT(ru::T, zu::T, tu::T, Iu::T, rhou::T) where T<:AbstractFloat
     ku = 1 / ru
     wu = 1 / tu
     lamu = tu
@@ -54,7 +89,7 @@ function Unit(ru::T, zu::T, tu::T, Iu::T, rhou::T) where T<:AbstractFloat
 end
 
 
-function Unit(xu::T, yu::T, zu::T, Iu::T) where T<:AbstractFloat
+function UnitXY(xu::T, yu::T, zu::T, Iu::T) where T<:AbstractFloat
     kxu = 1 / xu
     kyu = 1 / yu
     return UnitXY(xu, yu, kxu, kyu, zu, Iu)
