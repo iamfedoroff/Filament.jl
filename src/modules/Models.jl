@@ -42,8 +42,8 @@ struct ModelR <: Model
 end
 
 
-struct ModelRT{T} <: Model
-    KZ :: CuArrays.CuArray{Complex{T}, 2}
+struct ModelRT <: Model
+    LP :: LinearPropagators.LinearPropagator
     prob :: Equations.Problem
     responses :: Tuple
     PE :: PlasmaEquations.PlasmaEquation
@@ -63,7 +63,8 @@ function Model(unit::Units.UnitR, grid::Grids.GridR, field::Fields.FieldR,
                medium::Media.Medium, guard::Guards.GuardR, keys::NamedTuple,
                responses_list)
     # Linear propagator --------------------------------------------------------
-    LP = LinearPropagators.LinearPropagator(unit, grid, medium, field.w0, keys.KPARAXIAL)
+    LP = LinearPropagators.LinearPropagator(unit, grid, medium, guard, field.w0,
+                                            keys.KPARAXIAL)
 
     # Nonlinear propagator -----------------------------------------------------
     beta = Media.beta_func(medium, field.w0)
@@ -115,36 +116,11 @@ function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
                medium::Media.Medium, guard::Guards.GuardRT, keys::NamedTuple,
                responses_list, plasma_equation::Dict)
     # Linear propagator --------------------------------------------------------
-    beta = Media.beta_func.(Ref(medium), grid.w * unit.w)
-    KZ = zeros(ComplexF64, (grid.Nr, grid.Nw))
-    if keys.KPARAXIAL
-        for j=1:grid.Nw
-            if beta[j] != 0.
-                for i=1:grid.Nr
-                    KZ[i, j] = beta[j] - (grid.k[i] * unit.k)^2 / (2. * beta[j])
-                end
-            end
-        end
-    else
-        for j=1:grid.Nw
-            for i=1:grid.Nr
-                KZ[i, j] = sqrt(beta[j]^2 - (grid.k[i] * unit.k)^2 + 0im)
-            end
-        end
-    end
-
-    vf = Media.group_velocity(medium, field.w0)   # frame velocity
-    for j=1:grid.Nw
-        for i=1:grid.Nr
-            KZ[i, j] = (KZ[i, j] - grid.w[j] * unit.w / vf) * unit.z
-        end
-    end
-
-    @. KZ = conj(KZ)
-
-    KZ = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, KZ))
+    LP = LinearPropagators.LinearPropagator(unit, grid, medium, guard, field.w0,
+                                            keys.KPARAXIAL)
 
     # Nonlinear propagator -----------------------------------------------------
+    beta = Media.beta_func.(Ref(medium), grid.w * unit.w)
     n0 = real(Media.refractive_index(medium, field.w0))
     Eu = Units.E(unit, n0)
     mu = medium.permeability(grid.w * unit.w)
@@ -203,7 +179,7 @@ function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
     # Keys ---------------------------------------------------------------------
     keys = (NONLINEARITY=keys.NONLINEARITY, )
 
-    return ModelRT(KZ, prob, responses, PE, keys)
+    return ModelRT(LP, prob, responses, PE, keys)
 end
 
 
@@ -211,7 +187,8 @@ function Model(unit::Units.UnitXY, grid::Grids.GridXY, field::Fields.FieldXY,
                medium::Media.Medium, guard::Guards.GuardXY, keys::NamedTuple,
                responses_list)
     # Linear propagator --------------------------------------------------------
-    LP = LinearPropagators.LinearPropagator(unit, grid, medium, field.w0, keys.KPARAXIAL)
+    LP = LinearPropagators.LinearPropagator(unit, grid, medium, guard, field.w0,
+                                            keys.KPARAXIAL)
 
     # Nonlinear propagator -----------------------------------------------------
     beta = Media.beta_func(medium, field.w0)
@@ -373,10 +350,7 @@ function zstep(z::T, dz::T, grid::Grids.GridR, field::Fields.FieldR,
 
     # Linear propagator --------------------------------------------------------
     @timeit "linear" begin
-        Hankel.dht!(grid.HT, field.E)
-        @. field.E = field.E * exp(-1im * model.KZ * dz)
-        Guards.apply_spectral_filter!(guard, field.E)
-        Hankel.idht!(grid.HT, field.E)
+        LinearPropagators.propagate!(field.E, model.LP, dz)
         CUDAdrv.synchronize()
     end
 
@@ -425,10 +399,7 @@ function zstep(z::T, dz::T, grid::Grids.GridRT, field::Fields.FieldRT,
 
     # Linear propagator --------------------------------------------------------
     @timeit "linear" begin
-        Hankel.dht!(grid.HT, field.S)
-        @. field.S = field.S * exp(-1im * model.KZ * dz)
-        Guards.apply_spectral_filter!(guard, field.S)
-        Hankel.idht!(grid.HT, field.S)
+        LinearPropagators.propagate!(field.S, model.LP, dz)
         CUDAdrv.synchronize()
     end
 
@@ -468,10 +439,7 @@ function zstep(z::T, dz::T, grid::Grids.GridXY, field::Fields.FieldXY,
 
     # Linear propagator --------------------------------------------------------
     @timeit "linear" begin
-        Fourier.fft!(grid.FT, field.E)
-        @. field.E = field.E * exp(-1im * model.KZ * dz)
-        Guards.apply_spectral_filter!(guard, field.E)
-        Fourier.ifft!(grid.FT, field.E)
+        LinearPropagators.propagate!(field.E, model.LP, dz)
         CUDAdrv.synchronize()
     end
 

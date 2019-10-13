@@ -1,11 +1,11 @@
 module LinearPropagators
 
 import CuArrays
-import CUDAnative
-import FFTW
-import LinearAlgebra
 
+import Fourier
 import Grids
+import Guards
+import Hankel
 import Media
 import Units
 
@@ -17,26 +17,33 @@ abstract type LinearPropagator end
 
 struct LinearPropagatorR{T} <: LinearPropagator
     KZ :: AbstractArray{Complex{T}, 1}
+    HT :: Hankel.HankelTransform
+    guard :: Guards.Guard
 end
 
 
-struct LinearPropagatorRT <: LinearPropagator
+struct LinearPropagatorRT{T} <: LinearPropagator
+    KZ :: AbstractArray{Complex{T}, 2}
+    HT :: Hankel.HankelTransform
+    guard :: Guards.Guard
 end
 
 
 struct LinearPropagatorXY{T} <: LinearPropagator
     KZ :: AbstractArray{Complex{T}, 2}
-    pfft :: FFTW.Plan
-    pifft :: FFTW.Plan
+    FT :: Fourier.FourierTransform
+    guard :: Guards.Guard
 end
 
 
 function LinearPropagator(unit::Units.UnitR,
                           grid::Grids.GridR,
                           medium::Media.Medium,
+                          guard::Guards.Guard,
                           w0::AbstractFloat,
                           PARAXIAL::Bool)
     beta = Media.beta_func(medium, w0)
+
     if PARAXIAL
         KZ = @. beta - (grid.k * unit.k)^2 / (2 * beta)
     else
@@ -46,13 +53,53 @@ function LinearPropagator(unit::Units.UnitR,
     @. KZ = conj(KZ)
     KZ = CuArrays.CuArray(convert(Array{Complex{FloatGPU}, 1}, KZ))
 
-    return LinearPropagatorR(KZ)
+    return LinearPropagatorR(KZ, grid.HT, guard)
+end
+
+
+function LinearPropagator(unit::Units.UnitRT,
+                          grid::Grids.GridRT,
+                          medium::Media.Medium,
+                          guard::Guards.Guard,
+                          w0::AbstractFloat,
+                          PARAXIAL::Bool)
+    beta = Media.beta_func.(Ref(medium), grid.w * unit.w)
+
+    KZ = zeros(ComplexF64, (grid.Nr, grid.Nw))
+    if PARAXIAL
+        for iw=1:grid.Nw
+            if beta[iw] != 0
+                for ir=1:grid.Nr
+                    KZ[ir, iw] = beta[iw] -
+                                 (grid.k[ir] * unit.k)^2 / (2 * beta[iw])
+                end
+            end
+        end
+    else
+        for iw=1:grid.Nw
+            for ir=1:grid.Nr
+                KZ[ir, iw] = sqrt(beta[iw]^2 - (grid.k[ir] * unit.k)^2 + 0im)
+            end
+        end
+    end
+
+    vf = Media.group_velocity(medium, w0)   # frame velocity
+    for iw=1:grid.Nw
+        for ir=1:grid.Nr
+            KZ[ir, iw] = (KZ[ir, iw] - grid.w[iw] * unit.w / vf) * unit.z
+        end
+    end
+    @. KZ = conj(KZ)
+    KZ = CuArrays.CuArray(convert(Array{Complex{FloatGPU}, 2}, KZ))
+
+    return LinearPropagatorRT(KZ, grid.HT, guard)
 end
 
 
 function LinearPropagator(unit::Units.UnitXY,
                           grid::Grids.GridXY,
                           medium::Media.Medium,
+                          guard::Guards.Guard,
                           w0::AbstractFloat,
                           PARAXIAL::Bool)
     beta = Media.beta_func(medium, w0)
@@ -77,20 +124,28 @@ function LinearPropagator(unit::Units.UnitXY,
     @. KZ = conj(KZ)
     KZ = CuArrays.CuArray(convert(Array{Complex{FloatGPU}, 2}, KZ))
 
-    pfft = FFTW.plan_fft(KZ)
-    pifft = FFTW.plan_ifft(KZ)
-
-    return LinearPropagatorXY(KZ, pfft, pifft)
+    return LinearPropagatorXY(KZ, grid.FT, guard)
 end
 
 
 function propagate!(E::AbstractArray{Complex{T}, 1},
                     LP::LinearPropagatorR,
                     z::T) where T
-    # Hankel.dht!(grid.HT, field.E)
-    # @. field.E = field.E * CUDAnative.exp(-1im * model.KZ * dz)
-    # Guards.apply_spectral_filter!(guard, field.E)
-    # Hankel.idht!(grid.HT, field.E)
+    Hankel.dht!(LP.HT, E)
+    @. E = E * exp(-1im * LP.KZ * z)
+    Guards.apply_spectral_filter!(LP.guard, E)
+    Hankel.idht!(LP.HT, E)
+    return nothing
+end
+
+
+function propagate!(E::AbstractArray{Complex{T}, 2},
+                    LP::LinearPropagatorRT,
+                    z::T) where T
+    Hankel.dht!(LP.HT, E)
+    @. E = E * exp(-1im * LP.KZ * z)
+    Guards.apply_spectral_filter!(LP.guard, E)
+    Hankel.idht!(LP.HT, E)
     return nothing
 end
 
@@ -98,23 +153,11 @@ end
 function propagate!(E::AbstractArray{Complex{T}, 2},
                     LP::LinearPropagatorXY,
                     z::T) where T<:AbstractFloat
-    LinearAlgebra.mul!(E, LP.pfft, E)   # fft!(E)
-    @. E = E * myexp(-1im * LP.KZ * z)
-    # Guards.apply_spectral_filter!(E, guard)
-    LinearAlgebra.mul!(E, LP.pifft, E)   # ifft(E)
+    Fourier.fft!(LP.FT, E)
+    @. E = E * exp(-1im * LP.KZ * z)
+    Guards.apply_spectral_filter!(LP.guard, E)
+    Fourier.ifft!(LP.FT, E)
     return nothing
-end
-
-
-"""
-Complex version of CUDAnative.exp function. Adapted from
-https://discourse.julialang.org/t/base-function-in-cuda-kernels/21866/4
-"""
-# @inline function CUDAnative.exp(x::Complex{T}) where T
-@inline function myexp(x::Complex{T}) where T
-    scale = CUDAnative.exp(x.re)
-    return Complex{T}(scale * CUDAnative.cos(x.im),
-                      scale * CUDAnative.sin(x.im))
 end
 
 
