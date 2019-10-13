@@ -13,6 +13,18 @@ const ComplexGPU = ComplexF32
 abstract type FourierTransform end
 
 
+struct FourierTransformT{T} <: FourierTransform
+    Nt :: Int
+    Nw :: Int
+
+    Sc :: AbstractArray{Complex{T}, 1}
+
+    prfft :: FFTW.Plan
+    pirfft :: FFTW.Plan
+    pifft :: FFTW.Plan
+end
+
+
 struct FourierTransformRT{T} <: FourierTransform
     Nr :: Int
     Nt :: Int
@@ -50,6 +62,22 @@ struct FourierTransformXY <: FourierTransform
     pifft :: FFTW.Plan
 end
 
+
+function FourierTransformT(Nt::Int)
+    if iseven(Nt)
+        Nw = div(Nt, 2) + 1
+    else
+        Nw = div(Nt + 1, 2)
+    end
+
+    Sc = zeros(ComplexF64, Nt)
+
+    prfft = FFTW.plan_rfft(zeros(Float64, Nt))
+    pirfft = FFTW.plan_irfft(zeros(ComplexF64, Nw), Nt)
+    pifft = FFTW.plan_ifft(zeros(ComplexF64, Nt))
+
+    return FourierTransformT(Nt, Nw, Sc, prfft, pirfft, pifft)
+end
 
 
 function FourierTransformRT(Nr::Int, Nt::Int)
@@ -119,8 +147,8 @@ end
 
 
 function ifft!(FT::FourierTransform,
-               S::CuArrays.CuArray{Complex{T}, 1},
-               E::CuArrays.CuArray{Complex{T}, 1}) where T
+               S::AbstractArray{Complex{T}, 1},
+               E::AbstractArray{Complex{T}, 1}) where T
     LinearAlgebra.mul!(E, FT.pifft, S)   # frequency -> time
     return nothing
 end
@@ -135,8 +163,8 @@ end
 
 
 function rfft!(FT::FourierTransform,
-               E::CuArrays.CuArray{T, 1},
-               S::CuArrays.CuArray{Complex{T}, 1}) where T
+               E::AbstractArray{T, 1},
+               S::AbstractArray{Complex{T}, 1}) where T
     LinearAlgebra.mul!(S, FT.prfft, E)   # time -> frequency
     return nothing
 end
@@ -187,6 +215,25 @@ function irfft2!(FT::FourierTransform,
                  S::CuArrays.CuArray{Complex{T}, 2},
                  E::CuArrays.CuArray{T, 2}) where T
     LinearAlgebra.mul!(E, FT.pirfft2, S)   # frequency -> time
+    return nothing
+end
+
+
+function hilbert!(FT::FourierTransform,
+                  Sr::AbstractArray{Complex{T}, 1},
+                  Ec::AbstractArray{Complex{T}, 1}) where T
+    for i=1:FT.Nt
+        if i <= FT.Nw
+            if i == 1
+                FT.Sc[i] = Sr[i]
+            else
+                FT.Sc[i] = 2. * Sr[i]
+            end
+        else
+            FT.Sc[i] = 0.
+        end
+    end
+    ifft!(FT, FT.Sc, Ec)   # frequency -> time
     return nothing
 end
 

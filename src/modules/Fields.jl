@@ -27,6 +27,17 @@ struct FieldR <: Field
 end
 
 
+struct FieldT{T<:AbstractFloat} <: Field
+    lam0 :: T
+    f0 :: T
+    w0 :: T
+    E :: AbstractArray{Complex{T}, 1}
+    S :: AbstractArray{Complex{T}, 1}
+    rho :: AbstractArray{T, 1}
+    Kdrho :: AbstractArray{T, 1}
+end
+
+
 struct FieldRT <: Field
     lam0 :: Float64
     f0 :: Float64
@@ -46,8 +57,9 @@ struct FieldXY <: Field
 end
 
 
-function Field(unit::Units.UnitR, grid::Grids.GridR, lam0::Float64,
-               initial_condition::Function)
+function Field(unit::Units.UnitR, grid::Grids.GridR, p::Tuple)
+    lam0, initial_condition = p
+
     f0 = C0 / lam0
     w0 = 2. * pi * f0
 
@@ -57,8 +69,30 @@ function Field(unit::Units.UnitR, grid::Grids.GridR, lam0::Float64,
 end
 
 
-function Field(unit::Units.UnitRT, grid::Grids.GridRT, lam0::Float64,
-               initial_condition::Function)
+function Field(unit::Units.UnitT, grid::Grids.GridT, p::Tuple)
+    lam0, initial_condition = p
+
+    f0 = C0 / lam0
+    w0 = 2. * pi * f0
+
+    E = initial_condition(grid.t, unit.t, unit.I)
+
+    S = zeros(ComplexF64, grid.Nw)
+    Fourier.rfft!(grid.FT, E, S)   # time -> frequency
+
+    E = convert(Array{ComplexF64, 1}, E)
+    Fourier.hilbert!(grid.FT, S, E)   # spectrum real to signal analytic
+
+    rho = zeros(Float64, grid.Nt)
+    Kdrho = zeros(Float64, grid.Nt)
+
+    return FieldT(lam0, f0, w0, E, S, rho, Kdrho)
+end
+
+
+function Field(unit::Units.UnitRT, grid::Grids.GridRT, p::Tuple)
+    lam0, initial_condition = p
+
     f0 = C0 / lam0
     w0 = 2. * pi * f0
 
@@ -77,8 +111,9 @@ function Field(unit::Units.UnitRT, grid::Grids.GridRT, lam0::Float64,
 end
 
 
-function Field(unit::Units.UnitXY, grid::Grids.GridXY, lam0::Float64,
-               initial_condition::Function)
+function Field(unit::Units.UnitXY, grid::Grids.GridXY, p::Tuple)
+    lam0, initial_condition = p
+
     f0 = C0 / lam0
     w0 = 2. * pi * f0
 

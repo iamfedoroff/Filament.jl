@@ -49,7 +49,7 @@ struct GridT <: Grid
     lam :: Array{Float64, 1}
     Nlam :: Int
 
-    # FT :: Fourier.FourierTransform
+    FT :: Fourier.FourierTransform
 end
 
 
@@ -178,10 +178,10 @@ function GridT(tmin, tmax, Nt)
     # dlam = lam[3] - lam[2]   # wavelength step
     # lamc = 0.5 / self.dlam   # Nyquist wavelength (need check!)
 
-    # FT = Fourier.FourierTransformRT(Nr, Nt)   # Fourier transform
+    FT = Fourier.FourierTransformT(Nt)   # Fourier transform
 
     return GridT(geometry, tmin, tmax, Nt,
-                  t, dt, f, Nf, df, w, Nw, dw, lam, Nlam)
+                  t, dt, f, Nf, df, w, Nw, dw, lam, Nlam, FT)
 end
 
 

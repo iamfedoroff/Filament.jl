@@ -48,6 +48,8 @@ else
             ALG=ALG)
 end
 
+p_field = (lam0, initial_condition)
+
 if geometry == "R"
     p_unit = (ru, zu, Iu)
     p_grid = (rmax, Nr)
