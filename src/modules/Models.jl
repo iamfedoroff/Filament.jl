@@ -396,7 +396,7 @@ function zstep(z::T, dz::T, grid::Grids.GridR, field::Fields.FieldR,
     # Linear propagator --------------------------------------------------------
     @timeit "linear" begin
         Hankel.dht!(grid.HT, field.E)
-        @. field.E = field.E * CUDAnative.exp(-1im * model.KZ * dz)
+        @. field.E = field.E * exp(-1im * model.KZ * dz)
         Guards.apply_spectral_filter!(guard, field.E)
         Hankel.idht!(grid.HT, field.E)
         CUDAdrv.synchronize()
@@ -448,7 +448,7 @@ function zstep(z::T, dz::T, grid::Grids.GridRT, field::Fields.FieldRT,
     # Linear propagator --------------------------------------------------------
     @timeit "linear" begin
         Hankel.dht!(grid.HT, field.S)
-        @. field.S = field.S * CUDAnative.exp(-1im * model.KZ * dz)
+        @. field.S = field.S * exp(-1im * model.KZ * dz)
         Guards.apply_spectral_filter!(guard, field.S)
         Hankel.idht!(grid.HT, field.S)
         CUDAdrv.synchronize()
@@ -491,7 +491,7 @@ function zstep(z::T, dz::T, grid::Grids.GridXY, field::Fields.FieldXY,
     # Linear propagator --------------------------------------------------------
     @timeit "linear" begin
         Fourier.fft!(grid.FT, field.E)
-        @. field.E = field.E * CUDAnative.exp(-1im * model.KZ * dz)
+        @. field.E = field.E * exp(-1im * model.KZ * dz)
         Guards.apply_spectral_filter!(guard, field.E)
         Fourier.ifft!(grid.FT, field.E)
         CUDAdrv.synchronize()
@@ -538,16 +538,6 @@ function update_dS_kernel(dS, R, S)
         dS[i, j] = dS[i, j] + R[j] * S[i, j]
     end
     return nothing
-end
-
-
-"""
-Complex version of CUDAnative.exp function. Adapted from
-https://discourse.julialang.org/t/base-function-in-cuda-kernels/21866/4
-"""
-@inline function CUDAnative.exp(x::Complex{T}) where T
-    scale = CUDAnative.exp(x.re)
-    return Complex{T}(scale * CUDAnative.cos(x.im), scale * CUDAnative.sin(x.im))
 end
 
 
