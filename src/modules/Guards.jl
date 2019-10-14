@@ -1,13 +1,13 @@
 module Guards
 
-import CUDAnative
 import CuArrays
 import CUDAdrv
+import CUDAnative
 
-import Units
-import Grids
 import Fields
+import Grids
 import Media
+import Units
 
 const FloatGPU = Float32
 const ComplexGPU = ComplexF32
@@ -19,6 +19,12 @@ abstract type Guard end
 struct GuardR{T} <: Guard
     R :: CuArrays.CuArray{T, 1}
     K :: CuArrays.CuArray{T, 1}
+end
+
+
+struct GuardT{T} <: Guard
+    T :: AbstractArray{T, 1}
+    W :: AbstractArray{T, 1}
 end
 
 
@@ -46,8 +52,14 @@ struct GuardXY{T} <: Guard
 end
 
 
-function Guard(unit::Units.UnitR, grid::Grids.GridR, field::Fields.FieldR,
-               medium::Media.Medium, rguard::T, kguard::T) where T
+function Guard(
+    unit::Units.UnitR,
+    grid::Grids.GridR,
+    field::Fields.FieldR,
+    medium::Media.Medium,
+    rguard::T,
+    kguard::T
+) where T<:AbstractFloat
     # Spatial guard filter:
     Rguard = guard_window(grid.r, rguard, mode="right")
     Rguard = CuArrays.CuArray(convert(Array{FloatGPU, 1}, Rguard))
@@ -62,9 +74,34 @@ function Guard(unit::Units.UnitR, grid::Grids.GridR, field::Fields.FieldR,
 end
 
 
-function Guard(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
-               medium::Media.Medium,
-               rguard::T, tguard::T, kguard::T, wguard::T) where T
+function Guard(
+    unit::Units.UnitT,
+    grid::Grids.GridT,
+    field::Fields.FieldT,
+    medium::Media.Medium,
+    tguard::T,
+    wguard::T
+) where T<:AbstractFloat
+    # Temporal guard filter:
+    Tguard = guard_window(grid.t, tguard, mode="both")
+
+    # Frequency guard filter:
+    Wguard = @. exp(-((grid.w * unit.w)^2 / wguard^2)^20)
+
+    return GuardT(Tguard, Wguard)
+end
+
+
+function Guard(
+    unit::Units.UnitRT,
+    grid::Grids.GridRT,
+    field::Fields.FieldRT,
+    medium::Media.Medium,
+    rguard::T,
+    tguard::T,
+    kguard::T,
+    wguard::T
+) where T<:AbstractFloat
     # Spatial guard filter:
     Rguard = guard_window(grid.r, rguard, mode="right")
     Rguard = CuArrays.CuArray(convert(Array{FloatGPU, 1}, Rguard))
@@ -108,9 +145,16 @@ function Guard(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
 end
 
 
-function Guard(unit::Units.UnitXY, grid::Grids.GridXY, field::Fields.Field,
-               medium::Media.Medium,
-               xguard::T, yguard::T, kxguard::T, kyguard::T) where T
+function Guard(
+    unit::Units.UnitXY,
+    grid::Grids.GridXY,
+    field::Fields.Field,
+    medium::Media.Medium,
+    xguard::T,
+    yguard::T,
+    kxguard::T,
+    kyguard::T
+) where T<:AbstractFloat
     # Spatial guard filters:
     Xguard = guard_window(grid.x, xguard, mode="both")
     Xguard = CuArrays.CuArray(convert(Array{FloatGPU, 1}, Xguard))
@@ -207,23 +251,34 @@ function guard_window(x::Array{T, 1}, guard_width::T; mode="both") where T
 end
 
 
-function apply_field_filter!(guard::GuardR,
-                             E::CuArrays.CuArray{Complex{T}, 1}) where T
+function apply_field_filter!(
+    guard::GuardR, E::CuArrays.CuArray{Complex{T}, 1}
+) where T
     @. E = E * guard.R
     return nothing
 end
 
 
-function apply_field_filter!(guard::GuardRT,
-                             E::CuArrays.CuArray{T, 2}) where T
+function apply_field_filter!(
+    guard::GuardT, E::CuArrays.CuArray{Complex{T}, 1}
+) where T
+    @. E = E * guard.T
+    return nothing
+end
+
+
+function apply_field_filter!(
+    guard::GuardRT, E::CuArrays.CuArray{T, 2}
+) where T
     nth = guard.nthreadsNrNt
     nbl = guard.nblocksNrNt
     @CUDAnative.cuda blocks=nbl threads=nth kernel(E, guard.R, guard.T)
 end
 
 
-function apply_field_filter!(guard::GuardXY,
-                             E::CuArrays.CuArray{Complex{T}, 2}) where T
+function apply_field_filter!(
+    guard::GuardXY, E::CuArrays.CuArray{Complex{T}, 2}
+) where T
     nth = guard.nthreads
     nbl = guard.nblocks
     @CUDAnative.cuda blocks=nbl threads=nth kernel(E, guard.X, guard.Y)
@@ -231,23 +286,34 @@ function apply_field_filter!(guard::GuardXY,
 end
 
 
-function apply_spectral_filter!(guard::GuardR,
-                                E::CuArrays.CuArray{Complex{T}, 1}) where T
+function apply_spectral_filter!(
+    guard::GuardR, E::CuArrays.CuArray{Complex{T}, 1}
+) where T
     @. E = E * guard.K
     return nothing
 end
 
 
-function apply_spectral_filter!(guard::GuardRT,
-                                S::CuArrays.CuArray{Complex{T}, 2}) where T
+function apply_spectral_filter!(
+    guard::GuardT, S::CuArrays.CuArray{Complex{T}, 1}
+) where T
+    @. S = S * guard.W
+    return nothing
+end
+
+
+function apply_spectral_filter!(
+    guard::GuardRT, S::CuArrays.CuArray{Complex{T}, 2}
+) where T
     nth = guard.nthreadsNrNw
     nbl = guard.nblocksNrNw
     @CUDAnative.cuda blocks=nbl threads=nth kernel(S, guard.K, guard.W)
 end
 
 
-function apply_spectral_filter!(guard::GuardXY,
-                                E::CuArrays.CuArray{Complex{T}, 2}) where T
+function apply_spectral_filter!(
+    guard::GuardXY, E::CuArrays.CuArray{Complex{T}, 2}
+) where T
     nth = guard.nthreads
     nbl = guard.nblocks
     @CUDAnative.cuda blocks=nbl threads=nth kernel(E, guard.KX, guard.KY)
@@ -255,9 +321,11 @@ function apply_spectral_filter!(guard::GuardXY,
 end
 
 
-function kernel(F::CUDAnative.CuDeviceArray,
-                A::CUDAnative.CuDeviceArray{T, 1},
-                B::CUDAnative.CuDeviceArray{T, 1}) where T
+function kernel(
+    F::CUDAnative.CuDeviceArray,
+    A::CUDAnative.CuDeviceArray{T, 1},
+    B::CUDAnative.CuDeviceArray{T, 1}
+) where T
     id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
     stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
     N1, N2 = size(F)
@@ -271,9 +339,11 @@ function kernel(F::CUDAnative.CuDeviceArray,
 end
 
 
-function kernel(F::CUDAnative.CuDeviceArray,
-                A::CUDAnative.CuDeviceArray{T, 2},
-                B::CUDAnative.CuDeviceArray{T, 1}) where T
+function kernel(
+    F::CUDAnative.CuDeviceArray,
+    A::CUDAnative.CuDeviceArray{T, 2},
+    B::CUDAnative.CuDeviceArray{T, 1}
+) where T
     id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
     stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
     N1, N2 = size(F)
