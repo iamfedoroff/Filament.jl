@@ -20,7 +20,9 @@ function init_raman(unit, grid, field, medium, p)
     Hraman = Hraman * grid.dt * unit.t
     Hraman = Fourier.ifftshift(Hraman)
     Hramanw = FFTW.rfft(Hraman)   # time -> frequency
-    Hramanw = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, Hramanw))
+    if grid.geometry != "T"   # FIXME: should be removed in a generic code.
+        Hramanw = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, Hramanw))
+    end
 
     if THG
         calc = calc_raman
@@ -34,27 +36,31 @@ function init_raman(unit, grid, field, medium, p)
 end
 
 
-function calc_raman(F::AbstractArray{T},
-                    E::AbstractArray{Complex{T}},
-                    z::T,
-                    args::Tuple,
-                    p::Tuple) where T<:AbstractFloat
+function calc_raman(
+    F::AbstractArray{T},
+    E::AbstractArray{Complex{T}},
+    z::T,
+    args::Tuple,
+    p::Tuple,
+) where T<:AbstractFloat
     Hramanw, FT = p
     @. F = real(E)^2
-    Fourier.convolution2!(FT, Hramanw, F)
+    Fourier.convolution!(FT, Hramanw, F)
     @. F = F * real(E)
     return nothing
 end
 
 
-function calc_raman_nothg(F::AbstractArray{T},
-                          E::AbstractArray{Complex{T}},
-                          z::T,
-                          args::Tuple,
-                          p::Tuple) where T<:AbstractFloat
+function calc_raman_nothg(
+    F::AbstractArray{T},
+    E::AbstractArray{Complex{T}},
+    z::T,
+    args::Tuple,
+    p::Tuple,
+) where T<:AbstractFloat
     Hramanw, FT = p
-    @. F = FloatGPU(3. / 4.) * abs2(E)
-    Fourier.convolution2!(FT, Hramanw, F)
+    @. F = FloatGPU(3 / 4) * abs2(E)
+    Fourier.convolution!(FT, Hramanw, F)
     @. F = F * real(E)
     return nothing
 end

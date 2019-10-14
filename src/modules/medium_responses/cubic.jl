@@ -24,31 +24,37 @@ function init_cubic(unit, grid, field, medium, p)
 end
 
 
-function calc_cubic(F::AbstractArray{T, 2},
-                    E::AbstractArray{Complex{T}, 2},
-                    z::T,
-                    args::Tuple,
-                    p::Tuple) where T<:AbstractFloat
+function calc_cubic(
+    F::AbstractArray{T},
+    E::AbstractArray{Complex{T}},
+    z::T,
+    args::Tuple,
+    p::Tuple,
+) where T<:AbstractFloat
     @. F = real(E)^3
     return nothing
 end
 
 
-function calc_cubic_nothg(F::AbstractArray{T, 2},
-                          E::AbstractArray{Complex{T}, 2},
-                          z::T,
-                          args::Tuple,
-                          p::Tuple) where T<:AbstractFloat
+function calc_cubic_nothg(
+    F::AbstractArray{T},
+    E::AbstractArray{Complex{T}},
+    z::T,
+    args::Tuple,
+    p::Tuple,
+) where T<:AbstractFloat
     @. F = 3 / 4 * abs2(E) * real(E)
     return nothing
 end
 
 
-function calc_cubic_nothg(F::AbstractArray{Complex{T}},
-                          E::AbstractArray{Complex{T}},
-                          z::T,
-                          args::Tuple,
-                          p::Tuple) where T<:AbstractFloat
+function calc_cubic_nothg(
+    F::AbstractArray{Complex{T}},
+    E::AbstractArray{Complex{T}},
+    z::T,
+    args::Tuple,
+    p::Tuple,
+) where T<:AbstractFloat
     @. F = 3 / 4 * abs2(E) * E
     return nothing
 end

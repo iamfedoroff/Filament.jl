@@ -19,6 +19,7 @@ struct FourierTransformT{T} <: FourierTransform
 
     Er :: AbstractArray{T, 1}
     Sc :: AbstractArray{Complex{T}, 1}
+    Sr :: AbstractArray{Complex{T}, 1}
 
     prfft :: FFTW.Plan
     pirfft :: FFTW.Plan
@@ -64,7 +65,7 @@ struct FourierTransformXY <: FourierTransform
 end
 
 
-function FourierTransformT(Nt::Int)
+function FourierTransformT(Nt::T) where T<:Int
     if iseven(Nt)
         Nw = div(Nt, 2) + 1
     else
@@ -73,16 +74,17 @@ function FourierTransformT(Nt::Int)
 
     Er = zeros(Nt)
     Sc = zeros(ComplexF64, Nt)
+    Sr = zeros(ComplexF64, Nw)
 
     prfft = FFTW.plan_rfft(zeros(Float64, Nt))
     pirfft = FFTW.plan_irfft(zeros(ComplexF64, Nw), Nt)
     pifft = FFTW.plan_ifft(zeros(ComplexF64, Nt))
 
-    return FourierTransformT(Nt, Nw, Er, Sc, prfft, pirfft, pifft)
+    return FourierTransformT(Nt, Nw, Er, Sc, Sr, prfft, pirfft, pifft)
 end
 
 
-function FourierTransformRT(Nr::Int, Nt::Int)
+function FourierTransformRT(Nr::T, Nt::T) where T<:Int
     CuArrays.allowscalar(false)   # disable slow fallback methods
 
     if iseven(Nt)
@@ -115,16 +117,34 @@ function FourierTransformRT(Nr::Int, Nt::Int)
     nthreadsNrNw = min(Nr * Nw, MAX_THREADS_PER_BLOCK)
     nblocksNrNw = Int(ceil(Nr * Nw / nthreadsNrNt))
 
-    return FourierTransformRT(Nr, Nt, Nw,
-                              Er2, Sc, Sc2, Sr, Sr2,
-                              pifft, pifft2, prfft, prfft2, pirfft, pirfft2,
-                              nthreadsNt, nthreadsNw, nblocksNt, nblocksNw,
-                              nthreadsNrNt, nthreadsNrNw, nblocksNrNt,
-                              nblocksNrNw)
+    return FourierTransformRT(
+        Nr,
+        Nt,
+        Nw,
+        Er2,
+        Sc,
+        Sc2,
+        Sr,
+        Sr2,
+        pifft,
+        pifft2,
+        prfft,
+        prfft2,
+        pirfft,
+        pirfft2,
+        nthreadsNt,
+        nthreadsNw,
+        nblocksNt,
+        nblocksNw,
+        nthreadsNrNt,
+        nthreadsNrNw,
+        nblocksNrNt,
+        nblocksNrNw,
+    )
 end
 
 
-function FourierTransformXY(Nx::Int, Ny::Int)
+function FourierTransformXY(Nx::T, Ny::T) where T<:Int
     CuArrays.allowscalar(false)   # disable slow fallback methods
 
     pfft = FFTW.plan_fft(CuArrays.zeros(ComplexGPU, (Nx, Ny)))
@@ -134,56 +154,80 @@ function FourierTransformXY(Nx::Int, Ny::Int)
 end
 
 
-function fft!(FT::FourierTransformXY,
-              E::CuArrays.CuArray{Complex{T}, 2}) where T
+function fft!(
+    FT::FourierTransformXY,
+    E::CuArrays.CuArray{Complex{T}, 2},
+) where T
     LinearAlgebra.mul!(E, FT.pfft, E)   # space -> frequency
     return nothing
 end
 
 
-function ifft!(FT::FourierTransformXY,
-               E::CuArrays.CuArray{Complex{T}, 2}) where T
+function ifft!(
+    FT::FourierTransformXY,
+    E::CuArrays.CuArray{Complex{T}, 2},
+) where T
     LinearAlgebra.mul!(E, FT.pifft, E)   # space -> frequency
     return nothing
 end
 
 
-function ifft!(FT::FourierTransform,
-               S::AbstractArray{Complex{T}, 1},
-               E::AbstractArray{Complex{T}, 1}) where T
+function ifft!(
+    FT::FourierTransform,
+    S::AbstractArray{Complex{T}, 1},
+    E::AbstractArray{Complex{T}, 1},
+) where T
     LinearAlgebra.mul!(E, FT.pifft, S)   # frequency -> time
     return nothing
 end
 
 
-function ifft2!(FT::FourierTransform,
-                S::CuArrays.CuArray{Complex{T}, 2},
-                E::CuArrays.CuArray{Complex{T}, 2}) where T
+function ifft2!(
+    FT::FourierTransform,
+    S::CuArrays.CuArray{Complex{T}, 2},
+    E::CuArrays.CuArray{Complex{T}, 2},
+) where T
     LinearAlgebra.mul!(E, FT.pifft2, S)   # frequency -> time
     return nothing
 end
 
 
-function rfft!(FT::FourierTransform,
-               E::AbstractArray{Complex{T}, 1},
-               S::AbstractArray{Complex{T}, 1}) where T
+function rfft!(
+    FT::FourierTransform,
+    E::AbstractArray{T, 1},
+    S::AbstractArray{Complex{T}, 1},
+) where T
+    LinearAlgebra.mul!(S, FT.prfft, E)   # time -> frequency
+    return nothing
+end
+
+
+function rfft!(
+    FT::FourierTransform,
+    E::AbstractArray{Complex{T}, 1},
+    S::AbstractArray{Complex{T}, 1},
+) where T
     @. FT.Er = real(E)
     LinearAlgebra.mul!(S, FT.prfft, FT.Er)   # time -> frequency
     return nothing
 end
 
 
-function rfft2!(FT::FourierTransform,
-                E::CuArrays.CuArray{T, 2},
-                S::CuArrays.CuArray{Complex{T}, 2}) where T
+function rfft2!(
+    FT::FourierTransform,
+    E::CuArrays.CuArray{T, 2},
+    S::CuArrays.CuArray{Complex{T}, 2},
+) where T
     LinearAlgebra.mul!(S, FT.prfft2, E)   # time -> frequency
     return nothing
 end
 
 
-function rfft2!(FT::FourierTransform,
-                E::CuArrays.CuArray{Complex{T}, 2},
-                S::CuArrays.CuArray{Complex{T}, 2}) where T
+function rfft2!(
+    FT::FourierTransform,
+    E::CuArrays.CuArray{Complex{T}, 2},
+    S::CuArrays.CuArray{Complex{T}, 2},
+) where T
     nth = FT.nthreadsNrNt
     nbl = FT.nblocksNrNt
     @CUDAnative.cuda blocks=nbl threads=nth rfft2_kernel(E, FT.Er2)
@@ -206,25 +250,31 @@ function rfft2_kernel(Ec, Er)
 end
 
 
-function irfft!(FT::FourierTransform,
-                S::CuArrays.CuArray{Complex{T}, 1},
-                E::CuArrays.CuArray{T, 1}) where T
+function irfft!(
+    FT::FourierTransform,
+    S::AbstractArray{Complex{T}, 1},
+    E::AbstractArray{T, 1},
+) where T
     LinearAlgebra.mul!(E, FT.pirfft, S)   # frequency -> time
     return nothing
 end
 
 
-function irfft2!(FT::FourierTransform,
-                 S::CuArrays.CuArray{Complex{T}, 2},
-                 E::CuArrays.CuArray{T, 2}) where T
+function irfft2!(
+    FT::FourierTransform,
+    S::CuArrays.CuArray{Complex{T}, 2},
+    E::CuArrays.CuArray{T, 2},
+) where T
     LinearAlgebra.mul!(E, FT.pirfft2, S)   # frequency -> time
     return nothing
 end
 
 
-function hilbert!(FT::FourierTransform,
-                  Sr::AbstractArray{Complex{T}, 1},
-                  Ec::AbstractArray{Complex{T}, 1}) where T
+function hilbert!(
+    FT::FourierTransform,
+    Sr::AbstractArray{Complex{T}, 1},
+    Ec::AbstractArray{Complex{T}, 1},
+) where T
     for i=1:FT.Nt
         if i <= FT.Nw
             if i == 1
@@ -246,9 +296,11 @@ Transforms the spectruum of a real signal into the complex analytic signal.
 
 WARNING: Needs test for odd N and low frequencies.
 """
-function hilbert!(FT::FourierTransform,
-                  Sr::CuArrays.CuArray{Complex{T}, 1},
-                  Ec::CuArrays.CuArray{Complex{T}, 1}) where T
+function hilbert!(
+    FT::FourierTransform,
+    Sr::CuArrays.CuArray{Complex{T}, 1},
+    Ec::CuArrays.CuArray{Complex{T}, 1},
+) where T
     nth = FT.nthreadsNt
     nbl = FT.nblocksNt
     @CUDAnative.cuda blocks=nbl threads=nth hilbert_kernel(Sr, FT.Sc)
@@ -282,9 +334,11 @@ Transforms the spectruum of a real signal into the complex analytic signal.
 
 WARNING: Needs test for odd N and low frequencies.
 """
-function hilbert2!(FT::FourierTransform,
-                   Sr::CuArrays.CuArray{Complex{T}, 2},
-                   Ec::CuArrays.CuArray{Complex{T}, 2}) where T
+function hilbert2!(
+    FT::FourierTransform,
+    Sr::CuArrays.CuArray{Complex{T}, 2},
+    Ec::CuArrays.CuArray{Complex{T}, 2},
+) where T
     nth = FT.nthreadsNrNt
     nbl = FT.nblocksNrNt
     @CUDAnative.cuda blocks=nbl threads=nth hilbert2_kernel(Sr, FT.Sc2)
@@ -316,32 +370,23 @@ function hilbert2_kernel(Sr, Sc)
 end
 
 
-function convolution!(FT::FourierTransform,
-                      Hw::CuArrays.CuArray{Complex{T}, 1},
-                      x::CuArrays.CuArray{T, 1}) where T
+function convolution!(
+    FT::FourierTransform,
+    Hw::AbstractArray{Complex{T}, 1},
+    x::AbstractArray{T, 1},
+) where T
     rfft!(FT, x, FT.Sr)
-    nth = FT.nthreadsNw
-    nbl = FT.nblocksNw
-    @CUDAnative.cuda blocks=nbl threads=nth convolution_kernel(FT.Sr, Hw)
+    @. FT.Sr = Hw * FT.Sr
     irfft!(FT, FT.Sr, x)
     return nothing
 end
 
 
-function convolution_kernel(Sr, Hw)
-    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
-    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
-    Nw = length(Sr)
-    for i=id:stride:Nw
-        @inbounds Sr[i] = Hw[i] * Sr[i]
-    end
-    return nothing
-end
-
-
-function convolution2!(FT::FourierTransform,
-                       Hw::CuArrays.CuArray{Complex{T}, 1},
-                       x::CuArrays.CuArray{T, 2}) where T
+function convolution!(
+    FT::FourierTransform,
+    Hw::CuArrays.CuArray{Complex{T}, 1},
+    x::CuArrays.CuArray{T, 2},
+) where T
     rfft2!(FT, x, FT.Sr2)
     nth = FT.nthreadsNrNw
     nbl = FT.nblocksNrNw

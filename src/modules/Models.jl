@@ -43,10 +43,10 @@ end
 
 struct ModelT <: Model
     LP :: LinearPropagators.LinearPropagator
-    # prob :: Equations.Problem
-    # responses :: Tuple
+    prob :: Equations.Problem
+    responses :: Tuple
     # PE :: PlasmaEquations.PlasmaEquation
-    # keys :: NamedTuple
+    keys :: NamedTuple
 end
 
 
@@ -140,7 +140,42 @@ function Model(
     # Linear propagator --------------------------------------------------------
     LP = LinearPropagators.LinearPropagator(unit, grid, medium, guard, field.w0)
 
-    return ModelT(LP)
+    # Nonlinear propagator -----------------------------------------------------
+    beta = Media.beta_func.(Ref(medium), grid.w * unit.w)
+    n0 = real(Media.refractive_index(medium, field.w0))
+    Eu = Units.E(unit, n0)
+    mu = medium.permeability(grid.w * unit.w)
+
+    Qfactor = @. MU0 * mu * (grid.w * unit.w)^2 / 2 * unit.z / Eu
+
+    QZ = zeros(ComplexF64, grid.Nw)
+    for i=1:grid.Nw
+        if beta[i] != 0
+            QZ[i] = Qfactor[i] / beta[i]
+        end
+    end
+    @. QZ = conj(QZ)
+
+    # Nonlinear responses:
+    responses = []
+    for item in responses_list
+        init = item["init"]
+        response = init(unit, grid, field, medium, item)
+        push!(responses, response)
+    end
+    responses = tuple(responses...)
+
+    # Temporary arrays:
+    Ftmp = zeros(Float64, grid.Nt)
+    Etmp = zeros(ComplexF64, grid.Nt)
+    Stmp = zeros(ComplexF64, grid.Nw)
+
+    # Problem:
+    p = (responses, grid.FT, Etmp, Ftmp, Stmp, guard, QZ)
+    pfunc = Equations.PFunction(func_t!, p)
+    prob = Equations.Problem(keys.ALG, Stmp, pfunc)
+
+    return ModelT(LP, prob, responses, keys)
 end
 
 
@@ -360,6 +395,31 @@ function func_field!(
 end
 
 
+function func_t!(
+    dS::AbstractArray{Complex{T}, 1},
+    S::AbstractArray{Complex{T}, 1},
+    z::T,
+    args::Tuple,
+    p::Tuple,
+) where T<:AbstractFloat
+    responses, FT, Etmp, Ftmp, Stmp, guard, QZ = p
+
+    Fourier.hilbert!(FT, S, Etmp)   # spectrum real to signal analytic
+
+    fill!(dS, 0)
+
+    for resp in responses
+        resp.calculate(Ftmp, Etmp, z, args)
+        Guards.apply_field_filter!(guard, Ftmp)
+        Fourier.rfft!(FT, Ftmp, Stmp)   # time -> frequency
+        @. dS = dS + resp.Rnl * Stmp
+    end
+
+    @. dS = -1im * QZ * dS
+    return nothing
+end
+
+
 function func_spectrum!(
     dS::CuArrays.CuArray{Complex{T}, 2},
     S::CuArrays.CuArray{Complex{T}, 2},
@@ -459,18 +519,17 @@ function zstep(
     end
 
     # Nonlinearity -------------------------------------------------------------
-    # @timeit "nonlinearity" begin
-    #     if model.keys.NONLINEARITY & (! isempty(model.responses))
-    #        args = ()
-    #        znew = model.prob.step(field.S, z, dz, args)
-    #        znext = z + dz
-    #        while znew < znext
-    #            dznew = znext - znew
-    #            znew = model.prob.step(field.S, znew, dznew, args)
-    #        end
-    #        CUDAdrv.synchronize()
-    #    end
-    # end
+    @timeit "nonlinearity" begin
+        if model.keys.NONLINEARITY & (! isempty(model.responses))
+           args = ()
+           znew = model.prob.step(field.S, z, dz, args)
+           znext = z + dz
+           while znew < znext
+               dznew = znext - znew
+               znew = model.prob.step(field.S, znew, dznew, args)
+           end
+       end
+    end
 
     # Linear propagator --------------------------------------------------------
     @timeit "linear" begin

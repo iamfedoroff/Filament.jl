@@ -260,7 +260,7 @@ end
 
 
 function apply_field_filter!(
-    guard::GuardT, E::AbstractArray{Complex{T}, 1}
+    guard::GuardT, E::AbstractArray{T, 1}
 ) where T
     @. E = E * guard.T
     return nothing
