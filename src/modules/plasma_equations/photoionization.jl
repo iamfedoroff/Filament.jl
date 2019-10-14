@@ -5,8 +5,14 @@ function init_photoionization(unit, n0, w0, params)
     rho_nt = params["rho_nt"]
     components = params["components"]
 
-    fiarg_real(x::Complex{FloatGPU}) = real(x)^2
-    fiarg_abs2(x::Complex{FloatGPU}) = abs2(x)
+    # Dirty hack which allows to launch T geometry on CPU with Float64:
+    TFloat = FloatGPU
+    if typeof(unit) == Units.UnitT{Float64}
+        TFloat = Float64
+    end
+
+    fiarg_real(x::Complex) = real(x)^2
+    fiarg_abs2(x::Complex) = abs2(x)
     if EREAL
         fiarg = fiarg_real
     else
@@ -23,7 +29,7 @@ function init_photoionization(unit, n0, w0, params)
         tfname = comp["ionization_rate"]
 
         # Photoionization:
-        tf = TabulatedFunctions.TFunction(FloatGPU, tfname, 1/unit.I, unit.t)
+        tf = TabulatedFunctions.TFunction(TFloat, tfname, 1/unit.I, unit.t)
         tabfuncs[i] = tf
 
         frhont = frac * rho_nt
@@ -35,12 +41,12 @@ function init_photoionization(unit, n0, w0, params)
         Ks[i] = ceil(Ui / (HBAR * w0))
     end
     tabfuncs = StaticArrays.SVector{Ncomp}(tabfuncs)
-    frhonts = StaticArrays.SVector{Ncomp, FloatGPU}(frhonts)
-    Ks = StaticArrays.SVector{Ncomp, FloatGPU}(Ks)
+    frhonts = StaticArrays.SVector{Ncomp, TFloat}(frhonts)
+    Ks = StaticArrays.SVector{Ncomp, TFloat}(Ks)
 
     # Problem:
     Neq = Ncomp   # number of equations
-    rho0 = StaticArrays.SVector{Neq, FloatGPU}(zeros(Neq))   # initial condition
+    rho0 = StaticArrays.SVector{Neq, TFloat}(zeros(Neq))   # initial condition
     p = (tabfuncs, fiarg, frhonts)   # step function parameters
     pfunc = Equations.PFunction(func_photoionization, p)
     prob = Equations.Problem(alg, rho0, pfunc)
@@ -56,10 +62,12 @@ function init_photoionization(unit, n0, w0, params)
 end
 
 
-function func_photoionization(rho::AbstractArray{T},
-                              t::T,
-                              args::Tuple,
-                              p::Tuple) where T<:AbstractFloat
+function func_photoionization(
+    rho::AbstractArray{T},
+    t::T,
+    args::Tuple,
+    p::Tuple,
+) where T<:AbstractFloat
     tabfuncs, fiarg, frhonts = p
     E, = args
 
@@ -80,10 +88,12 @@ function func_photoionization(rho::AbstractArray{T},
 end
 
 
-function kdrho_photoionization(rho::AbstractArray{T},
-                               t::T,
-                               args::Tuple,
-                               p::Tuple) where T<:AbstractFloat
+function kdrho_photoionization(
+    rho::AbstractArray{T},
+    t::T,
+    args::Tuple,
+    p::Tuple,
+) where T<:AbstractFloat
     tabfuncs, fiarg, frhonts, Ks, KDEP = p
     E, = args
 
@@ -92,12 +102,16 @@ function kdrho_photoionization(rho::AbstractArray{T},
         if I <= 0
             Ilog = convert(T, -30)   # I=1e-30 in order to avoid -Inf in log(0)
         else
-            Ilog = CUDAnative.log10(I)
+            if T == Float32   # FIXME Dirty hack for launching on both CPU and GPU
+                Ilog = CUDAnative.log10(I)
+            else
+                Ilog = log10(I)
+            end
         end
     end
 
     Neq = length(rho)
-    kdrho = convert(FloatGPU, 0)
+    kdrho = convert(T, 0)
     for i=1:Neq
         tf = tabfuncs[i]
         R1 = tf(I)

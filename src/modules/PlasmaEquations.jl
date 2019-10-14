@@ -1,8 +1,8 @@
 module PlasmaEquations
 
-import StaticArrays
-import CuArrays
 import CUDAnative
+import CuArrays
+import StaticArrays
 
 import Equations
 
@@ -22,11 +22,13 @@ function PlasmaEquation(unit, n0, w0, params)
 end
 
 
-function solve!(rho::AbstractArray{T,1},
-                kdrho::AbstractArray{T,1},
-                t::AbstractArray{T,1},
-                E::AbstractArray{Complex{T},1},
-                p::Tuple) where T<:AbstractFloat
+function solve!(
+    rho::AbstractArray{T,1},
+    kdrho::AbstractArray{T,1},
+    t::AbstractArray{T,1},
+    E::AbstractArray{Complex{T},1},
+    p::Tuple,
+) where T<:AbstractFloat
     prob, extract, kdrho_func = p
     Nt = length(rho)
     dt = t[2] - t[1]
@@ -46,11 +48,13 @@ function solve!(rho::AbstractArray{T,1},
 end
 
 
-function solve!(rho::AbstractArray{T,2},
-                kdrho::AbstractArray{T,2},
-                t::AbstractArray{T,1},
-                E::AbstractArray{Complex{T},2},
-                p::Tuple) where T<:AbstractFloat
+function solve!(
+    rho::AbstractArray{T,2},
+    kdrho::AbstractArray{T,2},
+    t::AbstractArray{T,1},
+    E::AbstractArray{Complex{T},2},
+    p::Tuple,
+) where T<:AbstractFloat
     prob, extract, kdrho_func = p
     Nr, Nt = size(rho)
     dt = t[2] - t[1]
@@ -72,11 +76,13 @@ function solve!(rho::AbstractArray{T,2},
 end
 
 
-function solve!(rho::CuArrays.CuArray{T,2},
-                kdrho::CuArrays.CuArray{T,2},
-                t::AbstractArray{T,1},
-                E::CuArrays.CuArray{Complex{T},2},
-                p::Tuple) where T<:AbstractFloat
+function solve!(
+    rho::CuArrays.CuArray{T,2},
+    kdrho::CuArrays.CuArray{T,2},
+    t::AbstractArray{T,1},
+    E::CuArrays.CuArray{Complex{T},2},
+    p::Tuple,
+) where T<:AbstractFloat
     Nr, Nt = size(rho)
     nth = min(256, Nr)
     nbl = Int(ceil(Nr / nth))

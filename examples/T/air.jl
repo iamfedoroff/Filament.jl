@@ -85,8 +85,7 @@ current_losses = Dict(
 
 
 # List of nonlinear responses included in the model ----------------------------
-# responses = [cubic, raman, current_free, current_losses]
-responses = [cubic, raman]
+responses = [cubic, raman, current_free, current_losses]
 
 
 # ------------------------------------------------------------------------------

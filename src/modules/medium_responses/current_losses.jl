@@ -17,10 +17,12 @@ function init_current_losses(unit, grid, field, medium, p)
     end
 
     @. Rnl = conj(Rnl)
-    Rnl = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, Rnl))
+    if grid.geometry != "T"   # FIXME: should be removed in a generic code.
+        Rnl = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, Rnl))
+    end
 
-    fearg_real(x::Complex{FloatGPU}) = real(x)^2
-    fearg_abs2(x::Complex{FloatGPU}) = abs2(x)
+    fearg_real(x::Complex) = real(x)^2
+    fearg_abs2(x::Complex) = abs2(x)
     if EREAL
         fearg = fearg_real
     else
@@ -33,11 +35,13 @@ function init_current_losses(unit, grid, field, medium, p)
 end
 
 
-function calc_current_losses(F::AbstractArray{T},
-                             E::AbstractArray{Complex{T}},
-                             z::T,
-                             args::Tuple,
-                             p::Tuple) where T<:AbstractFloat
+function calc_current_losses(
+    F::AbstractArray{T},
+    E::AbstractArray{Complex{T}},
+    z::T,
+    args::Tuple,
+    p::Tuple,
+) where T<:AbstractFloat
     Kdrho, fearg = p
     @. F = fearg(E)
     inverse!(F)
@@ -47,6 +51,17 @@ end
 
 
 function inverse!(F::AbstractArray{T}) where T<:AbstractFloat
+    for i=1:length(F)
+        if F[i] >= 1e-30
+            F[i] = 1 / F[i]
+        else
+            F[i] = 0
+        end
+    end
+end
+
+
+function inverse!(F::CuArrays.CuArray{T}) where T<:AbstractFloat
     N = length(F)
     dev = CUDAnative.CuDevice(0)
     MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)

@@ -47,9 +47,15 @@ function (tf::TFunction)(x::T) where T<:AbstractFloat
     if x <= 0
         res = convert(T, 0)   # in order to avoid -Inf in log10(0)
     else
-        xlog10 = CUDAnative.log10(x)
-        ylog10 = tfbase(tf, xlog10)
-        res = CUDAnative.pow(convert(T, 10), ylog10)
+        if T == Float32   # FIXME Dirty hack for launching on both CPU and GPU
+            xlog10 = CUDAnative.log10(x)
+            ylog10 = tfbase(tf, xlog10)
+            res = CUDAnative.pow(convert(T, 10), ylog10)
+        else
+            xlog10 = log10(x)
+            ylog10 = tfbase(tf, xlog10)
+            res = 10.0^ylog10
+        end
     end
     return res
 end

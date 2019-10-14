@@ -20,7 +20,9 @@ function init_current_free(unit, grid, field, medium, p)
     end
 
     @. Rnl = conj(Rnl)
-    Rnl = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, Rnl))
+    if grid.geometry != "T"   # FIXME: should be removed in a generic code.
+        Rnl = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, Rnl))
+    end
 
     p_calc = (field.rho, )
     pcalc = Equations.PFunction(calc_current_free, p_calc)
@@ -28,11 +30,13 @@ function init_current_free(unit, grid, field, medium, p)
 end
 
 
-function calc_current_free(F::AbstractArray{T},
-                           E::AbstractArray{Complex{T}},
-                           z::T,
-                           args::Tuple,
-                           p::Tuple) where T<:AbstractFloat
+function calc_current_free(
+    F::AbstractArray{T},
+    E::AbstractArray{Complex{T}},
+    z::T,
+    args::Tuple,
+    p::Tuple,
+) where T<:AbstractFloat
     rho, = p
     @. F = rho * real(E)
     return nothing

@@ -45,7 +45,7 @@ struct ModelT <: Model
     LP :: LinearPropagators.LinearPropagator
     prob :: Equations.Problem
     responses :: Tuple
-    # PE :: PlasmaEquations.PlasmaEquation
+    PE :: PlasmaEquations.PlasmaEquation
     keys :: NamedTuple
 end
 
@@ -175,7 +175,16 @@ function Model(
     pfunc = Equations.PFunction(func_t!, p)
     prob = Equations.Problem(keys.ALG, Stmp, pfunc)
 
-    return ModelT(LP, prob, responses, keys)
+    # Plasma equation ----------------------------------------------------------
+    PE = PlasmaEquations.PlasmaEquation(unit, n0, field.w0, plasma_equation)
+    if keys.NONLINEARITY
+        PE.solve!(field.rho, field.Kdrho, grid.t, field.E)
+    end
+
+    # Keys ---------------------------------------------------------------------
+    keys = (NONLINEARITY=keys.NONLINEARITY, )
+
+    return ModelT(LP, prob, responses, PE, keys)
 end
 
 
@@ -503,15 +512,11 @@ function zstep(
     model::ModelT,
 ) where T
     # Calculate plasma density -------------------------------------------------
-    # @timeit "plasma" begin
-    #     if model.keys.NONLINEARITY & (! isempty(model.responses))
-    #         t = StepRangeLen{FloatGPU, FloatGPU, FloatGPU}(
-    #             range(grid.t[1], grid.t[end], length=grid.Nt),
-    #         )
-    #         model.PE.solve!(field.rho, field.Kdrho, t, field.E)
-    #         CUDAdrv.synchronize()
-    #     end
-    # end
+    @timeit "plasma" begin
+        if model.keys.NONLINEARITY & (! isempty(model.responses))
+            model.PE.solve!(field.rho, field.Kdrho, grid.t, field.E)
+        end
+    end
 
     # Field -> temporal spectrum -----------------------------------------------
     @timeit "field -> spectr" begin
