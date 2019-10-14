@@ -76,15 +76,20 @@ function Field(unit::Units.UnitT, grid::Grids.GridT, p::Tuple)
     w0 = 2. * pi * f0
 
     E = initial_condition(grid.t, unit.t, unit.I)
+    E = convert(Array{ComplexF64, 1}, E)
 
     S = zeros(ComplexF64, grid.Nw)
     Fourier.rfft!(grid.FT, E, S)   # time -> frequency
-
-    E = convert(Array{ComplexF64, 1}, E)
+    
     Fourier.hilbert!(grid.FT, S, E)   # spectrum real to signal analytic
 
     rho = zeros(Float64, grid.Nt)
     Kdrho = zeros(Float64, grid.Nt)
+
+    # Initialize a dummy GPU array in order to trigger the creation of the
+    # device context. This will allow to call CUDAdrv.synchronize() in the
+    # main cycle.
+    tmp = CuArrays.zeros(1)
 
     return FieldT(lam0, f0, w0, E, S, rho, Kdrho)
 end

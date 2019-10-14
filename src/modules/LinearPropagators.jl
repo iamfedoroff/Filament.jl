@@ -171,14 +171,12 @@ end
 
 
 function propagate!(
-    E::AbstractArray{Complex{T}, 1},
+    S::AbstractArray{Complex{T}, 1},
     LP::LinearPropagatorT,
     z::T
 ) where T
-    # Fourier.fft!(LP.FT, E)
-    # @. E = E * exp(-1im * LP.KZ * z)
-    # Guards.apply_spectral_filter!(LP.guard, E)
-    # Fourier.ifft!(LP.FT, E)
+    @. S = S * exp(-1im * LP.KZ * z)
+    Guards.apply_spectral_filter!(LP.guard, S)
     return nothing
 end
 

@@ -17,6 +17,7 @@ struct FourierTransformT{T} <: FourierTransform
     Nt :: Int
     Nw :: Int
 
+    Er :: AbstractArray{T, 1}
     Sc :: AbstractArray{Complex{T}, 1}
 
     prfft :: FFTW.Plan
@@ -70,13 +71,14 @@ function FourierTransformT(Nt::Int)
         Nw = div(Nt + 1, 2)
     end
 
+    Er = zeros(Nt)
     Sc = zeros(ComplexF64, Nt)
 
     prfft = FFTW.plan_rfft(zeros(Float64, Nt))
     pirfft = FFTW.plan_irfft(zeros(ComplexF64, Nw), Nt)
     pifft = FFTW.plan_ifft(zeros(ComplexF64, Nt))
 
-    return FourierTransformT(Nt, Nw, Sc, prfft, pirfft, pifft)
+    return FourierTransformT(Nt, Nw, Er, Sc, prfft, pirfft, pifft)
 end
 
 
@@ -163,9 +165,10 @@ end
 
 
 function rfft!(FT::FourierTransform,
-               E::AbstractArray{T, 1},
+               E::AbstractArray{Complex{T}, 1},
                S::AbstractArray{Complex{T}, 1}) where T
-    LinearAlgebra.mul!(S, FT.prfft, E)   # time -> frequency
+    @. FT.Er = real(E)
+    LinearAlgebra.mul!(S, FT.prfft, FT.Er)   # time -> frequency
     return nothing
 end
 

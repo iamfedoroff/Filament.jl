@@ -437,6 +437,62 @@ end
 function zstep(
     z::T,
     dz::T,
+    grid::Grids.GridT,
+    field::Fields.FieldT,
+    guard::Guards.GuardT,
+    model::ModelT,
+) where T
+    # Calculate plasma density -------------------------------------------------
+    # @timeit "plasma" begin
+    #     if model.keys.NONLINEARITY & (! isempty(model.responses))
+    #         t = StepRangeLen{FloatGPU, FloatGPU, FloatGPU}(
+    #             range(grid.t[1], grid.t[end], length=grid.Nt),
+    #         )
+    #         model.PE.solve!(field.rho, field.Kdrho, t, field.E)
+    #         CUDAdrv.synchronize()
+    #     end
+    # end
+
+    # Field -> temporal spectrum -----------------------------------------------
+    @timeit "field -> spectr" begin
+        Fourier.rfft!(grid.FT, field.E, field.S)
+    end
+
+    # Nonlinearity -------------------------------------------------------------
+    # @timeit "nonlinearity" begin
+    #     if model.keys.NONLINEARITY & (! isempty(model.responses))
+    #        args = ()
+    #        znew = model.prob.step(field.S, z, dz, args)
+    #        znext = z + dz
+    #        while znew < znext
+    #            dznew = znext - znew
+    #            znew = model.prob.step(field.S, znew, dznew, args)
+    #        end
+    #        CUDAdrv.synchronize()
+    #    end
+    # end
+
+    # Linear propagator --------------------------------------------------------
+    @timeit "linear" begin
+        LinearPropagators.propagate!(field.S, model.LP, dz)
+    end
+
+    # Temporal spectrum -> field -----------------------------------------------
+    @timeit "spectr -> field" begin
+        Fourier.hilbert!(grid.FT, field.S, field.E)   # spectrum real to signal analytic
+    end
+
+    @timeit "field filter" begin
+        Guards.apply_field_filter!(guard, field.E)
+    end
+
+    return nothing
+end
+
+
+function zstep(
+    z::T,
+    dz::T,
     grid::Grids.GridRT,
     field::Fields.FieldRT,
     guard::Guards.GuardRT,

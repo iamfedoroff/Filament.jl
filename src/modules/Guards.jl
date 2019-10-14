@@ -260,7 +260,7 @@ end
 
 
 function apply_field_filter!(
-    guard::GuardT, E::CuArrays.CuArray{Complex{T}, 1}
+    guard::GuardT, E::AbstractArray{Complex{T}, 1}
 ) where T
     @. E = E * guard.T
     return nothing
@@ -295,7 +295,7 @@ end
 
 
 function apply_spectral_filter!(
-    guard::GuardT, S::CuArrays.CuArray{Complex{T}, 1}
+    guard::GuardT, S::AbstractArray{Complex{T}, 1}
 ) where T
     @. S = S * guard.W
     return nothing

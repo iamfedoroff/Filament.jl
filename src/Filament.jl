@@ -89,7 +89,7 @@ function main()
 
     znext_plothdf = z + Input.dz_plothdf
 
-    if occursin("T", grid.geometry)
+    if grid.geometry == "RT"
         dz_zdata = 0.5 * field.lam0 / unit.z
         znext_zdata = z + dz_zdata
     end
@@ -150,7 +150,7 @@ function main()
             end
 
             # Write 1d field data to hdf file
-            if occursin("T", grid.geometry)
+            if grid.geometry == "RT"
                 if z >= znext_zdata
                     @timeit "writeHDF_zdata" begin
                         WritePlots.writeHDF_zdata(plothdf, z, pdata)
