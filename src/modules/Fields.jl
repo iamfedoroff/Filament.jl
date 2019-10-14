@@ -1,11 +1,11 @@
 module Fields
 
-import FFTW
 import CuArrays
+import FFTW
 
-import Units
-import Grids
 import Fourier
+import Grids
+import Units
 
 import PyCall
 scipy_constants = PyCall.pyimport("scipy.constants")
@@ -160,12 +160,20 @@ function fluence(grid::Grids.GridRT, field::FieldRT)
 end
 
 
+function peak_fluence(grid::Grids.GridT, field::FieldT)
+    return sum(abs2.(field.E)) * grid.dt
+end
+
+
 function peak_fluence(grid::Grids.GridRT, field::FieldRT)
     return maximum(sum(abs2.(field.E), dims=2)) * grid.dt
 end
 
 
-function peak_fluence_gauss(grid::Grids.GridRT, field::FieldRT)
+function peak_fluence_gauss(
+    grid::Union{Grids.GridT, Grids.GridRT},
+    field::Union{FieldT, FieldRT},
+)
     t0 = pulse_duration(grid, field)
     I0 = peak_intensity(field)
     return sqrt(pi) * t0 * I0
@@ -204,6 +212,12 @@ Temporal fluence:
 function temporal_fluence(grid::Grids.GridRT, field::FieldRT)
     F = sum(abs2.(field.E) .* grid.rdr .* FloatGPU(2. * pi), dims=1)
     return CuArrays.collect(F)[1, :]
+end
+
+
+function pulse_duration(grid::Grids.GridT, field::FieldT)
+    I = abs2.(field.E)
+    return Grids.radius(grid.t, I)
 end
 
 

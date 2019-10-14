@@ -60,6 +60,8 @@ elseif geometry == "T"
     p_unit = (zu, tu, Iu, rhou)
     p_grid = (tmin, tmax, Nt)
     p_guard = (tguard, wguard)
+    p_model = (keys, responses, plasma_equation)
+    p_dzadaptive = (dzphimax, mr, nuc)
 elseif geometry == "RT"
     p_unit = (ru, zu, tu, Iu, rhou)
     p_grid = (rmax, Nr, tmin, tmax, Nt)

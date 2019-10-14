@@ -1,24 +1,23 @@
 module Models
 
-using TimerOutputs
 import CuArrays
-import CUDAnative
 import CUDAdrv
+import CUDAnative
 import FFTW
+using TimerOutputs
+
+import Equations
+import Fields
+import Fourier
+import Grids
+import Guards
+import Hankel
+import LinearPropagators
+import Media
+import PlasmaEquations
+import Units
 
 import PyCall
-
-import Units
-import Grids
-import Fields
-import Media
-import Hankel
-import Fourier
-import Guards
-import Equations
-import PlasmaEquations
-import LinearPropagators
-
 scipy_constants = PyCall.pyimport("scipy.constants")
 const C0 = scipy_constants.c   # speed of light in vacuum
 const EPS0 = scipy_constants.epsilon_0   # the electric constant (vacuum permittivity) [F/m]
@@ -42,6 +41,15 @@ struct ModelR <: Model
 end
 
 
+struct ModelT <: Model
+    LP :: LinearPropagators.LinearPropagator
+    # prob :: Equations.Problem
+    # responses :: Tuple
+    # PE :: PlasmaEquations.PlasmaEquation
+    # keys :: NamedTuple
+end
+
+
 struct ModelRT <: Model
     LP :: LinearPropagators.LinearPropagator
     prob :: Equations.Problem
@@ -59,12 +67,19 @@ struct ModelXY <: Model
 end
 
 
-function Model(unit::Units.UnitR, grid::Grids.GridR, field::Fields.FieldR,
-               medium::Media.Medium, guard::Guards.GuardR, keys::NamedTuple,
-               responses_list)
+function Model(
+    unit::Units.UnitR,
+    grid::Grids.GridR,
+    field::Fields.FieldR,
+    medium::Media.Medium,
+    guard::Guards.GuardR,
+    keys::NamedTuple,
+    responses_list,
+)
     # Linear propagator --------------------------------------------------------
-    LP = LinearPropagators.LinearPropagator(unit, grid, medium, guard, field.w0,
-                                            keys.KPARAXIAL)
+    LP = LinearPropagators.LinearPropagator(
+        unit, grid, medium, guard, field.w0, keys.KPARAXIAL,
+    )
 
     # Nonlinear propagator -----------------------------------------------------
     beta = Media.beta_func(medium, field.w0)
@@ -112,12 +127,37 @@ function Model(unit::Units.UnitR, grid::Grids.GridR, field::Fields.FieldR,
 end
 
 
-function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
-               medium::Media.Medium, guard::Guards.GuardRT, keys::NamedTuple,
-               responses_list, plasma_equation::Dict)
+function Model(
+    unit::Units.UnitT,
+    grid::Grids.GridT,
+    field::Fields.FieldT,
+    medium::Media.Medium,
+    guard::Guards.GuardT,
+    keys::NamedTuple,
+    responses_list,
+    plasma_equation::Dict,
+)
     # Linear propagator --------------------------------------------------------
-    LP = LinearPropagators.LinearPropagator(unit, grid, medium, guard, field.w0,
-                                            keys.KPARAXIAL)
+    LP = LinearPropagators.LinearPropagator(unit, grid, medium, guard, field.w0)
+
+    return ModelT(LP)
+end
+
+
+function Model(
+    unit::Units.UnitRT,
+    grid::Grids.GridRT,
+    field::Fields.FieldRT,
+    medium::Media.Medium,
+    guard::Guards.GuardRT,
+    keys::NamedTuple,
+    responses_list,
+    plasma_equation::Dict,
+)
+    # Linear propagator --------------------------------------------------------
+    LP = LinearPropagators.LinearPropagator(
+        unit, grid, medium, guard, field.w0, keys.KPARAXIAL,
+    )
 
     # Nonlinear propagator -----------------------------------------------------
     beta = Media.beta_func.(Ref(medium), grid.w * unit.w)
@@ -138,12 +178,12 @@ function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
         end
     else
         for j=1:grid.Nw
-            for i=1:grid.Nr
-                kzij = sqrt(beta[j]^2 - (grid.k[i] * unit.k)^2 + 0im)
-                if kzij != 0.
-                    QZ[i, j] = Qfactor[j] / kzij
-                end
+        for i=1:grid.Nr
+            kzij = sqrt(beta[j]^2 - (grid.k[i] * unit.k)^2 + 0im)
+            if kzij != 0.
+                QZ[i, j] = Qfactor[j] / kzij
             end
+        end
         end
     end
     @. QZ = conj(QZ)
@@ -164,12 +204,24 @@ function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
     Stmp = CuArrays.zeros(ComplexGPU, (grid.Nr, grid.Nw))
 
     # Problem:
-    p = (responses, grid.FT, Etmp, Ftmp, Stmp, guard, keys.QPARAXIAL, QZ, grid.HT)
+    p = (
+        responses,
+        grid.FT,
+        Etmp,
+        Ftmp,
+        Stmp,
+        guard,
+        keys.QPARAXIAL,
+        QZ,
+        grid.HT,
+    )
     pfunc = Equations.PFunction(func_spectrum!, p)
     prob = Equations.Problem(keys.ALG, Stmp, pfunc)
 
     # Plasma equation ----------------------------------------------------------
-    t = StepRangeLen{FloatGPU, FloatGPU, FloatGPU}(range(grid.t[1], grid.t[end], length=grid.Nt))
+    t = StepRangeLen{FloatGPU, FloatGPU, FloatGPU}(
+        range(grid.t[1], grid.t[end], length=grid.Nt),
+    )
     w0 = field.w0
     PE = PlasmaEquations.PlasmaEquation(unit, n0, w0, plasma_equation)
     if keys.NONLINEARITY
@@ -183,12 +235,19 @@ function Model(unit::Units.UnitRT, grid::Grids.GridRT, field::Fields.FieldRT,
 end
 
 
-function Model(unit::Units.UnitXY, grid::Grids.GridXY, field::Fields.FieldXY,
-               medium::Media.Medium, guard::Guards.GuardXY, keys::NamedTuple,
-               responses_list)
+function Model(
+    unit::Units.UnitXY,
+    grid::Grids.GridXY,
+    field::Fields.FieldXY,
+    medium::Media.Medium,
+    guard::Guards.GuardXY,
+    keys::NamedTuple,
+    responses_list,
+)
     # Linear propagator --------------------------------------------------------
-    LP = LinearPropagators.LinearPropagator(unit, grid, medium, guard, field.w0,
-                                            keys.KPARAXIAL)
+    LP = LinearPropagators.LinearPropagator(
+        unit, grid, medium, guard, field.w0, keys.KPARAXIAL,
+    )
 
     # Nonlinear propagator -----------------------------------------------------
     beta = Media.beta_func(medium, field.w0)
@@ -203,12 +262,13 @@ function Model(unit::Units.UnitXY, grid::Grids.GridXY, field::Fields.FieldXY,
         @. QZ = Qfactor / beta
     else
         for j=1:grid.Ny
-            for i=1:grid.Nx
-                kzij = sqrt(beta^2 - ((grid.kx[i] * unit.kx)^2 + (grid.ky[i] * unit.ky)^2) + 0im)
-                if kzij != 0.
-                    QZ[i] = Qfactor / kzij
-                end
+        for i=1:grid.Nx
+            kzij = sqrt(beta^2 - ((grid.kx[i] * unit.kx)^2 +
+                                  (grid.ky[i] * unit.ky)^2) + 0im)
+            if kzij != 0.
+                QZ[i] = Qfactor / kzij
             end
+        end
         end
     end
     @. QZ = conj(QZ)
@@ -238,12 +298,13 @@ function Model(unit::Units.UnitXY, grid::Grids.GridXY, field::Fields.FieldXY,
 end
 
 
-function func_field!(dE::CuArrays.CuArray{Complex{T}, 1},
-                     E::CuArrays.CuArray{Complex{T}, 1},
-                     z::T,
-                     args::Tuple,
-                     p::Tuple) where T<:AbstractFloat
-
+function func_field!(
+    dE::CuArrays.CuArray{Complex{T}, 1},
+    E::CuArrays.CuArray{Complex{T}, 1},
+    z::T,
+    args::Tuple,
+    p::Tuple,
+) where T<:AbstractFloat
     responses, Ftmp, guard, QPARAXIAL, QZ, HT = p
 
     fill!(dE, 0)
@@ -268,11 +329,13 @@ function func_field!(dE::CuArrays.CuArray{Complex{T}, 1},
 end
 
 
-function func_field!(dE::CuArrays.CuArray{Complex{T}, 2},
-                     E::CuArrays.CuArray{Complex{T}, 2},
-                     z::T,
-                     args::Tuple,
-                     p::Tuple) where T<:AbstractFloat
+function func_field!(
+    dE::CuArrays.CuArray{Complex{T}, 2},
+    E::CuArrays.CuArray{Complex{T}, 2},
+    z::T,
+    args::Tuple,
+    p::Tuple,
+) where T<:AbstractFloat
     responses, Ftmp, guard, QPARAXIAL, QZ, FT = p
 
     fill!(dE, 0)
@@ -297,11 +360,13 @@ function func_field!(dE::CuArrays.CuArray{Complex{T}, 2},
 end
 
 
-function func_spectrum!(dS::CuArrays.CuArray{Complex{T}, 2},
-                        S::CuArrays.CuArray{Complex{T}, 2},
-                        z::T,
-                        args::Tuple,
-                        p::Tuple) where T<:AbstractFloat
+function func_spectrum!(
+    dS::CuArrays.CuArray{Complex{T}, 2},
+    S::CuArrays.CuArray{Complex{T}, 2},
+    z::T,
+    args::Tuple,
+    p::Tuple,
+) where T<:AbstractFloat
     responses, FT, Etmp, Ftmp, Stmp, guard, QPARAXIAL, QZ, HT = p
 
     Fourier.hilbert2!(FT, S, Etmp)   # spectrum real to signal analytic
@@ -329,8 +394,14 @@ function func_spectrum!(dS::CuArrays.CuArray{Complex{T}, 2},
 end
 
 
-function zstep(z::T, dz::T, grid::Grids.GridR, field::Fields.FieldR,
-               guard::Guards.GuardR, model::ModelR) where T
+function zstep(
+    z::T,
+    dz::T,
+    grid::Grids.GridR,
+    field::Fields.FieldR,
+    guard::Guards.GuardR,
+    model::ModelR,
+) where T
     z = convert(FloatGPU, z)
     dz = convert(FloatGPU, dz)
 
@@ -363,15 +434,23 @@ function zstep(z::T, dz::T, grid::Grids.GridR, field::Fields.FieldR,
 end
 
 
-function zstep(z::T, dz::T, grid::Grids.GridRT, field::Fields.FieldRT,
-               guard::Guards.GuardRT, model::ModelRT) where T
+function zstep(
+    z::T,
+    dz::T,
+    grid::Grids.GridRT,
+    field::Fields.FieldRT,
+    guard::Guards.GuardRT,
+    model::ModelRT,
+) where T
     z = convert(FloatGPU, z)
     dz = convert(FloatGPU, dz)
 
     # Calculate plasma density -------------------------------------------------
     @timeit "plasma" begin
         if model.keys.NONLINEARITY & (! isempty(model.responses))
-            t = StepRangeLen{FloatGPU, FloatGPU, FloatGPU}(range(grid.t[1], grid.t[end], length=grid.Nt))
+            t = StepRangeLen{FloatGPU, FloatGPU, FloatGPU}(
+                range(grid.t[1], grid.t[end], length=grid.Nt),
+            )
             model.PE.solve!(field.rho, field.Kdrho, t, field.E)
             CUDAdrv.synchronize()
         end
@@ -418,8 +497,14 @@ function zstep(z::T, dz::T, grid::Grids.GridRT, field::Fields.FieldRT,
 end
 
 
-function zstep(z::T, dz::T, grid::Grids.GridXY, field::Fields.FieldXY,
-               guard::Guards.GuardXY, model::ModelXY) where T
+function zstep(
+    z::T,
+    dz::T,
+    grid::Grids.GridXY,
+    field::Fields.FieldXY,
+    guard::Guards.GuardXY,
+    model::ModelXY,
+) where T
     z = convert(FloatGPU, z)
     dz = convert(FloatGPU, dz)
 
@@ -452,17 +537,21 @@ function zstep(z::T, dz::T, grid::Grids.GridXY, field::Fields.FieldXY,
 end
 
 
-function update_dS!(dS::CuArrays.CuArray{Complex{T}, 2},
-                    R::T,
-                    S::CuArrays.CuArray{Complex{T}, 2}) where T
+function update_dS!(
+    dS::CuArrays.CuArray{Complex{T}, 2},
+    R::T,
+    S::CuArrays.CuArray{Complex{T}, 2},
+) where T
     @. dS = dS + R * S
     return nothing
 end
 
 
-function update_dS!(dS::CuArrays.CuArray{Complex{T}, 2},
-                    R::CuArrays.CuArray{Complex{T}, 1},
-                    S::CuArrays.CuArray{Complex{T}, 2}) where T
+function update_dS!(
+    dS::CuArrays.CuArray{Complex{T}, 2},
+    R::CuArrays.CuArray{Complex{T}, 1},
+    S::CuArrays.CuArray{Complex{T}, 2},
+) where T
     N1, N2 = size(S)
     dev = CUDAnative.CuDevice(0)
     MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)

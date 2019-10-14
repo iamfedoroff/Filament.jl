@@ -22,6 +22,13 @@ struct LinearPropagatorR{T} <: LinearPropagator
 end
 
 
+struct LinearPropagatorT{T} <: LinearPropagator
+    KZ :: AbstractArray{Complex{T}, 1}
+    FT :: Fourier.FourierTransform
+    guard :: Guards.Guard
+end
+
+
 struct LinearPropagatorRT{T} <: LinearPropagator
     KZ :: AbstractArray{Complex{T}, 2}
     HT :: Hankel.HankelTransform
@@ -36,12 +43,14 @@ struct LinearPropagatorXY{T} <: LinearPropagator
 end
 
 
-function LinearPropagator(unit::Units.UnitR,
-                          grid::Grids.GridR,
-                          medium::Media.Medium,
-                          guard::Guards.Guard,
-                          w0::AbstractFloat,
-                          PARAXIAL::Bool)
+function LinearPropagator(
+    unit::Units.UnitR,
+    grid::Grids.GridR,
+    medium::Media.Medium,
+    guard::Guards.Guard,
+    w0::AbstractFloat,
+    PARAXIAL::Bool,
+)
     beta = Media.beta_func(medium, w0)
 
     if PARAXIAL
@@ -57,12 +66,30 @@ function LinearPropagator(unit::Units.UnitR,
 end
 
 
-function LinearPropagator(unit::Units.UnitRT,
-                          grid::Grids.GridRT,
-                          medium::Media.Medium,
-                          guard::Guards.Guard,
-                          w0::AbstractFloat,
-                          PARAXIAL::Bool)
+function LinearPropagator(
+    unit::Units.UnitT,
+    grid::Grids.GridT,
+    medium::Media.Medium,
+    guard::Guards.Guard,
+    w0::AbstractFloat,
+)
+    beta = Media.beta_func.(Ref(medium), grid.w * unit.w)
+    vf = Media.group_velocity(medium, w0)   # frame velocity
+    KZ = @. beta + 0im
+    @. KZ = (KZ - grid.w * unit.w / vf) * unit.z
+    @. KZ = conj(KZ)
+    return LinearPropagatorT(KZ, grid.FT, guard)
+end
+
+
+function LinearPropagator(
+    unit::Units.UnitRT,
+    grid::Grids.GridRT,
+    medium::Media.Medium,
+    guard::Guards.Guard,
+    w0::AbstractFloat,
+    PARAXIAL::Bool,
+)
     beta = Media.beta_func.(Ref(medium), grid.w * unit.w)
 
     KZ = zeros(ComplexF64, (grid.Nr, grid.Nw))
@@ -96,12 +123,14 @@ function LinearPropagator(unit::Units.UnitRT,
 end
 
 
-function LinearPropagator(unit::Units.UnitXY,
-                          grid::Grids.GridXY,
-                          medium::Media.Medium,
-                          guard::Guards.Guard,
-                          w0::AbstractFloat,
-                          PARAXIAL::Bool)
+function LinearPropagator(
+    unit::Units.UnitXY,
+    grid::Grids.GridXY,
+    medium::Media.Medium,
+    guard::Guards.Guard,
+    w0::AbstractFloat,
+    PARAXIAL::Bool,
+)
     beta = Media.beta_func(medium, w0)
 
     KZ = zeros(ComplexF64, (grid.Nx, grid.Ny))
@@ -128,9 +157,11 @@ function LinearPropagator(unit::Units.UnitXY,
 end
 
 
-function propagate!(E::AbstractArray{Complex{T}, 1},
-                    LP::LinearPropagatorR,
-                    z::T) where T
+function propagate!(
+    E::AbstractArray{Complex{T}, 1},
+    LP::LinearPropagatorR,
+    z::T
+) where T
     Hankel.dht!(LP.HT, E)
     @. E = E * exp(-1im * LP.KZ * z)
     Guards.apply_spectral_filter!(LP.guard, E)
@@ -139,9 +170,24 @@ function propagate!(E::AbstractArray{Complex{T}, 1},
 end
 
 
-function propagate!(E::AbstractArray{Complex{T}, 2},
-                    LP::LinearPropagatorRT,
-                    z::T) where T
+function propagate!(
+    E::AbstractArray{Complex{T}, 1},
+    LP::LinearPropagatorT,
+    z::T
+) where T
+    # Fourier.fft!(LP.FT, E)
+    # @. E = E * exp(-1im * LP.KZ * z)
+    # Guards.apply_spectral_filter!(LP.guard, E)
+    # Fourier.ifft!(LP.FT, E)
+    return nothing
+end
+
+
+function propagate!(
+    E::AbstractArray{Complex{T}, 2},
+    LP::LinearPropagatorRT,
+    z::T
+) where T
     Hankel.dht!(LP.HT, E)
     @. E = E * exp(-1im * LP.KZ * z)
     Guards.apply_spectral_filter!(LP.guard, E)
@@ -150,9 +196,11 @@ function propagate!(E::AbstractArray{Complex{T}, 2},
 end
 
 
-function propagate!(E::AbstractArray{Complex{T}, 2},
-                    LP::LinearPropagatorXY,
-                    z::T) where T<:AbstractFloat
+function propagate!(
+    E::AbstractArray{Complex{T}, 2},
+    LP::LinearPropagatorXY,
+    z::T
+) where T
     Fourier.fft!(LP.FT, E)
     @. E = E * exp(-1im * LP.KZ * z)
     Guards.apply_spectral_filter!(LP.guard, E)

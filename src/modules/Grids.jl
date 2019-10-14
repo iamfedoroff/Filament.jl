@@ -272,8 +272,11 @@ function step(i::Int, x::Array{Float64, 1})
 end
 
 
-function radius(x::Array{Float64, 1}, y::Array{FloatGPU, 1},
-                level::Float64=exp(-1))
+function radius(
+    x::AbstractArray,
+    y::AbstractArray,
+    level::AbstractFloat=exp(-1),
+)
     Nx = length(x)
     ylevel = maximum(y) * level
 

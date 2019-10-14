@@ -1,12 +1,12 @@
 module WritePlots
 
-import Formatting
 import CuArrays
+import Formatting
 import HDF5
 
-import Units
-import Grids
 import Fields
+import Grids
+import Units
 
 const FloatGPU = Float32
 const ComplexGPU = ComplexF32
@@ -32,6 +32,15 @@ mutable struct PlotVarDataR <: PlotVarData
     P :: Float64
     I :: Array{FloatGPU, 1}
     Igpu :: CuArrays.CuArray{FloatGPU, 1}
+end
+
+
+mutable struct PlotVarDataT{T<:AbstractFloat} <: PlotVarData
+    plotvars :: Array{PlotVar, 1}
+    Imax :: T
+    rhomax :: T
+    duration :: T
+    F :: T
 end
 
 
@@ -67,10 +76,21 @@ function PlotVarData(unit::Units.UnitR, grid::Grids.GridR)
         PlotVar("Imax", "W/m2", unit.I),
         PlotVar("rfil", "m", unit.r),
         PlotVar("P", "W", unit.r^2 * unit.I),
-        ]
+    ]
     I = zeros(FloatGPU, grid.Nr)
     Igpu = CuArrays.zeros(FloatGPU, grid.Nr)
     return PlotVarDataR(plotvars, 0., 0., 0., I, Igpu)
+end
+
+
+function PlotVarData(unit::Units.UnitT, grid::Grids.GridT)
+    plotvars = [
+        PlotVar("Imax", "W/m2", unit.I),
+        PlotVar("Nemax", "1/m3", unit.rho),
+        PlotVar("duration", "s", unit.t),
+        PlotVar("F", "J/m^2", unit.t * unit.I),
+    ]
+    return PlotVarDataT(plotvars, 0., 0., 0., 0.)
 end
 
 
@@ -83,7 +103,7 @@ function PlotVarData(unit::Units.UnitRT, grid::Grids.GridRT)
         PlotVar("rfil", "m", unit.r),
         PlotVar("rpl", "m", unit.r),
         PlotVar("W", "J", unit.r^2 * unit.t * unit.I),
-        ]
+    ]
     I = CuArrays.zeros(FloatGPU, (grid.Nr, grid.Nt))
     F = zeros(FloatGPU, grid.Nr)
     rho = zeros(FloatGPU, grid.Nr)
@@ -98,15 +118,18 @@ function PlotVarData(unit::Units.UnitXY, grid::Grids.GridXY)
         PlotVar("ax", "m", unit.x),
         PlotVar("ay", "m", unit.y),
         PlotVar("P", "W", unit.x * unit.y * unit.I),
-        ]
+    ]
     I = zeros(FloatGPU, (grid.Nx, grid.Ny))
     Igpu = CuArrays.zeros(FloatGPU, (grid.Nx, grid.Ny))
     return PlotVarDataXY(plotvars, 0., 0., 0., 0., I, Igpu)
 end
 
 
-function pdata_update!(pdata::PlotVarDataR, grid::Grids.GridR,
-                       field::Fields.FieldR)
+function pdata_update!(
+    pdata::PlotVarDataR,
+    grid::Grids.GridR,
+    field::Fields.FieldR,
+)
     pdata.Igpu .= abs2.(field.E)
     pdata.I[:] = CuArrays.collect(pdata.Igpu)
 
@@ -117,8 +140,24 @@ function pdata_update!(pdata::PlotVarDataR, grid::Grids.GridR,
 end
 
 
-function pdata_update!(pdata::PlotVarDataRT, grid::Grids.GridRT,
-                       field::Fields.FieldRT)
+function pdata_update!(
+    pdata::PlotVarDataT,
+    grid::Grids.GridT,
+    field::Fields.FieldT,
+)
+    pdata.Imax = Fields.peak_intensity(field)
+    pdata.rhomax = maximum(field.rho)
+    pdata.duration = Fields.pulse_duration(grid, field)
+    pdata.F = Fields.peak_fluence(grid, field)
+    return nothing
+end
+
+
+function pdata_update!(
+    pdata::PlotVarDataRT,
+    grid::Grids.GridRT,
+    field::Fields.FieldRT,
+)
     pdata.I .= abs2.(field.E)
 
     F = sum(pdata.I .* FloatGPU(grid.dt), dims=2)
@@ -139,8 +178,11 @@ function pdata_update!(pdata::PlotVarDataRT, grid::Grids.GridRT,
 end
 
 
-function pdata_update!(pdata::PlotVarDataXY, grid::Grids.GridXY,
-                       field::Fields.FieldXY)
+function pdata_update!(
+    pdata::PlotVarDataXY,
+    grid::Grids.GridXY,
+    field::Fields.FieldXY,
+)
     pdata.Igpu .= abs2.(field.E)
     pdata.I[:] = CuArrays.collect(pdata.Igpu)
 
@@ -199,6 +241,18 @@ function writeDAT(plotdat::PlotDAT, z::Float64, pdata::PlotVarDataR)
     write(fp, "$(Formatting.fmt("18.12e", pdata.Imax)) ")   # Imax
     write(fp, "$(Formatting.fmt("18.12e", pdata.rfil)) ")   # rfil
     write(fp, "$(Formatting.fmt("18.12e", pdata.P)) ")   # P
+    write(fp, "\n")
+    close(fp)
+end
+
+
+function writeDAT(plotdat::PlotDAT, z::AbstractFloat, pdata::PlotVarDataT)
+    fp = open(plotdat.fname, "a")
+    write(fp, "  $(Formatting.fmt("18.12e", z)) ")   # z
+    write(fp, "$(Formatting.fmt("18.12e", pdata.Imax)) ")   # Imax
+    write(fp, "$(Formatting.fmt("18.12e", pdata.rhomax)) ")   # Nemax
+    write(fp, "$(Formatting.fmt("18.12e", pdata.duration)) ")   # duration
+    write(fp, "$(Formatting.fmt("18.12e", pdata.F)) ")   # F
     write(fp, "\n")
     close(fp)
 end
@@ -268,6 +322,37 @@ function PlotHDF(fname::String, unit::Units.UnitR, grid::Grids.GridR)
     group_grid["geometry"] = grid.geometry
     group_grid["rmax"] = grid.rmax
     group_grid["Nr"] = grid.Nr
+
+    HDF5.close(fp)
+
+    numplot = 0
+    previous_z = -Inf
+    iz = 0
+
+    return PlotHDF(fname, numplot, previous_z, iz)
+end
+
+
+function PlotHDF(fname::String, unit::Units.UnitT, grid::Grids.GridT)
+    fp = HDF5.h5open(fname, "w")
+
+    HDF5.g_create(fp, GROUP_UNIT)
+    HDF5.g_create(fp, GROUP_GRID)
+    HDF5.g_create(fp, GROUP_FDAT)
+
+    fp["version"] = PFVERSION
+
+    group_unit = fp[GROUP_UNIT]
+    group_unit["z"] = unit.z
+    group_unit["t"] = unit.t
+    group_unit["I"] = unit.I
+    group_unit["Ne"] = unit.rho
+
+    group_grid = fp[GROUP_GRID]
+    group_grid["geometry"] = grid.geometry
+    group_grid["tmin"] = grid.tmin
+    group_grid["tmax"] = grid.tmax
+    group_grid["Nt"] = grid.Nt
 
     HDF5.close(fp)
 
@@ -411,18 +496,24 @@ function writeHDF_zdata(plothdf::PlotHDF, z::Float64, pdata::PlotVarData)
 end
 
 
+function write_field(group, dataset, field::Fields.FieldR)
+    writeComplexArray(group, dataset, CuArrays.collect(field.E))
+    return nothing
+end
+
+
+function write_field(group, dataset, field::Fields.FieldT)
+    writeComplexArray(group, dataset, field.E)
+    return nothing
+end
+
+
 function write_field(group, dataset, field::Fields.FieldRT)
     E = CuArrays.collect(transpose(real.(field.E)))
     shape = size(E)
     typesize = sizeof(eltype(E))
     chunk = guess_chunk(shape, typesize)
     group[dataset, "chunk", chunk, "shuffle", (), "compress", 9] = E
-    return nothing
-end
-
-
-function write_field(group, dataset, field::Fields.FieldR)
-    writeComplexArray(group, dataset, CuArrays.collect(field.E))
     return nothing
 end
 

@@ -57,9 +57,16 @@ function main()
     end
 
     file_infos = joinpath(prefix_dir, string(prefix_name, "info.txt"))
-    info = Infos.Info(file_infos, Input.file_input,
-                      Input.file_initial_condition, Input.file_medium,
-                      unit, grid, field, medium)
+    info = Infos.Info(
+        file_infos,
+        Input.file_input,
+        Input.file_initial_condition,
+        Input.file_medium,
+        unit,
+        grid,
+        field,
+        medium,
+    )
 
     pdata = WritePlots.PlotVarData(unit, grid)
     WritePlots.pdata_update!(pdata, grid, field)
@@ -71,7 +78,7 @@ function main()
     file_plothdf = joinpath(prefix_dir, string(prefix_name, "plot.h5"))
     plothdf = WritePlots.PlotHDF(file_plothdf, unit, grid)
     WritePlots.writeHDF(plothdf, z, field)
-    if occursin("T", grid.geometry)
+    if grid.geometry == "RT"
         WritePlots.writeHDF_zdata(plothdf, z, pdata)
     end
 

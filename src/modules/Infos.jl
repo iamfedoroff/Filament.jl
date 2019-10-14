@@ -1,16 +1,17 @@
 module Infos
 
-import Formatting
 import Dates
+import Formatting
 
-import Units
-import Grids
 import Fields
+import Grids
 import Media
+import Units
 
 import PyCall
 scipy_constants = PyCall.pyimport("scipy.constants")
 const C0 = scipy_constants.c   # speed of light in vacuum
+
 
 fmt(x) = Formatting.fmt("18.12e", x)
 
@@ -20,9 +21,16 @@ struct Info
 end
 
 
-function Info(fname::String, file_input::String, file_initial_condition::String,
-              file_medium::String, unit::Units.Unit, grid::Grids.Grid,
-              field::Fields.Field, medium::Media.Medium)
+function Info(
+    fname::String,
+    file_input::String,
+    file_initial_condition::String,
+    file_medium::String,
+    unit::Units.Unit,
+    grid::Grids.Grid,
+    field::Fields.Field,
+    medium::Media.Medium,
+)
     revision = vcs_revision()
 
     file_input_content = read(file_input, String)
@@ -83,6 +91,7 @@ function vcs_revision()
         revision = read(@cmd("git rev-parse HEAD"), String)
         revision = string(strip(revision))
     catch
+        @warn "The VCS revision is unavailable."
     end
     cd(cwdir)
     return revision
@@ -99,6 +108,19 @@ function info_grid(unit::Units.UnitR, grid::Grids.GridR)
     dr = $(fmt(dr_mean * unit.r)) [m] - average spatial step
     dk = $(fmt(dk_mean * unit.k)) [1/m] - average spatial frequency (angular) step
     kc = $(fmt(kc * unit.k)) [1/m] - spatial Nyquist frequency (angular)
+    """
+    return sdata
+end
+
+
+function info_grid(unit::Units.UnitT, grid::Grids.GridT)
+    fc = 0.5 / grid.dt   # temporal Nyquist frequency
+
+    sdata =
+    """
+    dt = $(fmt(grid.dt * unit.t)) [s] - temporal step
+    df = $(fmt(grid.df * unit.w)) [1/s] - temporal frequency step
+    fc = $(fmt(fc * unit.w)) [1/s] - temporal Nyquist frequency
     """
     return sdata
 end
@@ -140,8 +162,11 @@ function info_grid(unit::Units.UnitXY, grid::Grids.GridXY)
 end
 
 
-function info_field(unit::Units.UnitR, grid::Grids.GridR,
-                    field::Fields.FieldR)
+function info_field(
+    unit::Units.UnitR,
+    grid::Grids.GridR,
+    field::Fields.FieldR,
+)
     a0 = Fields.beam_radius(grid, field) * unit.r
     I0 = Fields.peak_intensity(field) * unit.I
     P = Fields.peak_power(grid, field) * unit.r^2 * unit.I
@@ -161,8 +186,34 @@ function info_field(unit::Units.UnitR, grid::Grids.GridR,
 end
 
 
-function info_field(unit::Units.UnitRT, grid::Grids.GridRT,
-                    field::Fields.FieldRT)
+function info_field(
+    unit::Units.UnitT,
+    grid::Grids.GridT,
+    field::Fields.FieldT,
+)
+    t0 = Fields.pulse_duration(grid, field) * unit.t
+    I0 = Fields.peak_intensity(field) * unit.I
+
+    sdata =
+    """
+    t0   = $(fmt(t0)) [s] - initial pulse duration (half width 1/e)
+    I0   = $(fmt(I0)) [W/m^2] - initial intensity
+    lam0 = $(fmt(field.lam0)) [m] - central wavelength
+    f0   = $(fmt(field.f0)) [1/s] - central frequency
+    w0   = $(fmt(field.w0)) [1/s] - central frequency (angular)
+    F    = $(fmt(Fields.peak_fluence(grid, field) * unit.t * unit.I)) [J/m^2] - peak fluence
+    Fg   = $(fmt(Fields.peak_fluence_gauss(grid, field) * unit.t * unit.I)) [J/m^2] - Gaussian peak fluence (pi^0.5*t0*I0)
+    Wph  = $(fmt(Fields.energy_photon(field))) [J] - energy of one photon
+    """
+    return sdata
+end
+
+
+function info_field(
+    unit::Units.UnitRT,
+    grid::Grids.GridRT,
+    field::Fields.FieldRT,
+)
     a0 = Fields.beam_radius(grid, field) * unit.r
     t0 = Fields.pulse_duration(grid, field) * unit.t
     I0 = Fields.peak_intensity(field) * unit.I
@@ -188,8 +239,11 @@ function info_field(unit::Units.UnitRT, grid::Grids.GridRT,
 end
 
 
-function info_field(unit::Units.UnitXY, grid::Grids.GridXY,
-                    field::Fields.FieldXY)
+function info_field(
+    unit::Units.UnitXY,
+    grid::Grids.GridXY,
+    field::Fields.FieldXY,
+)
     a0 = Fields.beam_radius(grid, field) * sqrt(unit.x * unit.y)
     I0 = Fields.peak_intensity(field) * unit.I
     P = Fields.peak_power(grid, field) * unit.x * unit.y * unit.I
@@ -211,8 +265,12 @@ function info_field(unit::Units.UnitXY, grid::Grids.GridXY,
 end
 
 
-function info_medium(unit::Units.UnitR, grid::Grids.GridR,
-                     field::Fields.FieldR, medium::Media.Medium)
+function info_medium(
+    unit::Units.UnitR,
+    grid::Grids.GridR,
+    field::Fields.FieldR,
+    medium::Media.Medium,
+)
     a0 = Fields.beam_radius(grid, field) * unit.r
     I0 = Fields.peak_intensity(field) * unit.I
     P = Fields.peak_power(grid, field) * unit.r^2 * unit.I
@@ -242,8 +300,43 @@ function info_medium(unit::Units.UnitR, grid::Grids.GridR,
 end
 
 
-function info_medium(unit::Units.UnitRT, grid::Grids.GridRT,
-                     field::Fields.FieldRT, medium::Media.Medium)
+function info_medium(
+    unit::Units.UnitT,
+    grid::Grids.GridT,
+    field::Fields.FieldT,
+    medium::Media.Medium,
+)
+    t0 = Fields.pulse_duration(grid, field) * unit.t
+    I0 = Fields.peak_intensity(field) * unit.I
+
+    sdata =
+    """
+    n0re = $(fmt(real(Media.refractive_index(medium, field.w0)))) [-] - refractive index (real part)
+    n0im = $(fmt(imag(Media.refractive_index(medium, field.w0)))) [-] - refractive index (imaginary part)
+    k0 = $(fmt(Media.k_func(medium, field.w0))) [1/m] - wave number
+    k1 = $(fmt(Media.k1_func(medium, field.w0))) [s/m] - 1st derivative of wave number: d(k0)/dw
+    k2 = $(fmt(Media.k2_func(medium, field.w0))) [s^2/m] - 2nd derivative of wave number: d(k1)/dw
+    k3 = $(fmt(Media.k3_func(medium, field.w0))) [s^3/m] - 3rd derivative of wave number: d(k2)/dw
+    ga = $(fmt(Media.absorption_coefficient(medium, field.w0))) [1/m] - linear absorption coefficient (by field)
+    vp = $(fmt(Media.phase_velocity(medium, field.w0) / C0)) [C0] - phase velocity
+    vg = $(fmt(Media.group_velocity(medium, field.w0) / C0)) [C0] - group velocity
+    n2  = $(fmt(medium.n2)) [m^2/W] - Kerr nonlinear index
+    chi3 = $(fmt(Media.chi3_func(medium, field.w0))) [m/V] - 3rd order nonlinear susceptibility
+    Ldisp  = $(fmt(Media.dispersion_length(medium, field.w0, t0))) [m] - dispersion length
+    Ldisp3 = $(fmt(Media.dispersion_length3(medium, field.w0, t0))) [m] - 3rd order dispersion length (t0^3/k3)
+    La     = $(fmt(Media.absorption_length(medium, field.w0))) [m] - linear absorption length
+    Lnl    = $(fmt(Media.nonlinearity_length(medium, field.w0, I0))) [m] - length of Kerr nonlinearity
+    """
+    return sdata
+end
+
+
+function info_medium(
+    unit::Units.UnitRT,
+    grid::Grids.GridRT,
+    field::Fields.FieldRT,
+    medium::Media.Medium,
+)
     a0 = Fields.beam_radius(grid, field) * unit.r
     t0 = Fields.pulse_duration(grid, field) * unit.t
     I0 = Fields.peak_intensity(field) * unit.I
@@ -276,8 +369,12 @@ function info_medium(unit::Units.UnitRT, grid::Grids.GridRT,
 end
 
 
-function info_medium(unit::Units.UnitXY, grid::Grids.GridXY,
-                     field::Fields.FieldXY, medium::Media.Medium)
+function info_medium(
+    unit::Units.UnitXY,
+    grid::Grids.GridXY,
+    field::Fields.FieldXY,
+    medium::Media.Medium,
+)
     a0 = Fields.beam_radius(grid, field) * sqrt(unit.x * unit.y)
     I0 = Fields.peak_intensity(field) * unit.I
     P = Fields.peak_power(grid, field) * unit.x * unit.y * unit.I
