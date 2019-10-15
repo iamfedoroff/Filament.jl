@@ -10,7 +10,6 @@ import Media
 import Units
 
 const FloatGPU = Float32
-const ComplexGPU = ComplexF32
 
 
 abstract type Guard end
@@ -58,7 +57,7 @@ function Guard(
     field::Fields.FieldR,
     medium::Media.Medium,
     rguard::T,
-    kguard::T
+    kguard::T,
 ) where T<:AbstractFloat
     # Spatial guard filter:
     Rguard = guard_window(grid.r, rguard, mode="right")
@@ -80,7 +79,7 @@ function Guard(
     field::Fields.FieldT,
     medium::Media.Medium,
     tguard::T,
-    wguard::T
+    wguard::T,
 ) where T<:AbstractFloat
     # Temporal guard filter:
     Tguard = guard_window(grid.t, tguard, mode="both")
@@ -100,7 +99,7 @@ function Guard(
     rguard::T,
     tguard::T,
     kguard::T,
-    wguard::T
+    wguard::T,
 ) where T<:AbstractFloat
     # Spatial guard filter:
     Rguard = guard_window(grid.r, rguard, mode="right")
@@ -153,7 +152,7 @@ function Guard(
     xguard::T,
     yguard::T,
     kxguard::T,
-    kyguard::T
+    kyguard::T,
 ) where T<:AbstractFloat
     # Spatial guard filters:
     Xguard = guard_window(grid.x, xguard, mode="both")
@@ -191,8 +190,10 @@ Lossy guard window at the ends of grid coordinate.
           "right" - lossy guard only on the right end of the grid
           "both" - lossy guard on both ends of the grid
 """
-function guard_window(x::Array{T, 1}, guard_width::T; mode="both") where T
-    @assert guard_width >= 0.
+function guard_window(
+    x::AbstractArray{T, 1}, guard_width::T; mode="both",
+) where T
+    @assert guard_width >= 0
     @assert mode in ["left", "right", "both"]
 
     if mode in ["left", "right"]
@@ -215,7 +216,7 @@ function guard_window(x::Array{T, 1}, guard_width::T; mode="both") where T
         gauss2 = ones(Nx)
         for i=1:Nx
             if x[i] >= guard_xmin
-                gauss1[i] = 1. - exp(-((x[i] - guard_xmin) / width)^6)
+                gauss1[i] = 1 - exp(-((x[i] - guard_xmin) / width)^6)
             end
             if x[i] <= guard_xmax
                 gauss2[i] = exp(-((x[i] - guard_xmax) / width)^6)
@@ -233,7 +234,7 @@ function guard_window(x::Array{T, 1}, guard_width::T; mode="both") where T
                 gauss1[i] = exp(-((x[i] - guard_xmin) / width)^6)
             end
             if x[i] <= guard_xmax
-                gauss2[i] = 1. - exp(-((x[i] - guard_xmax) / width)^6)
+                gauss2[i] = 1 - exp(-((x[i] - guard_xmax) / width)^6)
             end
         end
         guard_right = 0.5 * (gauss1 + gauss2)
@@ -244,7 +245,7 @@ function guard_window(x::Array{T, 1}, guard_width::T; mode="both") where T
         elseif mode == "right"
             guard = guard_right
         elseif mode == "both"
-            guard = @. guard_left + guard_right - 1.
+            guard = @. guard_left + guard_right - 1
         end
     end
     return guard
@@ -252,7 +253,7 @@ end
 
 
 function apply_field_filter!(
-    guard::GuardR, E::CuArrays.CuArray{Complex{T}, 1}
+    guard::GuardR, E::CuArrays.CuArray{Complex{T}, 1},
 ) where T
     @. E = E * guard.R
     return nothing
@@ -260,7 +261,7 @@ end
 
 
 function apply_field_filter!(
-    guard::GuardT, E::AbstractArray{T, 1}
+    guard::GuardT, E::AbstractArray{T, 1},
 ) where T
     @. E = E * guard.T
     return nothing
@@ -268,7 +269,7 @@ end
 
 
 function apply_field_filter!(
-    guard::GuardRT, E::CuArrays.CuArray{T, 2}
+    guard::GuardRT, E::CuArrays.CuArray{T, 2},
 ) where T
     nth = guard.nthreadsNrNt
     nbl = guard.nblocksNrNt
@@ -287,7 +288,7 @@ end
 
 
 function apply_spectral_filter!(
-    guard::GuardR, E::CuArrays.CuArray{Complex{T}, 1}
+    guard::GuardR, E::CuArrays.CuArray{Complex{T}, 1},
 ) where T
     @. E = E * guard.K
     return nothing
@@ -295,7 +296,7 @@ end
 
 
 function apply_spectral_filter!(
-    guard::GuardT, S::AbstractArray{Complex{T}, 1}
+    guard::GuardT, S::AbstractArray{Complex{T}, 1},
 ) where T
     @. S = S * guard.W
     return nothing
@@ -303,7 +304,7 @@ end
 
 
 function apply_spectral_filter!(
-    guard::GuardRT, S::CuArrays.CuArray{Complex{T}, 2}
+    guard::GuardRT, S::CuArrays.CuArray{Complex{T}, 2},
 ) where T
     nth = guard.nthreadsNrNw
     nbl = guard.nblocksNrNw
@@ -312,7 +313,7 @@ end
 
 
 function apply_spectral_filter!(
-    guard::GuardXY, E::CuArrays.CuArray{Complex{T}, 2}
+    guard::GuardXY, E::CuArrays.CuArray{Complex{T}, 2},
 ) where T
     nth = guard.nthreads
     nbl = guard.nblocks
@@ -324,7 +325,7 @@ end
 function kernel(
     F::CUDAnative.CuDeviceArray,
     A::CUDAnative.CuDeviceArray{T, 1},
-    B::CUDAnative.CuDeviceArray{T, 1}
+    B::CUDAnative.CuDeviceArray{T, 1},
 ) where T
     id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
     stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
@@ -342,7 +343,7 @@ end
 function kernel(
     F::CUDAnative.CuDeviceArray,
     A::CUDAnative.CuDeviceArray{T, 2},
-    B::CUDAnative.CuDeviceArray{T, 1}
+    B::CUDAnative.CuDeviceArray{T, 1},
 ) where T
     id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
     stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x

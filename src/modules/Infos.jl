@@ -114,12 +114,14 @@ end
 
 
 function info_grid(unit::Units.UnitT, grid::Grids.GridT)
+    f = grid.w / (2 * pi)
+    df = f[2] - f[1]
     fc = 0.5 / grid.dt   # temporal Nyquist frequency
 
     sdata =
     """
     dt = $(fmt(grid.dt * unit.t)) [s] - temporal step
-    df = $(fmt(grid.df * unit.w)) [1/s] - temporal frequency step
+    df = $(fmt(df * unit.w)) [1/s] - temporal frequency step
     fc = $(fmt(fc * unit.w)) [1/s] - temporal Nyquist frequency
     """
     return sdata
@@ -130,6 +132,8 @@ function info_grid(unit::Units.UnitRT, grid::Grids.GridRT)
     dr_mean = sum(diff(grid.r)) / length(diff(grid.r))   # average spatial step
     dk_mean = sum(diff(grid.k)) / length(diff(grid.k))   # spatial frequency step
     kc = 2 * pi * 0.5 / dr_mean   # spatial Nyquist frequency
+    f = grid.w / (2 * pi)
+    df = f[2] - f[1]
     fc = 0.5 / grid.dt   # temporal Nyquist frequency
 
     sdata =
@@ -138,7 +142,7 @@ function info_grid(unit::Units.UnitRT, grid::Grids.GridRT)
     dk = $(fmt(dk_mean * unit.k)) [1/m] - average spatial frequency (angular) step
     kc = $(fmt(kc * unit.k)) [1/m] - spatial Nyquist frequency (angular)
     dt = $(fmt(grid.dt * unit.t)) [s] - temporal step
-    df = $(fmt(grid.df * unit.w)) [1/s] - temporal frequency step
+    df = $(fmt(df * unit.w)) [1/s] - temporal frequency step
     fc = $(fmt(fc * unit.w)) [1/s] - temporal Nyquist frequency
     """
     return sdata
@@ -146,15 +150,17 @@ end
 
 
 function info_grid(unit::Units.UnitXY, grid::Grids.GridXY)
-    kxc = 2 * pi * 0.5 / grid.dkx   # x angular spatial Nyquist frequency
-    kyc = 2 * pi * 0.5 / grid.dky   # y angular spatial Nyquist frequency
+    dkx = grid.kx[2] - grid.kx[1]
+    dky = grid.ky[2] - grid.ky[1]
+    kxc = 2 * pi * 0.5 / dkx   # x angular spatial Nyquist frequency
+    kyc = 2 * pi * 0.5 / dky   # y angular spatial Nyquist frequency
 
     sdata =
     """
     dx  = $(fmt(grid.dx * unit.x)) [m] - x spatial step
     dy  = $(fmt(grid.dy * unit.y)) [m] - y spatial step
-    dkx = $(fmt(grid.dkx * unit.kx)) [1/m] - x spatial frequency (angular) step
-    dky = $(fmt(grid.dky * unit.ky)) [1/m] - y spatial frequency (angular) step
+    dkx = $(fmt(dkx * unit.kx)) [1/m] - x spatial frequency (angular) step
+    dky = $(fmt(dky * unit.ky)) [1/m] - y spatial frequency (angular) step
     kxc  = $(fmt(kxc * unit.kx)) [1/m] - x spatial Nyquist frequency (angular)
     kyc  = $(fmt(kyc * unit.ky)) [1/m] - y spatial Nyquist frequency (angular)
     """

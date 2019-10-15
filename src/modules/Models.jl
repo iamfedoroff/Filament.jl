@@ -263,12 +263,10 @@ function Model(
     prob = Equations.Problem(keys.ALG, Stmp, pfunc)
 
     # Plasma equation ----------------------------------------------------------
-    t = StepRangeLen{FloatGPU, FloatGPU, FloatGPU}(
-        range(grid.t[1], grid.t[end], length=grid.Nt),
-    )
-    w0 = field.w0
-    PE = PlasmaEquations.PlasmaEquation(unit, n0, w0, plasma_equation)
-    if keys.NONLINEARITY
+    PE = PlasmaEquations.PlasmaEquation(unit, n0, field.w0, plasma_equation)
+    if keys.NONLINEARITY & (! isempty(responses))
+        t = range(convert(FloatGPU, grid.tmin),
+                  convert(FloatGPU, grid.tmax), length=grid.Nt)
         PE.solve!(field.rho, field.Kdrho, t, field.E)
     end
 
@@ -568,9 +566,8 @@ function zstep(
     # Calculate plasma density -------------------------------------------------
     @timeit "plasma" begin
         if model.keys.NONLINEARITY & (! isempty(model.responses))
-            t = StepRangeLen{FloatGPU, FloatGPU, FloatGPU}(
-                range(grid.t[1], grid.t[end], length=grid.Nt),
-            )
+            t = range(convert(FloatGPU, grid.tmin),
+                      convert(FloatGPU, grid.tmax), length=grid.Nt)
             model.PE.solve!(field.rho, field.Kdrho, t, field.E)
             CUDAdrv.synchronize()
         end

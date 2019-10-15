@@ -2,12 +2,8 @@ module Grids
 
 import CuArrays
 
-import Hankel
 import Fourier
-
-import PyCall
-scipy_constants = PyCall.pyimport("scipy.constants")
-const C0 = scipy_constants.c   # speed of light in vacuum
+import Hankel
 
 const FloatGPU = Float32
 
@@ -15,98 +11,74 @@ const FloatGPU = Float32
 abstract type Grid end
 
 
-struct GridR <: Grid
+struct GridR{T<:AbstractFloat, I<:Int} <: Grid
     geometry :: String
 
-    rmax :: Float64
-    Nr :: Int
-
-    r :: Array{Float64, 1}
-    dr :: Array{Float64, 1}
+    rmax :: T
+    Nr :: I
+    r :: AbstractArray{T, 1}
+    dr :: AbstractArray{T, 1}
     rdr :: CuArrays.CuArray{FloatGPU, 1}
-    v :: Array{Float64, 1}
-    k :: Array{Float64, 1}
+    k :: AbstractArray{T, 1}
 
     HT :: Hankel.HankelTransform
 end
 
 
-struct GridT <: Grid
+struct GridT{T<:AbstractFloat, I<:Int} <: Grid
     geometry :: String
 
-    tmin :: Float64
-    tmax :: Float64
-    Nt :: Int
-
-    t :: Array{Float64, 1}
-    dt :: Float64
-    f :: Array{Float64, 1}
-    Nf :: Int
-    df :: Float64
-    w :: Array{Float64, 1}
-    Nw :: Int
-    dw :: Float64
-    lam :: Array{Float64, 1}
-    Nlam :: Int
+    tmin :: T
+    tmax :: T
+    Nt :: I
+    t :: AbstractArray{T, 1}
+    dt :: T
+    w :: AbstractArray{T, 1}
+    Nw :: I
 
     FT :: Fourier.FourierTransform
 end
 
 
-struct GridRT <: Grid
+struct GridRT{T<:AbstractFloat, I<:Int} <: Grid
     geometry :: String
 
-    rmax :: Float64
-    Nr :: Int
-
-    tmin :: Float64
-    tmax :: Float64
-    Nt :: Int
-
-    r :: Array{Float64, 1}
-    dr :: Array{Float64, 1}
+    rmax :: T
+    Nr :: I
+    r :: AbstractArray{T, 1}
+    dr :: AbstractArray{T, 1}
     rdr :: CuArrays.CuArray{FloatGPU, 1}
-    v :: Array{Float64, 1}
-    k :: Array{Float64, 1}
+    k :: AbstractArray{T, 1}
 
-    t :: Array{Float64, 1}
-    dt :: Float64
-    f :: Array{Float64, 1}
-    Nf :: Int
-    df :: Float64
-    w :: Array{Float64, 1}
-    Nw :: Int
-    dw :: Float64
-    lam :: Array{Float64, 1}
-    Nlam :: Int
+    tmin :: T
+    tmax :: T
+    Nt :: I
+    t :: AbstractArray{T, 1}
+    dt :: T
+    w :: AbstractArray{T, 1}
+    Nw :: I
 
     HT :: Hankel.HankelTransform
     FT :: Fourier.FourierTransform
 end
 
 
-struct GridXY <: Grid
+struct GridXY{T<:AbstractFloat, I<:Int} <: Grid
     geometry :: String
 
-    xmin :: Float64
-    xmax :: Float64
-    Nx :: Int
+    xmin :: T
+    xmax :: T
+    Nx :: I
+    x :: AbstractArray{T, 1}
+    dx :: T
+    kx :: AbstractArray{T, 1}
 
-    ymin :: Float64
-    ymax :: Float64
-    Ny :: Int
-
-    x :: Array{Float64, 1}
-    dx :: Float64
-    kx :: Array{Float64, 1}
-    Nkx :: Int
-    dkx :: Float64
-
-    y :: Array{Float64, 1}
-    dy :: Float64
-    ky :: Array{Float64, 1}
-    Nky :: Int
-    dky :: Float64
+    ymin :: T
+    ymax :: T
+    Ny :: I
+    y :: AbstractArray{T, 1}
+    dy :: T
+    ky :: AbstractArray{T, 1}
 
     FT :: Fourier.FourierTransform
 end
@@ -132,134 +104,86 @@ end
 
 function GridR(rmax, Nr)
     geometry = "R"
-
     HT = Hankel.HankelTransform(rmax, Nr)   # Hankel transform
+    r, dr, rdr, k = _grid_spatial_axial(HT)
 
-    r = HT.r   # radial coordinates
-
-    # steps for radial coordinate:
-    dr = zeros(Nr)
-    for i=1:Nr
-        dr[i] = step(i, r)
-    end
-    rdr = r .* dr   # for calculation of spatial integrals
     rdr = CuArrays.CuArray(convert(Array{FloatGPU, 1}, rdr))
 
-    v = HT.v   # spatial frequency
-    k = 2. * pi * v   # spatial angular frequency
-
-    return GridR(geometry, rmax, Nr, r, dr, rdr, v, k, HT)
+    return GridR(geometry, rmax, Nr, r, dr, rdr, k, HT)
 end
 
 
 function GridT(tmin, tmax, Nt)
     geometry = "T"
-
-    t = range(tmin, tmax, length=Nt)   # temporal coordinates
-    dt = t[2] - t[1]   # temporal step
-
-    f = Fourier.rfftfreq(Nt, dt)   # temporal frequency
-    Nf = length(f)   # length of temporal frequency array
-    df = f[2] - f[1]   # temporal frequency step
-
-    w = 2 * pi * f   # temporal angular frequency
-    Nw = length(w)   # length of temporal angular frequency array
-    dw = w[2] - w[1]   # temporal angular frequency step
-
-    lam = zeros(Nf)   # wavelengths
-    for i=1:Nf
-        if f == 0
-            lam[i] = Inf
-        else
-            lam[i] = C0 / f[i]
-        end
-    end
-    Nlam = length(lam)
-    # dlam = lam[3] - lam[2]   # wavelength step
-    # lamc = 0.5 / self.dlam   # Nyquist wavelength (need check!)
-
+    t, dt, w, Nw = _grid_temporal(tmin, tmax, Nt)
     FT = Fourier.FourierTransformT(Nt)   # Fourier transform
-
-    return GridT(geometry, tmin, tmax, Nt,
-                  t, dt, f, Nf, df, w, Nw, dw, lam, Nlam, FT)
+    return GridT(geometry, tmin, tmax, Nt, t, dt, w, Nw, FT)
 end
 
 
 function GridRT(rmax, Nr, tmin, tmax, Nt)
     geometry = "RT"
-
     HT = Hankel.HankelTransform(rmax, Nr, Nt)   # Hankel transform
-
-    r = HT.r   # radial coordinates
-
-    # steps for radial coordinate:
-    dr = zeros(Nr)
-    for i=1:Nr
-        dr[i] = step(i, r)
-    end
-    rdr = r .* dr   # for calculation of spatial integrals
-    rdr = CuArrays.CuArray(convert(Array{FloatGPU, 1}, rdr))
-
-    v = HT.v   # spatial frequency
-    k = 2 * pi * v   # spatial angular frequency
-
-    t = range(tmin, tmax, length=Nt)   # temporal coordinates
-    dt = t[2] - t[1]   # temporal step
-
-    f = Fourier.rfftfreq(Nt, dt)   # temporal frequency
-    Nf = length(f)   # length of temporal frequency array
-    df = f[2] - f[1]   # temporal frequency step
-
-    w = 2 * pi * f   # temporal angular frequency
-    Nw = length(w)   # length of temporal angular frequency array
-    dw = w[2] - w[1]   # temporal angular frequency step
-
-    lam = zeros(Nf)   # wavelengths
-    for i=1:Nf
-        if f == 0
-            lam[i] = Inf
-        else
-            lam[i] = C0 / f[i]
-        end
-    end
-    Nlam = length(lam)
-    # dlam = lam[3] - lam[2]   # wavelength step
-    # lamc = 0.5 / self.dlam   # Nyquist wavelength (need check!)
-
+    r, dr, rdr, k = _grid_spatial_axial(HT)
+    t, dt, w, Nw = _grid_temporal(tmin, tmax, Nt)
     FT = Fourier.FourierTransformRT(Nr, Nt)   # Fourier transform
 
-    return GridRT(geometry, rmax, Nr, tmin, tmax, Nt,
-                  r, dr, rdr, v, k,
-                  t, dt, f, Nf, df, w, Nw, dw, lam, Nlam, HT, FT)
+    rdr = CuArrays.CuArray(convert(Array{FloatGPU, 1}, rdr))
+
+    return GridRT(
+        geometry, rmax, Nr, r, dr, rdr, k, tmin, tmax, Nt, t, dt, w, Nw, HT, FT,
+    )
 end
 
 
 function GridXY(xmin, xmax, Nx, ymin, ymax, Ny)
     geometry = "XY"
-
-    x = range(xmin, xmax, length=Nx)   # x spatial coordinates
-    dx = x[2] - x[1]   # x spatial step
-
-    y = range(ymin, ymax, length=Ny)   # y spatial coordinates
-    dy = y[2] - y[1]   # y spatial step
-
-    kx = 2. * pi * Fourier.fftfreq(Nx, dx)   # x angular spatial frequency
-    Nkx = length(kx)
-    dkx = kx[2] - kx[1]   # x angular spatial frequency step
-
-    ky = 2. * pi * Fourier.fftfreq(Ny, dy)   # y angular spatial frequency
-    Nky = length(ky)
-    dky = ky[2] - ky[1]   # y angular spatial frequency step
-
+    x, dx, kx = _grid_spatial_rectangular(xmin, xmax, Nx)
+    y, dy, ky = _grid_spatial_rectangular(ymin, ymax, Ny)
     FT = Fourier.FourierTransformXY(Nx, Ny)   # Fourier transform
+    return GridXY(
+        geometry, xmin, xmax, Nx, x, dx, kx, ymin, ymax, Ny, y, dy, ky, FT,
+    )
+end
 
-    return GridXY(geometry, xmin, xmax, Nx, ymin, ymax, Ny,
-                  x, dx, kx, Nkx, dkx, y, dy, ky, Nky, dky, FT)
+
+function _grid_spatial_rectangular(
+    xmin::T, xmax::T, Nx::Int,
+) where T<:AbstractFloat
+    x = range(xmin, xmax, length=Nx)   # grid coordinates
+    dx = x[2] - x[1]   # step
+    kx = 2 * pi * Fourier.fftfreq(Nx, dx)   # angular frequency
+    return x, dx, kx
+end
+
+
+function _grid_spatial_axial(HT::Hankel.HankelTransform)
+    r = HT.r   # grid coordinates
+    k = 2 * pi * HT.v   # angular frequency
+
+    # nonuniform steps:
+    Nr = length(r)
+    dr = zeros(Nr)
+    for i=1:Nr
+        dr[i] = _step(i, r)
+    end
+    rdr = @. r * dr   # for calculation of spatial integrals
+
+    return r, dr, rdr, k
+end
+
+
+function _grid_temporal(tmin::T, tmax::T, Nt::Int) where T<:AbstractFloat
+    t = range(tmin, tmax, length=Nt)   # grid coordinates
+    dt = t[2] - t[1]   # step
+    w = 2 * pi * Fourier.rfftfreq(Nt, dt)   # angular frequency
+    Nw = length(w)   # length of angular frequency array
+    return t, dt, w, Nw
 end
 
 
 """Calculates step dx for a specific index i on a nonuniform grid x."""
-function step(i::Int, x::Array{Float64, 1})
+function _step(i::Int, x::AbstractArray{T, 1}) where T
     Nx = length(x)
     if i == 1
         dx = x[2] - x[1]
@@ -273,9 +197,7 @@ end
 
 
 function radius(
-    x::AbstractArray,
-    y::AbstractArray,
-    level::AbstractFloat=exp(-1),
+    x::AbstractArray, y::AbstractArray, level::AbstractFloat=exp(-1),
 )
     Nx = length(x)
     ylevel = maximum(y) * level
