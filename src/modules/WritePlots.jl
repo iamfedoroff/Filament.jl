@@ -9,13 +9,12 @@ import Grids
 import Units
 
 const FloatGPU = Float32
-const ComplexGPU = ComplexF32
 
 
-struct PlotVar
+struct PlotVar{T<:AbstractFloat}
     name :: String
     siunit :: String
-    unit :: Float64
+    unit :: T
 end
 
 
@@ -25,18 +24,18 @@ end
 abstract type PlotVarData end
 
 
-mutable struct PlotVarDataR <: PlotVarData
-    plotvars :: Array{PlotVar, 1}
-    Imax :: Float64
-    rfil :: Float64
-    P :: Float64
+mutable struct PlotVarDataR{T<:AbstractFloat} <: PlotVarData
+    plotvars :: Array{PlotVar{T}, 1}
+    Imax :: T
+    rfil :: T
+    P :: T
     I :: Array{FloatGPU, 1}
     Igpu :: CuArrays.CuArray{FloatGPU, 1}
 end
 
 
 mutable struct PlotVarDataT{T<:AbstractFloat} <: PlotVarData
-    plotvars :: Array{PlotVar, 1}
+    plotvars :: Array{PlotVar{T}, 1}
     Imax :: T
     rhomax :: T
     duration :: T
@@ -44,15 +43,15 @@ mutable struct PlotVarDataT{T<:AbstractFloat} <: PlotVarData
 end
 
 
-mutable struct PlotVarDataRT <: PlotVarData
-    plotvars :: Array{PlotVar, 1}
-    Fmax :: Float64
-    Imax :: Float64
-    rhomax :: Float64
-    De :: Float64
-    rfil :: Float64
-    rpl :: Float64
-    W :: Float64
+mutable struct PlotVarDataRT{T<:AbstractFloat} <: PlotVarData
+    plotvars :: Array{PlotVar{T}, 1}
+    Fmax :: T
+    Imax :: T
+    rhomax :: T
+    De :: T
+    rfil :: T
+    rpl :: T
+    W :: T
     I :: CuArrays.CuArray{FloatGPU, 2}
     F :: Array{FloatGPU, 1}
     rho :: Array{FloatGPU, 1}
@@ -60,12 +59,12 @@ mutable struct PlotVarDataRT <: PlotVarData
 end
 
 
-mutable struct PlotVarDataXY <: PlotVarData
-    plotvars :: Array{PlotVar, 1}
-    Imax :: Float64
-    ax :: Float64
-    ay :: Float64
-    P :: Float64
+mutable struct PlotVarDataXY{T<:AbstractFloat} <: PlotVarData
+    plotvars :: Array{PlotVar{T}, 1}
+    Imax :: T
+    ax :: T
+    ay :: T
+    P :: T
     I :: Array{FloatGPU, 2}
     Igpu :: CuArrays.CuArray{FloatGPU, 2}
 end
@@ -295,151 +294,136 @@ const GROUP_FDAT = "field"
 const GROUP_ZDAT = "zdata"
 
 
-mutable struct PlotHDF
+mutable struct PlotHDF{T<:AbstractFloat, I<:Int}
     fname :: String
-    numplot :: Int64
-    previous_z :: Float64
-    iz :: Int64
+    numplot :: I
+    previous_z :: T
+    iz :: I
 end
 
 
-function PlotHDF(fname::String, unit::Units.UnitR, grid::Grids.GridR)
+function PlotHDF(fname::String, unit::Units.Unit, grid::Grids.Grid)
     fp = HDF5.h5open(fname, "w")
-
-    HDF5.g_create(fp, GROUP_UNIT)
-    HDF5.g_create(fp, GROUP_GRID)
+    fp["version"] = PFVERSION
+    _write_group_unit(fp, unit)
+    _write_group_grid(fp, grid)
     HDF5.g_create(fp, GROUP_FDAT)
+    if grid.geometry == "RT"
+        _write_group_zdat(fp, grid)
+    end
+    HDF5.close(fp)
+
+    numplot = 0
+    previous_z = -Inf
+    iz = 0
+
+    return PlotHDF(fname, numplot, previous_z, iz)
+end
+
+
+function _write_group_unit(fp, unit::Units.UnitR)
+    HDF5.g_create(fp, GROUP_UNIT)
+    group = fp[GROUP_UNIT]
+    group["r"] = unit.r
+    group["z"] = unit.z
+    group["I"] = unit.I
+    return nothing
+end
+
+
+function _write_group_unit(fp, unit::Units.UnitT)
+    HDF5.g_create(fp, GROUP_UNIT)
+    group = fp[GROUP_UNIT]
+    group["z"] = unit.z
+    group["t"] = unit.t
+    group["I"] = unit.I
+    group["Ne"] = unit.rho
+    return nothing
+end
+
+
+function _write_group_unit(fp, unit::Units.UnitRT)
+    HDF5.g_create(fp, GROUP_UNIT)
+    group = fp[GROUP_UNIT]
+    group["r"] = unit.r
+    group["z"] = unit.z
+    group["t"] = unit.t
+    group["I"] = unit.I
+    group["Ne"] = unit.rho
+    return nothing
+end
+
+
+function _write_group_unit(fp, unit::Units.UnitXY)
+    HDF5.g_create(fp, GROUP_UNIT)
+    group = fp[GROUP_UNIT]
+    group["x"] = unit.x
+    group["y"] = unit.y
+    group["z"] = unit.z
+    group["I"] = unit.I
+    return nothing
+end
+
+
+function _write_group_grid(fp, grid::Grids.GridR)
+    HDF5.g_create(fp, GROUP_GRID)
+    group = fp[GROUP_GRID]
+    group["geometry"] = grid.geometry
+    group["rmax"] = grid.rmax
+    group["Nr"] = grid.Nr
+    return nothing
+end
+
+
+function _write_group_grid(fp, grid::Grids.GridT)
+    HDF5.g_create(fp, GROUP_GRID)
+    group = fp[GROUP_GRID]
+    group["geometry"] = grid.geometry
+    group["tmin"] = grid.tmin
+    group["tmax"] = grid.tmax
+    group["Nt"] = grid.Nt
+    return nothing
+end
+
+
+function _write_group_grid(fp, grid::Grids.GridRT)
+    HDF5.g_create(fp, GROUP_GRID)
+    group = fp[GROUP_GRID]
+    group["geometry"] = grid.geometry
+    group["rmax"] = grid.rmax
+    group["Nr"] = grid.Nr
+    group["tmin"] = grid.tmin
+    group["tmax"] = grid.tmax
+    group["Nt"] = grid.Nt
+    return nothing
+end
+
+
+function _write_group_grid(fp, grid::Grids.GridXY)
+    HDF5.g_create(fp, GROUP_GRID)
+    group = fp[GROUP_GRID]
+    group["geometry"] = grid.geometry
+    group["xmin"] = grid.xmin
+    group["xmax"] = grid.xmax
+    group["Nx"] = grid.Nx
+    group["ymin"] = grid.ymin
+    group["ymax"] = grid.ymax
+    group["Ny"] = grid.Ny
+    return nothing
+end
+
+
+function _write_group_zdat(fp, grid::Grids.GridRT)
     HDF5.g_create(fp, GROUP_ZDAT)
-
-    fp["version"] = PFVERSION
-
-    group_unit = fp[GROUP_UNIT]
-    group_unit["r"] = unit.r
-    group_unit["z"] = unit.z
-    group_unit["I"] = unit.I
-
-    group_grid = fp[GROUP_GRID]
-    group_grid["geometry"] = grid.geometry
-    group_grid["rmax"] = grid.rmax
-    group_grid["Nr"] = grid.Nr
-
-    HDF5.close(fp)
-
-    numplot = 0
-    previous_z = -Inf
-    iz = 0
-
-    return PlotHDF(fname, numplot, previous_z, iz)
-end
-
-
-function PlotHDF(fname::String, unit::Units.UnitT, grid::Grids.GridT)
-    fp = HDF5.h5open(fname, "w")
-
-    HDF5.g_create(fp, GROUP_UNIT)
-    HDF5.g_create(fp, GROUP_GRID)
-    HDF5.g_create(fp, GROUP_FDAT)
-
-    fp["version"] = PFVERSION
-
-    group_unit = fp[GROUP_UNIT]
-    group_unit["z"] = unit.z
-    group_unit["t"] = unit.t
-    group_unit["I"] = unit.I
-    group_unit["Ne"] = unit.rho
-
-    group_grid = fp[GROUP_GRID]
-    group_grid["geometry"] = grid.geometry
-    group_grid["tmin"] = grid.tmin
-    group_grid["tmax"] = grid.tmax
-    group_grid["Nt"] = grid.Nt
-
-    HDF5.close(fp)
-
-    numplot = 0
-    previous_z = -Inf
-    iz = 0
-
-    return PlotHDF(fname, numplot, previous_z, iz)
-end
-
-
-function PlotHDF(fname::String, unit::Units.UnitRT, grid::Grids.GridRT)
-    fp = HDF5.h5open(fname, "w")
-
-    HDF5.g_create(fp, GROUP_UNIT)
-    HDF5.g_create(fp, GROUP_GRID)
-    HDF5.g_create(fp, GROUP_FDAT)
-    HDF5.g_create(fp, GROUP_ZDAT)
-
-    fp["version"] = PFVERSION
-
-    group_unit = fp[GROUP_UNIT]
-    group_unit["r"] = unit.r
-    group_unit["z"] = unit.z
-    group_unit["t"] = unit.t
-    group_unit["I"] = unit.I
-    group_unit["Ne"] = unit.rho
-
-    group_grid = fp[GROUP_GRID]
-    group_grid["geometry"] = grid.geometry
-    group_grid["rmax"] = grid.rmax
-    group_grid["Nr"] = grid.Nr
-    group_grid["tmin"] = grid.tmin
-    group_grid["tmax"] = grid.tmax
-    group_grid["Nt"] = grid.Nt
-
-    group_zdat = fp[GROUP_ZDAT]
-    d_create(group_zdat, "z", FloatGPU, ((1,), (-1,)))
-    # d_create(group_zdat, "Fzx", FloatGPU, ((1, grid.Nr), (-1, grid.Nr)))
-    d_create(group_zdat, "Fzx", FloatGPU, ((grid.Nr, 1), (grid.Nr, -1)))
-    # d_create(group_zdat, "Nezx", FloatGPU, ((1, grid.Nr), (-1, grid.Nr)))
-    d_create(group_zdat, "Nezx", FloatGPU, ((grid.Nr, 1), (grid.Nr, -1)))
-    # d_create(group_zdat, "iSzf", FloatGPU, ((1, grid.Nw), (-1, grid.Nw)))
-    d_create(group_zdat, "iSzf", FloatGPU, ((grid.Nw, 1), (grid.Nw, -1)))
-
-    HDF5.close(fp)
-
-    numplot = 0
-    previous_z = -Inf
-    iz = 0
-
-    return PlotHDF(fname, numplot, previous_z, iz)
-end
-
-
-function PlotHDF(fname::String, unit::Units.UnitXY, grid::Grids.GridXY)
-    fp = HDF5.h5open(fname, "w")
-
-    HDF5.g_create(fp, GROUP_UNIT)
-    HDF5.g_create(fp, GROUP_GRID)
-    HDF5.g_create(fp, GROUP_FDAT)
-    HDF5.g_create(fp, GROUP_ZDAT)
-
-    fp["version"] = PFVERSION
-
-    group_unit = fp[GROUP_UNIT]
-    group_unit["x"] = unit.x
-    group_unit["y"] = unit.y
-    group_unit["z"] = unit.z
-    group_unit["I"] = unit.I
-
-    group_grid = fp[GROUP_GRID]
-    group_grid["geometry"] = grid.geometry
-    group_grid["xmin"] = grid.xmin
-    group_grid["xmax"] = grid.xmax
-    group_grid["Nx"] = grid.Nx
-    group_grid["ymin"] = grid.ymin
-    group_grid["ymax"] = grid.ymax
-    group_grid["Ny"] = grid.Ny
-
-    HDF5.close(fp)
-
-    numplot = 0
-    previous_z = -Inf
-    iz = 0
-
-    return PlotHDF(fname, numplot, previous_z, iz)
+    group = fp[GROUP_ZDAT]
+    d_create(group, "z", FloatGPU, ((1,), (-1,)))
+    # d_create(group, "Fzx", FloatGPU, ((1, grid.Nr), (-1, grid.Nr)))
+    d_create(group, "Fzx", FloatGPU, ((grid.Nr, 1), (grid.Nr, -1)))
+    # d_create(group, "Nezx", FloatGPU, ((1, grid.Nr), (-1, grid.Nr)))
+    d_create(group, "Nezx", FloatGPU, ((grid.Nr, 1), (grid.Nr, -1)))
+    # d_create(group, "iSzf", FloatGPU, ((1, grid.Nw), (-1, grid.Nw)))
+    d_create(group, "iSzf", FloatGPU, ((grid.Nw, 1), (grid.Nw, -1)))
+    return nothing
 end
 
 
