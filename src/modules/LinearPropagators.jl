@@ -2,6 +2,7 @@ module LinearPropagators
 
 import CuArrays
 
+import Fields
 import Fourier
 import Grids
 import Guards
@@ -47,13 +48,15 @@ function LinearPropagator(
     unit::Units.UnitR,
     grid::Grids.GridR,
     medium::Media.Medium,
+    field::Fields.Field,
     guard::Guards.Guard,
-    w0::AbstractFloat,
-    PARAXIAL::Bool,
+    keys::NamedTuple,
 )
-    beta = Media.beta_func(medium, w0)
+    KPARAXIAL = keys.KPARAXIAL
 
-    if PARAXIAL
+    beta = Media.beta_func(medium, field.w0)
+
+    if KPARAXIAL
         KZ = @. beta - (grid.k * unit.k)^2 / (2 * beta)
     else
         KZ = @. sqrt(beta^2 - (grid.k * unit.k)^2 + 0im)
@@ -70,11 +73,12 @@ function LinearPropagator(
     unit::Units.UnitT,
     grid::Grids.GridT,
     medium::Media.Medium,
+    field::Fields.Field,
     guard::Guards.Guard,
-    w0::AbstractFloat,
+    keys::NamedTuple,
 )
     beta = Media.beta_func.(Ref(medium), grid.w * unit.w)
-    vf = Media.group_velocity(medium, w0)   # frame velocity
+    vf = Media.group_velocity(medium, field.w0)   # frame velocity
     KZ = @. beta + 0im
     @. KZ = (KZ - grid.w * unit.w / vf) * unit.z
     @. KZ = conj(KZ)
@@ -86,14 +90,16 @@ function LinearPropagator(
     unit::Units.UnitRT,
     grid::Grids.GridRT,
     medium::Media.Medium,
+    field::Fields.Field,
     guard::Guards.Guard,
-    w0::AbstractFloat,
-    PARAXIAL::Bool,
+    keys::NamedTuple,
 )
+    KPARAXIAL = keys.KPARAXIAL
+
     beta = Media.beta_func.(Ref(medium), grid.w * unit.w)
 
     KZ = zeros(ComplexF64, (grid.Nr, grid.Nw))
-    if PARAXIAL
+    if KPARAXIAL
         for iw=1:grid.Nw
             if beta[iw] != 0
                 for ir=1:grid.Nr
@@ -104,17 +110,17 @@ function LinearPropagator(
         end
     else
         for iw=1:grid.Nw
-            for ir=1:grid.Nr
-                KZ[ir, iw] = sqrt(beta[iw]^2 - (grid.k[ir] * unit.k)^2 + 0im)
-            end
+        for ir=1:grid.Nr
+            KZ[ir, iw] = sqrt(beta[iw]^2 - (grid.k[ir] * unit.k)^2 + 0im)
+        end
         end
     end
 
-    vf = Media.group_velocity(medium, w0)   # frame velocity
+    vf = Media.group_velocity(medium, field.w0)   # frame velocity
     for iw=1:grid.Nw
-        for ir=1:grid.Nr
-            KZ[ir, iw] = (KZ[ir, iw] - grid.w[iw] * unit.w / vf) * unit.z
-        end
+    for ir=1:grid.Nr
+        KZ[ir, iw] = (KZ[ir, iw] - grid.w[iw] * unit.w / vf) * unit.z
+    end
     end
     @. KZ = conj(KZ)
     KZ = CuArrays.CuArray(convert(Array{Complex{FloatGPU}, 2}, KZ))
@@ -127,26 +133,28 @@ function LinearPropagator(
     unit::Units.UnitXY,
     grid::Grids.GridXY,
     medium::Media.Medium,
+    field::Fields.Field,
     guard::Guards.Guard,
-    w0::AbstractFloat,
-    PARAXIAL::Bool,
+    keys::NamedTuple,
 )
-    beta = Media.beta_func(medium, w0)
+    KPARAXIAL = keys.KPARAXIAL
+
+    beta = Media.beta_func(medium, field.w0)
 
     KZ = zeros(ComplexF64, (grid.Nx, grid.Ny))
-    if PARAXIAL
+    if KPARAXIAL
         for iy=1:grid.Ny
-            for ix=1:grid.Nx
-                KZ[ix, iy] = beta - ((grid.kx[ix] * unit.kx)^2 +
-                                     (grid.ky[iy] * unit.ky)^2) / (2 * beta)
-            end
+        for ix=1:grid.Nx
+            KZ[ix, iy] = beta - ((grid.kx[ix] * unit.kx)^2 +
+                                 (grid.ky[iy] * unit.ky)^2) / (2 * beta)
+        end
         end
     else
         for iy=1:grid.Ny
-            for ix=1:grid.Nx
-                KZ[ix, iy] = sqrt(beta^2 - ((grid.kx[ix] * unit.kx)^2 +
-                                            (grid.ky[iy] * unit.ky)^2) + 0im)
-            end
+        for ix=1:grid.Nx
+            KZ[ix, iy] = sqrt(beta^2 - ((grid.kx[ix] * unit.kx)^2 +
+                                        (grid.ky[iy] * unit.ky)^2) + 0im)
+        end
         end
     end
     @. KZ = KZ * unit.z

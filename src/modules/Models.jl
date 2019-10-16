@@ -59,7 +59,7 @@ function Model(
     keys::NamedTuple,
 )
     LP = LinearPropagators.LinearPropagator(
-        unit, grid, medium, guard, field.w0, keys.KPARAXIAL,
+        unit, grid, medium, field, guard, keys,
     )
 
     NP = NonlinearPropagators.NonlinearPropagator(
@@ -80,7 +80,9 @@ function Model(
     plasma_equation::Dict,
     keys::NamedTuple,
 )
-    LP = LinearPropagators.LinearPropagator(unit, grid, medium, guard, field.w0)
+    LP = LinearPropagators.LinearPropagator(
+        unit, grid, medium, field, guard, keys,
+    )
 
     NP = NonlinearPropagators.NonlinearPropagator(
         unit, grid, medium, field, guard, responses_list, keys,
@@ -108,7 +110,7 @@ function Model(
     keys::NamedTuple,
 )
     LP = LinearPropagators.LinearPropagator(
-        unit, grid, medium, guard, field.w0, keys.KPARAXIAL,
+        unit, grid, medium, field, guard, keys,
     )
 
     NP = NonlinearPropagators.NonlinearPropagator(
@@ -138,7 +140,7 @@ function Model(
     keys::NamedTuple,
 )
     LP = LinearPropagators.LinearPropagator(
-        unit, grid, medium, guard, field.w0, keys.KPARAXIAL,
+        unit, grid, medium, field, guard, keys,
     )
 
     NP = NonlinearPropagators.NonlinearPropagator(
