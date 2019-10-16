@@ -23,6 +23,7 @@ zmax = 0.5   # [zu] propagation distance
 dz_initial = 0.005   # initial z step
 
 NONLINEARITY = true   # presence of nonlinear terms
+PLASMA = true   # solve plasma equation
 
 tguard = 20.   # [tu] the width of the lossy slab at the end of t grid
 wguard = 1e16   # [1/s] the cut-off angular frequency

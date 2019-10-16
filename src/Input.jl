@@ -41,34 +41,51 @@ include(file_initial_condition)
 file_medium = abspath(file_medium)
 include(file_medium)
 
-if geometry == "T"
-    keys = (NONLINEARITY=NONLINEARITY, ALG=ALG)
-else
-    keys = (NONLINEARITY=NONLINEARITY, KPARAXIAL=KPARAXIAL, QPARAXIAL=QPARAXIAL,
-            ALG=ALG)
-end
-
 p_field = (lam0, initial_condition)
 
 if geometry == "R"
+    keys = (
+        NONLINEARITY=NONLINEARITY,
+        KPARAXIAL=KPARAXIAL,
+        QPARAXIAL=QPARAXIAL,
+        ALG=ALG,
+    )
     p_unit = (ru, zu, Iu)
     p_grid = (rmax, Nr)
     p_guard = (rguard, kguard)
     p_model = (responses, keys)
     p_dzadaptive = (dzphimax, )
 elseif geometry == "T"
+    keys = (
+        NONLINEARITY=NONLINEARITY,
+        PLASMA=PLASMA,
+        ALG=ALG,
+    )
     p_unit = (zu, tu, Iu, rhou)
     p_grid = (tmin, tmax, Nt)
     p_guard = (tguard, wguard)
     p_model = (responses, plasma_equation, keys)
     p_dzadaptive = (dzphimax, mr, nuc)
 elseif geometry == "RT"
+    keys = (
+        NONLINEARITY=NONLINEARITY,
+        PLASMA=PLASMA,
+        KPARAXIAL=KPARAXIAL,
+        QPARAXIAL=QPARAXIAL,
+        ALG=ALG,
+    )
     p_unit = (ru, zu, tu, Iu, rhou)
     p_grid = (rmax, Nr, tmin, tmax, Nt)
     p_guard = (rguard, tguard, kguard, wguard)
     p_model = (responses, plasma_equation, keys)
     p_dzadaptive = (dzphimax, mr, nuc)
 elseif geometry == "XY"
+    keys = (
+        NONLINEARITY=NONLINEARITY,
+        KPARAXIAL=KPARAXIAL,
+        QPARAXIAL=QPARAXIAL,
+        ALG=ALG,
+    )
     p_unit = (xu, yu, zu, Iu)
     p_grid = (xmin, xmax, Nx, ymin, ymax, Ny)
     p_guard = (xguard, yguard, kxguard, kyguard)

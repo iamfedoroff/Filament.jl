@@ -91,7 +91,7 @@ function Model(
     # Plasma equation:
     n0 = Media.refractive_index(medium, field.w0)
     PE = PlasmaEquations.PlasmaEquation(unit, n0, field.w0, plasma_equation)
-    if keys.NONLINEARITY
+    if keys.PLASMA
         PE.solve!(field.rho, field.Kdrho, grid.t, field.E)
     end
 
@@ -120,7 +120,7 @@ function Model(
     # Plasma equation:
     n0 = Media.refractive_index(medium, field.w0)
     PE = PlasmaEquations.PlasmaEquation(unit, n0, field.w0, plasma_equation)
-    if keys.NONLINEARITY
+    if keys.PLASMA
         t = range(convert(FloatGPU, grid.tmin),
                   convert(FloatGPU, grid.tmax), length=grid.Nt)
         PE.solve!(field.rho, field.Kdrho, t, field.E)
@@ -192,7 +192,7 @@ function zstep(
     model::ModelT,
 ) where T
     # Calculate plasma density:
-    if model.keys.NONLINEARITY
+    if model.keys.PLASMA
         @timeit "plasma" begin
             model.PE.solve!(field.rho, field.Kdrho, grid.t, field.E)
         end
@@ -238,7 +238,7 @@ function zstep(
     dz = convert(FloatGPU, dz)
 
     # Calculate plasma density:
-    if model.keys.NONLINEARITY
+    if model.keys.PLASMA
         @timeit "plasma" begin
             t = range(convert(FloatGPU, grid.tmin),
                       convert(FloatGPU, grid.tmax), length=grid.Nt)

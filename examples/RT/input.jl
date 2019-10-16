@@ -27,6 +27,7 @@ zmax = 4.   # [zu] propagation distance
 dz_initial = 0.01   # initial z step
 
 NONLINEARITY = true   # presence of nonlinear terms
+PLASMA = true   # solve plasma equation
 
 KPARAXIAL = false   # paraxial approximation for the linear term
 QPARAXIAL = true   # paraxial approximation for the nonlinear term
