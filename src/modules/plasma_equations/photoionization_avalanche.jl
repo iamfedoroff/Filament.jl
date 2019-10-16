@@ -44,7 +44,7 @@ function init_photoionization_avalanche(unit, n0, w0, params)
         MR = mr * ME   # reduced mass of electron and hole (effective mass)
         sigmaB = QE^2 / MR * nuc / (nuc^2 + w0^2)
         Rava = sigmaB / Ui
-        Eu = sqrt(unit.I / (0.5 * n0 * EPS0 * C0))
+        Eu = sqrt(unit.I / (0.5 * real(n0) * EPS0 * C0))
         Rava = Rava * unit.t * Eu^2
         Ravas[i] = Rava
 
