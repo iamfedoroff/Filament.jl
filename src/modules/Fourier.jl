@@ -1,7 +1,6 @@
 module Fourier
 
 import FFTW
-import LinearAlgebra
 import CUDAnative
 import CuArrays
 import CUDAdrv
@@ -158,7 +157,7 @@ function fft!(
     FT::FourierTransformXY,
     E::CuArrays.CuArray{Complex{T}, 2},
 ) where T
-    LinearAlgebra.mul!(E, FT.pfft, E)   # space -> frequency
+    FFTW.mul!(E, FT.pfft, E)   # space -> frequency
     return nothing
 end
 
@@ -167,7 +166,7 @@ function ifft!(
     FT::FourierTransformXY,
     E::CuArrays.CuArray{Complex{T}, 2},
 ) where T
-    LinearAlgebra.mul!(E, FT.pifft, E)   # space -> frequency
+    FFTW.mul!(E, FT.pifft, E)   # space -> frequency
     return nothing
 end
 
@@ -177,7 +176,7 @@ function ifft!(
     S::AbstractArray{Complex{T}, 1},
     E::AbstractArray{Complex{T}, 1},
 ) where T
-    LinearAlgebra.mul!(E, FT.pifft, S)   # frequency -> time
+    FFTW.mul!(E, FT.pifft, S)   # frequency -> time
     return nothing
 end
 
@@ -187,7 +186,7 @@ function ifft2!(
     S::CuArrays.CuArray{Complex{T}, 2},
     E::CuArrays.CuArray{Complex{T}, 2},
 ) where T
-    LinearAlgebra.mul!(E, FT.pifft2, S)   # frequency -> time
+    FFTW.mul!(E, FT.pifft2, S)   # frequency -> time
     return nothing
 end
 
@@ -197,7 +196,7 @@ function rfft!(
     E::AbstractArray{T, 1},
     S::AbstractArray{Complex{T}, 1},
 ) where T
-    LinearAlgebra.mul!(S, FT.prfft, E)   # time -> frequency
+    FFTW.mul!(S, FT.prfft, E)   # time -> frequency
     return nothing
 end
 
@@ -208,7 +207,7 @@ function rfft!(
     S::AbstractArray{Complex{T}, 1},
 ) where T
     @. FT.Er = real(E)
-    LinearAlgebra.mul!(S, FT.prfft, FT.Er)   # time -> frequency
+    FFTW.mul!(S, FT.prfft, FT.Er)   # time -> frequency
     return nothing
 end
 
@@ -218,7 +217,7 @@ function rfft2!(
     E::CuArrays.CuArray{T, 2},
     S::CuArrays.CuArray{Complex{T}, 2},
 ) where T
-    LinearAlgebra.mul!(S, FT.prfft2, E)   # time -> frequency
+    FFTW.mul!(S, FT.prfft2, E)   # time -> frequency
     return nothing
 end
 
@@ -231,7 +230,7 @@ function rfft2!(
     nth = FT.nthreadsNrNt
     nbl = FT.nblocksNrNt
     @CUDAnative.cuda blocks=nbl threads=nth rfft2_kernel(E, FT.Er2)
-    LinearAlgebra.mul!(S, FT.prfft2, FT.Er2)   # time -> frequency
+    FFTW.mul!(S, FT.prfft2, FT.Er2)   # time -> frequency
     return nothing
 end
 
@@ -255,7 +254,7 @@ function irfft!(
     S::AbstractArray{Complex{T}, 1},
     E::AbstractArray{T, 1},
 ) where T
-    LinearAlgebra.mul!(E, FT.pirfft, S)   # frequency -> time
+    FFTW.mul!(E, FT.pirfft, S)   # frequency -> time
     return nothing
 end
 
@@ -265,7 +264,7 @@ function irfft2!(
     S::CuArrays.CuArray{Complex{T}, 2},
     E::CuArrays.CuArray{T, 2},
 ) where T
-    LinearAlgebra.mul!(E, FT.pirfft2, S)   # frequency -> time
+    FFTW.mul!(E, FT.pirfft2, S)   # frequency -> time
     return nothing
 end
 
