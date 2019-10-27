@@ -45,7 +45,7 @@ function calc_raman(
 ) where T<:AbstractFloat
     Hramanw, FT = p
     @. F = real(E)^2
-    Fourier.convolution!(FT, Hramanw, F)
+    Fourier.convolution!(F, FT, Hramanw)
     @. F = F * real(E)
     return nothing
 end
@@ -60,7 +60,7 @@ function calc_raman_nothg(
 ) where T<:AbstractFloat
     Hramanw, FT = p
     @. F = FloatGPU(3 / 4) * abs2(E)
-    Fourier.convolution!(FT, Hramanw, F)
+    Fourier.convolution!(F, FT, Hramanw)
     @. F = F * real(E)
     return nothing
 end

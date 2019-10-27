@@ -207,10 +207,10 @@ function propagate!(
     LP::LinearPropagatorXY,
     z::T
 ) where T
-    Fourier.fft!(LP.FT, E)
+    Fourier.fft!(E, LP.FT)
     @. E = E * exp(-1im * LP.KZ * z)
     Guards.apply_spectral_filter!(LP.guard, E)
-    Fourier.ifft!(LP.FT, E)
+    Fourier.ifft!(E, LP.FT)
     return nothing
 end
 

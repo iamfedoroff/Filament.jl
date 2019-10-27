@@ -79,9 +79,9 @@ function Field(unit::Units.UnitT, grid::Grids.GridT, p::Tuple)
     E = convert(Array{ComplexF64, 1}, E)
 
     S = zeros(ComplexF64, grid.Nw)
-    Fourier.rfft!(grid.FT, E, S)   # time -> frequency
+    Fourier.rfft!(S, grid.FT, E)   # time -> frequency
 
-    Fourier.hilbert!(grid.FT, S, E)   # spectrum real to signal analytic
+    Fourier.hilbert!(E, grid.FT, S)   # spectrum real to signal analytic
 
     rho = zeros(grid.Nt)
     Kdrho = zeros(grid.Nt)
@@ -105,9 +105,9 @@ function Field(unit::Units.UnitRT, grid::Grids.GridRT, p::Tuple)
     E = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, E))
 
     S = CuArrays.zeros(ComplexGPU, (grid.Nr, grid.Nw))
-    Fourier.rfft2!(grid.FT, E, S)   # time -> frequency
+    Fourier.rfft!(S, grid.FT, E)   # time -> frequency
 
-    Fourier.hilbert2!(grid.FT, S, E)   # spectrum real to signal analytic
+    Fourier.hilbert!(E, grid.FT, S)   # spectrum real to signal analytic
 
     rho = CuArrays.zeros(FloatGPU, (grid.Nr, grid.Nt))
     Kdrho = CuArrays.zeros(FloatGPU, (grid.Nr, grid.Nt))

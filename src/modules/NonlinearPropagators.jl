@@ -308,14 +308,14 @@ function _func_t!(
 ) where T<:AbstractFloat
     responses, FT, Etmp, Ftmp, Stmp, guard, QZ = p
 
-    Fourier.hilbert!(FT, S, Etmp)   # spectrum real to signal analytic
+    Fourier.hilbert!(Etmp, FT, S)   # spectrum real to signal analytic
 
     fill!(dS, 0)
 
     for resp in responses
         resp.calculate(Ftmp, Etmp, z, args)
         Guards.apply_field_filter!(guard, Ftmp)
-        Fourier.rfft!(FT, Ftmp, Stmp)   # time -> frequency
+        Fourier.rfft!(Stmp, FT, Ftmp)   # time -> frequency
         @. dS = dS + resp.Rnl * Stmp
     end
 
@@ -333,14 +333,14 @@ function _func_rt!(
 ) where T<:AbstractFloat
     responses, FT, Etmp, Ftmp, Stmp, guard, QPARAXIAL, QZ, HT = p
 
-    Fourier.hilbert2!(FT, S, Etmp)   # spectrum real to signal analytic
+    Fourier.hilbert!(Etmp, FT, S)   # spectrum real to signal analytic
 
     fill!(dS, 0)
 
     for resp in responses
         resp.calculate(Ftmp, Etmp, z, args)
         Guards.apply_field_filter!(guard, Ftmp)
-        Fourier.rfft2!(FT, Ftmp, Stmp)   # time -> frequency
+        Fourier.rfft!(Stmp, FT, Ftmp)   # time -> frequency
         _update_dS!(dS, resp.Rnl, Stmp)   # dS = dS + Ra * Stmp
     end
 
@@ -379,10 +379,10 @@ function _func_xy!(
     if QPARAXIAL
         @. dE = -1im * QZ * dE
     else
-        Fourier.fft!(FT, dE)
+        Fourier.fft!(dE, FT)
         @. dE = -1im * QZ * dE
         Guards.apply_spectral_filter!(guard, dE)
-        Fourier.ifft!(FT, dE)
+        Fourier.ifft!(dE, FT)
     end
 
     return nothing

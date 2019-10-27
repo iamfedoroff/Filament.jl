@@ -108,8 +108,8 @@ end
 
 
 function fft!(
-    FT::FourierTransform,
     E::CuArrays.CuArray{Complex{T}, 2},
+    FT::FourierTransform,
 ) where T
     FFTW.mul!(E, FT.p_fft2, E)   # space -> frequency
     return nothing
@@ -117,8 +117,8 @@ end
 
 
 function ifft!(
-    FT::FourierTransform,
     E::CuArrays.CuArray{Complex{T}, 2},
+    FT::FourierTransform,
 ) where T
     FFTW.mul!(E, FT.p_ifft2, E)   # space -> frequency
     return nothing
@@ -126,19 +126,19 @@ end
 
 
 function ifft!(
+    E::AbstractArray{Complex{T}, 1},
     FT::FourierTransform,
     S::AbstractArray{Complex{T}, 1},
-    E::AbstractArray{Complex{T}, 1},
 ) where T
     FFTW.mul!(E, FT.p_ifft, S)   # frequency -> time
     return nothing
 end
 
 
-function ifft2!(
+function ifft!(
+    E::CuArrays.CuArray{Complex{T}, 2},
     FT::FourierTransform,
     S::CuArrays.CuArray{Complex{T}, 2},
-    E::CuArrays.CuArray{Complex{T}, 2},
 ) where T
     FFTW.mul!(E, FT.p_ifft2, S)   # frequency -> time
     return nothing
@@ -146,9 +146,9 @@ end
 
 
 function rfft!(
+    S::AbstractArray{Complex{T}, 1},
     FT::FourierTransform,
     E::AbstractArray{T, 1},
-    S::AbstractArray{Complex{T}, 1},
 ) where T
     FFTW.mul!(S, FT.p_rfft, E)   # time -> frequency
     return nothing
@@ -156,9 +156,9 @@ end
 
 
 function rfft!(
+    S::AbstractArray{Complex{T}, 1},
     FT::FourierTransform,
     E::AbstractArray{Complex{T}, 1},
-    S::AbstractArray{Complex{T}, 1},
 ) where T
     @. FT.Er = real(E)
     FFTW.mul!(S, FT.p_rfft, FT.Er)   # time -> frequency
@@ -166,31 +166,31 @@ function rfft!(
 end
 
 
-function rfft2!(
+function rfft!(
+    S::CuArrays.CuArray{Complex{T}, 2},
     FT::FourierTransform,
     E::CuArrays.CuArray{T, 2},
-    S::CuArrays.CuArray{Complex{T}, 2},
 ) where T
     FFTW.mul!(S, FT.p_rfft2, E)   # time -> frequency
     return nothing
 end
 
 
-function rfft2!(
+function rfft!(
+    S::CuArrays.CuArray{Complex{T}, 2},
     FT::FourierTransform,
     E::CuArrays.CuArray{Complex{T}, 2},
-    S::CuArrays.CuArray{Complex{T}, 2},
 ) where T
     N = length(E)
     nth = min(N, MAX_THREADS_PER_BLOCK)
     nbl = Int(ceil(N / nth))
-    @CUDAnative.cuda blocks=nbl threads=nth rfft2_kernel(E, FT.Er2)
+    @CUDAnative.cuda blocks=nbl threads=nth _rfft_kernel!(FT.Er2, E)
     FFTW.mul!(S, FT.p_rfft2, FT.Er2)   # time -> frequency
     return nothing
 end
 
 
-function rfft2_kernel(Ec, Er)
+function _rfft_kernel!(Er, Ec)
     id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x +
          CUDAnative.threadIdx().x
     stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
@@ -206,19 +206,19 @@ end
 
 
 function irfft!(
+    E::AbstractArray{T, 1},
     FT::FourierTransform,
     S::AbstractArray{Complex{T}, 1},
-    E::AbstractArray{T, 1},
 ) where T
     FFTW.mul!(E, FT.p_irfft, S)   # frequency -> time
     return nothing
 end
 
 
-function irfft2!(
+function irfft!(
+    E::CuArrays.CuArray{T, 2},
     FT::FourierTransform,
     S::CuArrays.CuArray{Complex{T}, 2},
-    E::CuArrays.CuArray{T, 2},
 ) where T
     FFTW.mul!(E, FT.p_irfft2, S)   # frequency -> time
     return nothing
@@ -226,9 +226,9 @@ end
 
 
 function hilbert!(
+    Ec::AbstractArray{Complex{T}, 1},
     FT::FourierTransform,
     Sr::AbstractArray{Complex{T}, 1},
-    Ec::AbstractArray{Complex{T}, 1},
 ) where T
     for i=1:FT.Nt
         if i <= FT.Nw
@@ -241,7 +241,7 @@ function hilbert!(
             FT.Sc[i] = 0.
         end
     end
-    ifft!(FT, FT.Sc, Ec)   # frequency -> time
+    ifft!(Ec, FT, FT.Sc)   # frequency -> time
     return nothing
 end
 
@@ -252,20 +252,23 @@ Transforms the spectruum of a real signal into the complex analytic signal.
 WARNING: Needs test for odd N and low frequencies.
 """
 function hilbert!(
+    Ec::CuArrays.CuArray{Complex{T}, 1},
     FT::FourierTransform,
     Sr::CuArrays.CuArray{Complex{T}, 1},
-    Ec::CuArrays.CuArray{Complex{T}, 1},
 ) where T
     Nt = length(Ec)
     nth = min(Nt, MAX_THREADS_PER_BLOCK)
     nbl = Int(ceil(Nt / nth))
-    @CUDAnative.cuda blocks=nbl threads=nth hilbert_kernel(Sr, FT.Sc)
-    ifft!(FT, FT.Sc, Ec)   # frequency -> time
+    @CUDAnative.cuda blocks=nbl threads=nth _hilbert_kernel!(FT.Sc, Sr)
+    ifft!(Ec, FT, FT.Sc)   # frequency -> time
     return nothing
 end
 
 
-function hilbert_kernel(Sr, Sc)
+function _hilbert_kernel!(
+    Sc::CUDAnative.CuDeviceArray{Complex{T}, 1},
+    Sr::CUDAnative.CuDeviceArray{Complex{T}, 1},
+) where T
     id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x +
          CUDAnative.threadIdx().x
     stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
@@ -274,12 +277,12 @@ function hilbert_kernel(Sr, Sc)
     for i=id:stride:Nt
         if i <= Nw
             if i == 1
-                @inbounds Sc[i] = Sr[i]
+                Sc[i] = Sr[i]
             else
-                @inbounds Sc[i] = FloatGPU(2.) * Sr[i]
+                Sc[i] = FloatGPU(2) * Sr[i]
             end
         else
-            @inbounds Sc[i] = FloatGPU(0.)
+            Sc[i] = FloatGPU(0)
         end
     end
     return nothing
@@ -291,21 +294,24 @@ Transforms the spectruum of a real signal into the complex analytic signal.
 
 WARNING: Needs test for odd N and low frequencies.
 """
-function hilbert2!(
+function hilbert!(
+    Ec::CuArrays.CuArray{Complex{T}, 2},
     FT::FourierTransform,
     Sr::CuArrays.CuArray{Complex{T}, 2},
-    Ec::CuArrays.CuArray{Complex{T}, 2},
 ) where T
     N = length(Ec)
     nth = min(N, MAX_THREADS_PER_BLOCK)
     nbl = Int(ceil(N / nth))
-    @CUDAnative.cuda blocks=nbl threads=nth hilbert2_kernel(Sr, FT.Sc2)
-    ifft2!(FT, FT.Sc2, Ec)   # frequency -> time
+    @CUDAnative.cuda blocks=nbl threads=nth _hilbert_kernel!(FT.Sc2, Sr)
+    ifft!(Ec, FT, FT.Sc2)   # frequency -> time
     return nothing
 end
 
 
-function hilbert2_kernel(Sr, Sc)
+function _hilbert_kernel!(
+    Sc::CUDAnative.CuDeviceArray{Complex{T}, 2},
+    Sr::CUDAnative.CuDeviceArray{Complex{T}, 2},
+) where T
     id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x +
          CUDAnative.threadIdx().x
     stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
@@ -317,12 +323,12 @@ function hilbert2_kernel(Sr, Sc)
         j = cartesian[k][2]
         if j <= Nw
             if j == 1
-                @inbounds Sc[i, j] = Sr[i, j]
+                Sc[i, j] = Sr[i, j]
             else
-                @inbounds Sc[i, j] = FloatGPU(2.) * Sr[i, j]
+                Sc[i, j] = FloatGPU(2) * Sr[i, j]
             end
         else
-            @inbounds Sc[i, j] = FloatGPU(0.)
+            Sc[i, j] = FloatGPU(0)
         end
     end
     return nothing
@@ -330,33 +336,33 @@ end
 
 
 function convolution!(
+    x::AbstractArray{T, 1},
     FT::FourierTransform,
     Hw::AbstractArray{Complex{T}, 1},
-    x::AbstractArray{T, 1},
 ) where T
-    rfft!(FT, x, FT.Sr)
+    rfft!(FT.Sr, FT, x)
     @. FT.Sr = Hw * FT.Sr
-    irfft!(FT, FT.Sr, x)
+    irfft!(x, FT, FT.Sr)
     return nothing
 end
 
 
 function convolution!(
+    x::CuArrays.CuArray{T, 2},
     FT::FourierTransform,
     Hw::CuArrays.CuArray{Complex{T}, 1},
-    x::CuArrays.CuArray{T, 2},
 ) where T
-    rfft2!(FT, x, FT.Sr2)
+    rfft!(FT.Sr2, FT, x)
     N = length(FT.Sr2)
     nth = min(N, MAX_THREADS_PER_BLOCK)
     nbl = Int(ceil(N / nth))
-    @CUDAnative.cuda blocks=nbl threads=nth convolution2_kernel(FT.Sr2, Hw)
-    irfft2!(FT, FT.Sr2, x)
+    @CUDAnative.cuda blocks=nbl threads=nth _convolution_kernel!(FT.Sr2, Hw)
+    irfft!(x, FT, FT.Sr2)
     return nothing
 end
 
 
-function convolution2_kernel(Sr, Hw)
+function _convolution_kernel!(Sr, Hw)
     id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x +
          CUDAnative.threadIdx().x
     stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
