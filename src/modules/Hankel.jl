@@ -19,6 +19,11 @@ import PyCall
 
 const FloatGPU = Float32
 const ComplexGPU = ComplexF32
+const MAX_THREADS_PER_BLOCK =
+        CUDAdrv.attribute(
+            CUDAnative.CuDevice(0),
+            CUDAdrv.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
+        )
 
 
 struct HankelTransform{T}
@@ -77,8 +82,6 @@ function HankelTransform(R::Float64, ndims::Int...; p::Int=0)
     JR = CuArrays.CuArray(convert(Array{FloatGPU, 1}, JR))
     DM = CuArrays.zeros(ComplexGPU, ndims)
 
-    dev = CUDAnative.CuDevice(0)
-    MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
     NN = length(DM)
     nthreads = min(NN, MAX_THREADS_PER_BLOCK)
     nblocks = Int(ceil(NN / nthreads))

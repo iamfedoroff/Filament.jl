@@ -10,6 +10,11 @@ import Media
 import Units
 
 const FloatGPU = Float32
+const MAX_THREADS_PER_BLOCK =
+        CUDAdrv.attribute(
+            CUDAnative.CuDevice(0),
+            CUDAdrv.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
+        )
 
 
 abstract type Guard end
@@ -129,8 +134,6 @@ function Guard(
     # GPU:
     CuArrays.allowscalar(false)   # disable slow fallback methods
 
-    dev = CUDAnative.CuDevice(0)
-    MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
     nthreadsNt = min(grid.Nt, MAX_THREADS_PER_BLOCK)
     nthreadsNrNt = min(grid.Nr * grid.Nt, MAX_THREADS_PER_BLOCK)
     nthreadsNrNw = min(grid.Nr * grid.Nw, MAX_THREADS_PER_BLOCK)
@@ -172,8 +175,6 @@ function Guard(
     KYguard = @. exp(-((grid.ky * unit.ky)^2 / kymax^2)^20)
     KYguard = CuArrays.CuArray(convert(Array{FloatGPU, 1}, KYguard))
 
-    dev = CUDAnative.CuDevice(0)
-    MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
     nthreads = min(grid.Nx * grid.Ny, MAX_THREADS_PER_BLOCK)
     nblocks = Int(ceil(grid.Nx * grid.Ny / nthreads))
 

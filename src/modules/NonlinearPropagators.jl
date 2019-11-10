@@ -17,6 +17,11 @@ scipy_constants = PyCall.pyimport("scipy.constants")
 const MU0 = scipy_constants.mu_0   # the magnetic constant [N/A^2]
 
 const FloatGPU = Float32
+const MAX_THREADS_PER_BLOCK =
+        CUDAdrv.attribute(
+            CUDAnative.CuDevice(0),
+            CUDAdrv.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
+        )
 
 
 struct NonlinearPropagator
@@ -405,8 +410,6 @@ function _update_dS!(
     S::CuArrays.CuArray{Complex{T}, 2},
 ) where T
     N1, N2 = size(S)
-    dev = CUDAnative.CuDevice(0)
-    MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
     nth = min(N1 * N2, MAX_THREADS_PER_BLOCK)
     nbl = Int(ceil(N1 * N2 / nth))
     @CUDAnative.cuda blocks=nbl threads=nth _update_dS_kernel(dS, R, S)
