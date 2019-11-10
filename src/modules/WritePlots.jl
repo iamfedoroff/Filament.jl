@@ -481,13 +481,13 @@ end
 
 
 function write_field(group, dataset, field::Fields.FieldR)
-    writeComplexArray(group, dataset, CuArrays.collect(field.E))
+    group[dataset] = CuArrays.collect(field.E)
     return nothing
 end
 
 
 function write_field(group, dataset, field::Fields.FieldT)
-    writeComplexArray(group, dataset, field.E)
+    group[dataset] = field.E
     return nothing
 end
 
@@ -503,34 +503,7 @@ end
 
 
 function write_field(group, dataset, field::Fields.FieldXY)
-    writeComplexArray(group, dataset, CuArrays.collect(transpose(field.E)))
-    return nothing
-end
-
-
-"""
-Adapted from
-https://github.com/MagneticParticleImaging/MPIFiles.jl/blob/master/src/Utils.jl
-"""
-function writeComplexArray(group, dataset,
-                           A::AbstractArray{Complex{T}, D}) where {T, D}
-    d_type_compound = HDF5.h5t_create(HDF5.H5T_COMPOUND, 2 * sizeof(T))
-    HDF5.h5t_insert(d_type_compound, "r", 0 , HDF5.hdf5_type_id(T))
-    HDF5.h5t_insert(d_type_compound, "i", sizeof(T) , HDF5.hdf5_type_id(T))
-
-    shape = collect(reverse(size(A)))
-    space = HDF5.h5s_create_simple(D, shape, shape)
-
-    dset_compound = HDF5.h5d_create(group, dataset, d_type_compound, space,
-                                    HDF5.H5P_DEFAULT, HDF5.H5P_DEFAULT,
-                                    HDF5.H5P_DEFAULT)
-    HDF5.h5s_close(space)
-
-    HDF5.h5d_write(dset_compound, d_type_compound, HDF5.H5S_ALL, HDF5.H5S_ALL,
-                   HDF5.H5P_DEFAULT, A)
-
-    HDF5.h5d_close(dset_compound)
-    HDF5.h5t_close(d_type_compound)
+    group[dataset] = CuArrays.collect(transpose(field.E))
     return nothing
 end
 
