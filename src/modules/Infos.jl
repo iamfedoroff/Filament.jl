@@ -88,8 +88,9 @@ function vcs_revision()
     cwdir = pwd()
     try
         cd(@__DIR__)
-        revision = read(@cmd("git rev-parse HEAD"), String)
-        revision = string(strip(revision))
+        branch = read(@cmd("git rev-parse --abbrev-ref HEAD"), String)
+        hash = read(@cmd("git rev-parse HEAD"), String)
+        revision = string(strip(branch) * " " * strip(hash))
     catch
         @warn "The VCS revision is unavailable."
     end
