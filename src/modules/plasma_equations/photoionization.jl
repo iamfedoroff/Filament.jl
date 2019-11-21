@@ -1,7 +1,8 @@
 function init_photoionization(unit, n0, w0, params)
-    alg = params["ALG"]
+    ALG = params["ALG"]
     EREAL = params["EREAL"]
     KDEP = params["KDEP"]
+    rho0 = params["rho0"]
     rho_nt = params["rho_nt"]
     components = params["components"]
 
@@ -44,12 +45,16 @@ function init_photoionization(unit, n0, w0, params)
     frhonts = StaticArrays.SVector{Ncomp, TFloat}(frhonts)
     Ks = StaticArrays.SVector{Ncomp, TFloat}(Ks)
 
-    # Problem:
+    # Initial condition:
     Neq = Ncomp   # number of equations
-    rho0 = StaticArrays.SVector{Neq, TFloat}(zeros(Neq))   # initial condition
+    rho0u = rho0 / unit.rho
+    rho0u = ones(Neq) * rho0u
+    rho0u = StaticArrays.SVector{Neq, TFloat}(rho0u)
+
+    # Problem:
     p = (tabfuncs, fiarg, frhonts)   # step function parameters
     pfunc = Equations.PFunction(func_photoionization, p)
-    prob = Equations.Problem(alg, rho0, pfunc)
+    prob = Equations.Problem(ALG, rho0u, pfunc)
 
     # Function to extract electron density out of the problem solution:
     extract(u::StaticArrays.SVector) = sum(u)
