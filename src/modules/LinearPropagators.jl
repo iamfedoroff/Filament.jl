@@ -61,7 +61,12 @@ function LinearPropagator(
     else
         KZ = @. sqrt(beta^2 - (grid.k * unit.k)^2 + 0im)
     end
-    @. KZ = KZ * unit.z
+
+    # In order to reduce the truncation error, which appears due to use of
+    # Float32 precision, perform the calculations in a moving frame:
+    vf = Media.group_velocity(medium, field.w0)   # frame velocity
+    @. KZ = (KZ - field.w0 / vf) * unit.z
+
     @. KZ = conj(KZ)
     KZ = CuArrays.CuArray(convert(Array{Complex{FloatGPU}, 1}, KZ))
 
@@ -157,7 +162,12 @@ function LinearPropagator(
         end
         end
     end
-    @. KZ = KZ * unit.z
+
+    # In order to reduce the truncation error, which appears due to use of
+    # Float32 precision, perform the calculations in a moving frame:
+    vf = Media.group_velocity(medium, field.w0)   # frame velocity
+    @. KZ = (KZ - field.w0 / vf) * unit.z
+
     @. KZ = conj(KZ)
     KZ = CuArrays.CuArray(convert(Array{Complex{FloatGPU}, 2}, KZ))
 
