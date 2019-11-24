@@ -22,7 +22,7 @@ ymin, ymax = -10., 10.   # [yu] area in y spatial domain
 Ny = 2048  # number of points in y spatial domain
 
 # Model ------------------------------------------------------------------------
-zmax = 8.   # [zu] propagation distance
+zmax = 10.   # [zu] propagation distance
 dz_initial = zmax / 100.   # initial z step
 
 NONLINEARITY = false   # presence of nonlinear terms

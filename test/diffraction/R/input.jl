@@ -18,8 +18,8 @@ rmax = 10.   # [ru] area in spatial domain
 Nr = 2000  # number of points in spatial domain
 
 # Model ------------------------------------------------------------------------
-zmax = 7.890776812169   # [zu] propagation distance
-dz_initial = zmax / 200.   # initial z step
+zmax = 10.   # [zu] propagation distance
+dz_initial = zmax / 100.   # initial z step
 
 NONLINEARITY = false   # presence of nonlinear terms
 
@@ -35,4 +35,4 @@ Istop = 1e3   # [Iu] maixmum intensity in the problem (stop if exceeded)
 ALG = "RK4"   # Solver algorithm for nonlinear part ("RK2", "RK3", "RK4", "Tsit5", or "ATsit5")
 
 # Plots ------------------------------------------------------------------------
-dz_plothdf = zmax / 200.   # [zu] z step for writing the field into the HDF5 file
+dz_plothdf = zmax   # [zu] z step for writing the field into the HDF5 file

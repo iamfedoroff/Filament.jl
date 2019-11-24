@@ -23,7 +23,7 @@ tmin, tmax = -400., 400.   # [tu] area in time domain
 Nt = 4096   # number of points in the time domain
 
 # Model ------------------------------------------------------------------------
-zmax = 8.   # [zu] propagation distance
+zmax = 10.   # [zu] propagation distance
 dz_initial = zmax / 100.   # initial z step
 
 NONLINEARITY = false   # presence of nonlinear terms
