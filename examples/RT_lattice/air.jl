@@ -142,6 +142,7 @@ plasma_equation = Dict(
     "ALG" => "RK3",   # solver algorithm ("RK2", "RK3", "RK4", "Tsit5", or "ATsit5")
     "EREAL" => false,   # switch for the ionization rate argument: real(E)^2 vs abs2(E)
     "KDEP" => true,   # turn on/off the dependence of the multiphoton order K on intensity
+    "rho0" => 0.,   # [1/m^3] initial electron density
     "rho_nt" => 2.5e25,   # [1/m^3] neutrals density [https://en.wikipedia.org/wiki/Number_density]
     "nuc" => nuc,   # [1/s] collision frequency
     "mr" => mr,   # [me] reduced mass of electron and hole (effective mass)
