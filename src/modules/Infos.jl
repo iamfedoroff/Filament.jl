@@ -176,14 +176,16 @@ function info_field(
 )
     a0 = Fields.beam_radius(grid, field) * unit.r
     I0 = Fields.peak_intensity(field) * unit.I
+    lam0 = 2 * pi * C0 / field.w0
+    f0 = field.w0 / (2 * pi)
     P = Fields.peak_power(grid, field) * unit.r^2 * unit.I
 
     sdata =
     """
     a0   = $(fmt(a0)) [m] - initial beam radius (1/e)
     I0   = $(fmt(I0)) [W/m^2] - initial intensity
-    lam0 = $(fmt(field.lam0)) [m] - central wavelength
-    f0   = $(fmt(field.f0)) [1/s] - central frequency
+    lam0 = $(fmt(lam0)) [m] - central wavelength
+    f0   = $(fmt(f0)) [1/s] - central frequency
     w0   = $(fmt(field.w0)) [1/s] - central frequency (angular)
     P    = $(fmt(P)) [W] - peak power
     Pg   = $(fmt(Fields.peak_power_gauss(grid, field) * unit.r^2 * unit.I)) [W] - Gaussian peak power (pi*a0^2*I0)
@@ -200,13 +202,15 @@ function info_field(
 )
     t0 = Fields.pulse_duration(grid, field) * unit.t
     I0 = Fields.peak_intensity(field) * unit.I
+    lam0 = 2 * pi * C0 / field.w0
+    f0 = field.w0 / (2 * pi)
 
     sdata =
     """
     t0   = $(fmt(t0)) [s] - initial pulse duration (half width 1/e)
     I0   = $(fmt(I0)) [W/m^2] - initial intensity
-    lam0 = $(fmt(field.lam0)) [m] - central wavelength
-    f0   = $(fmt(field.f0)) [1/s] - central frequency
+    lam0 = $(fmt(lam0)) [m] - central wavelength
+    f0   = $(fmt(f0)) [1/s] - central frequency
     w0   = $(fmt(field.w0)) [1/s] - central frequency (angular)
     F    = $(fmt(Fields.peak_fluence(grid, field) * unit.t * unit.I)) [J/m^2] - peak fluence
     Fg   = $(fmt(Fields.peak_fluence_gauss(grid, field) * unit.t * unit.I)) [J/m^2] - Gaussian peak fluence (pi^0.5*t0*I0)
@@ -224,6 +228,8 @@ function info_field(
     a0 = Fields.beam_radius(grid, field) * unit.r
     t0 = Fields.pulse_duration(grid, field) * unit.t
     I0 = Fields.peak_intensity(field) * unit.I
+    lam0 = 2 * pi * C0 / field.w0
+    f0 = field.w0 / (2 * pi)
     P = Fields.peak_power(grid, field) * unit.r^2 * unit.I
 
     sdata =
@@ -231,8 +237,8 @@ function info_field(
     a0   = $(fmt(a0)) [m] - initial beam radius (1/e)
     t0   = $(fmt(t0)) [s] - initial pulse duration (half width 1/e)
     I0   = $(fmt(I0)) [W/m^2] - initial intensity
-    lam0 = $(fmt(field.lam0)) [m] - central wavelength
-    f0   = $(fmt(field.f0)) [1/s] - central frequency
+    lam0 = $(fmt(lam0)) [m] - central wavelength
+    f0   = $(fmt(f0)) [1/s] - central frequency
     w0   = $(fmt(field.w0)) [1/s] - central frequency (angular)
     P    = $(fmt(P)) [W] - peak power
     Pg   = $(fmt(Fields.peak_power_gauss(grid, field) * unit.r^2 * unit.I)) [W] - Gaussian peak power (pi*a0^2*I0)
@@ -253,6 +259,8 @@ function info_field(
 )
     a0 = Fields.beam_radius(grid, field) * sqrt(unit.x * unit.y)
     I0 = Fields.peak_intensity(field) * unit.I
+    lam0 = 2 * pi * C0 / field.w0
+    f0 = field.w0 / (2 * pi)
     P = Fields.peak_power(grid, field) * unit.x * unit.y * unit.I
     Pgauss = Fields.peak_power_gauss(grid, field) * unit.x * unit.y * unit.I
     Wph = Fields.energy_photon(field)
@@ -261,8 +269,8 @@ function info_field(
     """
     a0   = $(fmt(a0)) [m] - initial beam radius (1/e)
     I0   = $(fmt(I0)) [W/m^2] - initial intensity
-    lam0 = $(fmt(field.lam0)) [m] - central wavelength
-    f0   = $(fmt(field.f0)) [1/s] - central frequency
+    lam0 = $(fmt(lam0)) [m] - central wavelength
+    f0   = $(fmt(f0)) [1/s] - central frequency
     w0   = $(fmt(field.w0)) [1/s] - central frequency (angular)
     P    = $(fmt(P)) [W] - peak power
     Pg   = $(fmt(Pgauss)) [W] - Gaussian peak power (pi*a0^2*I0)

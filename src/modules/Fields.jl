@@ -1,7 +1,6 @@
 module Fields
 
 import CuArrays
-import FFTW
 
 import Fourier
 import Grids
@@ -13,23 +12,18 @@ const C0 = scipy_constants.c   # speed of light in vacuum
 const HBAR = scipy_constants.hbar   # the Planck constant (divided by 2*pi) [J*s]
 
 const FloatGPU = Float32
-const ComplexGPU = ComplexF32
 
 
 abstract type Field end
 
 
-struct FieldR <: Field
-    lam0 :: Float64
-    f0 :: Float64
+struct FieldR{T<:AbstractFloat} <: Field
     w0 :: Float64
-    E :: CuArrays.CuArray{ComplexGPU, 1}
+    E :: CuArrays.CuArray{Complex{T}, 1}
 end
 
 
 struct FieldT{T<:AbstractFloat} <: Field
-    lam0 :: T
-    f0 :: T
     w0 :: T
     E :: AbstractArray{Complex{T}, 1}
     S :: AbstractArray{Complex{T}, 1}
@@ -38,42 +32,36 @@ struct FieldT{T<:AbstractFloat} <: Field
 end
 
 
-struct FieldRT <: Field
-    lam0 :: Float64
-    f0 :: Float64
+struct FieldRT{T<:AbstractFloat} <: Field
     w0 :: Float64
-    E :: CuArrays.CuArray{ComplexGPU, 2}
-    S :: CuArrays.CuArray{ComplexGPU, 2}
-    rho :: CuArrays.CuArray{FloatGPU, 2}
-    Kdrho :: CuArrays.CuArray{FloatGPU, 2}
+    E :: CuArrays.CuArray{Complex{T}, 2}
+    S :: CuArrays.CuArray{Complex{T}, 2}
+    rho :: CuArrays.CuArray{T, 2}
+    Kdrho :: CuArrays.CuArray{T, 2}
 end
 
 
-struct FieldXY <: Field
-    lam0 :: Float64
-    f0 :: Float64
+struct FieldXY{T<:AbstractFloat} <: Field
     w0 :: Float64
-    E :: CuArrays.CuArray{ComplexGPU, 2}
+    E :: CuArrays.CuArray{Complex{T}, 2}
 end
 
 
 function Field(unit::Units.UnitR, grid::Grids.GridR, p::Tuple)
     lam0, initial_condition = p
 
-    f0 = C0 / lam0
-    w0 = 2. * pi * f0
+    w0 = 2 * pi * C0 / lam0
 
     E = initial_condition(grid.r, unit.r, unit.I)
-    E = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, E))
-    return FieldR(lam0, f0, w0, E)
+    E = CuArrays.CuArray(convert(Array{Complex{FloatGPU}, 1}, E))
+    return FieldR(w0, E)
 end
 
 
 function Field(unit::Units.UnitT, grid::Grids.GridT, p::Tuple)
     lam0, initial_condition = p
 
-    f0 = C0 / lam0
-    w0 = 2. * pi * f0
+    w0 = 2 * pi * C0 / lam0
 
     E = initial_condition(grid.t, unit.t, unit.I)
     E = convert(Array{ComplexF64, 1}, E)
@@ -91,20 +79,19 @@ function Field(unit::Units.UnitT, grid::Grids.GridT, p::Tuple)
     # main cycle.
     tmp = CuArrays.zeros(1)
 
-    return FieldT(lam0, f0, w0, E, S, rho, Kdrho)
+    return FieldT(w0, E, S, rho, Kdrho)
 end
 
 
 function Field(unit::Units.UnitRT, grid::Grids.GridRT, p::Tuple)
     lam0, initial_condition = p
 
-    f0 = C0 / lam0
-    w0 = 2. * pi * f0
+    w0 = 2 * pi * C0 / lam0
 
     E = initial_condition(grid.r, grid.t, unit.r, unit.t, unit.I)
-    E = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, E))
+    E = CuArrays.CuArray(convert(Array{Complex{FloatGPU}, 2}, E))
 
-    S = CuArrays.zeros(ComplexGPU, (grid.Nr, grid.Nw))
+    S = CuArrays.zeros(Complex{FloatGPU}, (grid.Nr, grid.Nw))
     Fourier.rfft!(S, grid.FT, E)   # time -> frequency
 
     Fourier.hilbert!(E, grid.FT, S)   # spectrum real to signal analytic
@@ -112,19 +99,18 @@ function Field(unit::Units.UnitRT, grid::Grids.GridRT, p::Tuple)
     rho = CuArrays.zeros(FloatGPU, (grid.Nr, grid.Nt))
     Kdrho = CuArrays.zeros(FloatGPU, (grid.Nr, grid.Nt))
 
-    return FieldRT(lam0, f0, w0, E, S, rho, Kdrho)
+    return FieldRT(w0, E, S, rho, Kdrho)
 end
 
 
 function Field(unit::Units.UnitXY, grid::Grids.GridXY, p::Tuple)
     lam0, initial_condition = p
 
-    f0 = C0 / lam0
-    w0 = 2. * pi * f0
+    w0 = 2 * pi * C0 / lam0
 
     E = initial_condition(grid.x, grid.y, unit.x, unit.y, unit.I)
-    E = CuArrays.CuArray(convert(Array{ComplexGPU, 2}, E))
-    return FieldXY(lam0, f0, w0, E)
+    E = CuArrays.CuArray(convert(Array{Complex{FloatGPU}, 2}, E))
+    return FieldXY(w0, E)
 end
 
 
@@ -138,7 +124,7 @@ Total energy:
     W = 2 * pi * Int[|E(r, t)|^2 * r * dr * dt],   [W] = J
 """
 function energy(grid::Grids.GridRT, field::FieldRT)
-    return sum(abs2.(field.E) .* grid.rdr) * 2. * pi * grid.dt
+    return sum(abs2.(field.E) .* grid.rdr) * 2 * pi * grid.dt
 end
 
 
@@ -189,14 +175,14 @@ function beam_radius(grid::Grids.GridR, field::FieldR)
     I = abs2.(field.E)
     I = CuArrays.collect(I)
     # Factor 2. because I(r) is only half of full distribution I(x):
-    return 2. * Grids.radius(grid.r, I)
+    return 2 * Grids.radius(grid.r, I)
 end
 
 
 function beam_radius(grid::Grids.GridRT, field::FieldRT)
     F = fluence(grid, field)
     # Factor 2. because F(r) is only half of full distribution F(x):
-    return 2. * Grids.radius(grid.r, F)
+    return 2 * Grids.radius(grid.r, F)
 end
 
 
@@ -215,7 +201,7 @@ Temporal fluence:
     F(t) = 2 * pi * Int[|E(r, t)|^2 * r * dr],   [F(t)] = W
 """
 function temporal_fluence(grid::Grids.GridRT, field::FieldRT)
-    F = sum(abs2.(field.E) .* grid.rdr .* FloatGPU(2. * pi), dims=1)
+    F = sum(abs2.(field.E) .* grid.rdr .* FloatGPU(2 * pi), dims=1)
     return CuArrays.collect(F)[1, :]
 end
 
@@ -233,7 +219,7 @@ end
 
 
 function peak_power(grid::Grids.GridR, field::FieldR)
-    return sum(abs2.(field.E) .* grid.rdr) * 2. * pi
+    return sum(abs2.(field.E) .* grid.rdr) * 2 * pi
 end
 
 
@@ -259,11 +245,11 @@ end
 """
 Integral power spectrum:
     Ew = rfft(Et)
-    Ew = 2. * Ew * dt
+    Ew = 2 * Ew * dt
     S = 2 * pi * Int[|Ew|^2 * r * dr]
 """
 function integral_power_spectrum(grid::Grids.GridRT, field::FieldRT)
-    S = sum(abs2.(field.S) .* grid.rdr .* FloatGPU(8. * pi * grid.dt^2), dims=1)
+    S = sum(abs2.(field.S) .* grid.rdr .* FloatGPU(8 * pi * grid.dt^2), dims=1)
     return CuArrays.collect(S)[1, :]
 end
 

@@ -90,7 +90,7 @@ function main()
     znext_plothdf = z + Input.dz_plothdf
 
     if grid.geometry == "RT"
-        dz_zdata = 0.5 * field.lam0 / unit.z
+        dz_zdata = 0.5 * Input.lam0 / unit.z
         znext_zdata = z + dz_zdata
     end
 
