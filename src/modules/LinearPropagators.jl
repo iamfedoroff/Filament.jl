@@ -182,7 +182,7 @@ function propagate!(
 ) where T
     Hankel.dht!(LP.HT, E)
     @. E = E * exp(-1im * LP.KZ * z)
-    Guards.apply_spectral_filter!(LP.guard, E)
+    Guards.apply_spectral_filter!(E, LP.guard)
     Hankel.idht!(LP.HT, E)
     return nothing
 end
@@ -194,7 +194,7 @@ function propagate!(
     z::T
 ) where T
     @. S = S * exp(-1im * LP.KZ * z)
-    Guards.apply_spectral_filter!(LP.guard, S)
+    Guards.apply_spectral_filter!(S, LP.guard)
     return nothing
 end
 
@@ -206,7 +206,7 @@ function propagate!(
 ) where T
     Hankel.dht!(LP.HT, E)
     @. E = E * exp(-1im * LP.KZ * z)
-    Guards.apply_spectral_filter!(LP.guard, E)
+    Guards.apply_spectral_filter!(E, LP.guard)
     Hankel.idht!(LP.HT, E)
     return nothing
 end
@@ -219,7 +219,7 @@ function propagate!(
 ) where T
     Fourier.fft!(E, LP.FT)
     @. E = E * exp(-1im * LP.KZ * z)
-    Guards.apply_spectral_filter!(LP.guard, E)
+    Guards.apply_spectral_filter!(E, LP.guard)
     Fourier.ifft!(E, LP.FT)
     return nothing
 end

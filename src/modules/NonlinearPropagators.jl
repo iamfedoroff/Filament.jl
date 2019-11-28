@@ -286,7 +286,7 @@ function _func_r!(
 
     for resp in responses
         resp.calculate(Ftmp, E, z, args)
-        Guards.apply_field_filter!(guard, Ftmp)
+        Guards.apply_field_filter!(Ftmp, guard)
         @. dE = dE + resp.Rnl * Ftmp
     end
 
@@ -296,7 +296,7 @@ function _func_r!(
     else
         Hankel.dht!(HT, dE)
         @. dE = -1im * QZ * dE
-        Guards.apply_spectral_filter!(guard, dE)
+        Guards.apply_spectral_filter!(dE, guard)
         Hankel.idht!(HT, dE)
     end
 
@@ -319,7 +319,7 @@ function _func_t!(
 
     for resp in responses
         resp.calculate(Ftmp, Etmp, z, args)
-        Guards.apply_field_filter!(guard, Ftmp)
+        Guards.apply_field_filter!(Ftmp, guard)
         Fourier.rfft!(Stmp, FT, Ftmp)   # time -> frequency
         @. dS = dS + resp.Rnl * Stmp
     end
@@ -344,7 +344,7 @@ function _func_rt!(
 
     for resp in responses
         resp.calculate(Ftmp, Etmp, z, args)
-        Guards.apply_field_filter!(guard, Ftmp)
+        Guards.apply_field_filter!(Ftmp, guard)
         Fourier.rfft!(Stmp, FT, Ftmp)   # time -> frequency
         _update_dS!(dS, resp.Rnl, Stmp)   # dS = dS + Ra * Stmp
     end
@@ -355,7 +355,7 @@ function _func_rt!(
     else
         Hankel.dht!(HT, dS)
         @. dS = -1im * QZ * dS
-        Guards.apply_spectral_filter!(guard, dS)
+        Guards.apply_spectral_filter!(dS, guard)
         Hankel.idht!(HT, dS)
     end
 
@@ -376,7 +376,7 @@ function _func_xy!(
 
     for resp in responses
         resp.calculate(Ftmp, E, z, args)
-        Guards.apply_field_filter!(guard, Ftmp)
+        Guards.apply_field_filter!(Ftmp, guard)
         @. dE = dE + resp.Rnl * Ftmp
     end
 
@@ -386,7 +386,7 @@ function _func_xy!(
     else
         Fourier.fft!(dE, FT)
         @. dE = -1im * QZ * dE
-        Guards.apply_spectral_filter!(guard, dE)
+        Guards.apply_spectral_filter!(dE, guard)
         Fourier.ifft!(dE, FT)
     end
 

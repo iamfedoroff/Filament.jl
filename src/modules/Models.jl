@@ -175,7 +175,7 @@ function zstep(
     end
 
     @timeit "field filter" begin
-        Guards.apply_field_filter!(guard, field.E)
+        Guards.apply_field_filter!(field.E, guard)
         CUDAdrv.synchronize()
     end
 
@@ -219,7 +219,7 @@ function zstep(
     end
 
     @timeit "field filter" begin
-        Guards.apply_field_filter!(guard, field.E)
+        Guards.apply_field_filter!(field.E, guard)
     end
 
     return nothing
@@ -272,7 +272,7 @@ function zstep(
     end
 
     @timeit "field filter" begin
-        Guards.apply_field_filter!(guard, field.E)
+        Guards.apply_field_filter!(field.E, guard)
         CUDAdrv.synchronize()
     end
 

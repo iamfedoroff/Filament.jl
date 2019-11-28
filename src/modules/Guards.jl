@@ -21,8 +21,8 @@ abstract type Guard end
 
 
 struct GuardR{T} <: Guard
-    R :: CuArrays.CuArray{T, 1}
-    K :: CuArrays.CuArray{T, 1}
+    R :: AbstractArray{T, 1}
+    K :: AbstractArray{T, 1}
 end
 
 
@@ -33,10 +33,10 @@ end
 
 
 struct GuardRT{T} <: Guard
-    R :: CuArrays.CuArray{T, 1}
-    K :: CuArrays.CuArray{T, 2}
-    T :: CuArrays.CuArray{T, 1}
-    W :: CuArrays.CuArray{T, 1}
+    R :: AbstractArray{T, 1}
+    K :: AbstractArray{T, 2}
+    T :: AbstractArray{T, 1}
+    W :: AbstractArray{T, 1}
     nthreadsNt :: Int
     nthreadsNrNt :: Int
     nthreadsNrNw :: Int
@@ -47,10 +47,10 @@ end
 
 
 struct GuardXY{T} <: Guard
-    X :: CuArrays.CuArray{T, 1}
-    Y :: CuArrays.CuArray{T, 1}
-    KX :: CuArrays.CuArray{T, 1}
-    KY :: CuArrays.CuArray{T, 1}
+    X :: AbstractArray{T, 1}
+    Y :: AbstractArray{T, 1}
+    KX :: AbstractArray{T, 1}
+    KY :: AbstractArray{T, 1}
     nthreads :: Int
     nblocks :: Int
 end
@@ -254,7 +254,7 @@ end
 
 
 function apply_field_filter!(
-    guard::GuardR, E::CuArrays.CuArray{Complex{T}, 1},
+    E::AbstractArray{Complex{T}, 1}, guard::GuardR,
 ) where T
     @. E = E * guard.R
     return nothing
@@ -262,7 +262,7 @@ end
 
 
 function apply_field_filter!(
-    guard::GuardT, E::AbstractArray{T, 1},
+    E::AbstractArray{T, 1}, guard::GuardT,
 ) where T
     @. E = E * guard.T
     return nothing
@@ -270,26 +270,26 @@ end
 
 
 function apply_field_filter!(
-    guard::GuardRT, E::CuArrays.CuArray{T, 2},
+    E::CuArrays.CuArray{T, 2}, guard::GuardRT,
 ) where T
     nth = guard.nthreadsNrNt
     nbl = guard.nblocksNrNt
-    @CUDAnative.cuda blocks=nbl threads=nth kernel(E, guard.R, guard.T)
+    @CUDAnative.cuda blocks=nbl threads=nth kernel!(E, guard.R, guard.T)
 end
 
 
 function apply_field_filter!(
-    guard::GuardXY, E::CuArrays.CuArray{Complex{T}, 2}
+    E::CuArrays.CuArray{Complex{T}, 2}, guard::GuardXY,
 ) where T
     nth = guard.nthreads
     nbl = guard.nblocks
-    @CUDAnative.cuda blocks=nbl threads=nth kernel(E, guard.X, guard.Y)
+    @CUDAnative.cuda blocks=nbl threads=nth kernel!(E, guard.X, guard.Y)
     return nothing
 end
 
 
 function apply_spectral_filter!(
-    guard::GuardR, E::CuArrays.CuArray{Complex{T}, 1},
+    E::AbstractArray{Complex{T}, 1}, guard::GuardR,
 ) where T
     @. E = E * guard.K
     return nothing
@@ -297,7 +297,7 @@ end
 
 
 function apply_spectral_filter!(
-    guard::GuardT, S::AbstractArray{Complex{T}, 1},
+    S::AbstractArray{Complex{T}, 1}, guard::GuardT,
 ) where T
     @. S = S * guard.W
     return nothing
@@ -305,25 +305,25 @@ end
 
 
 function apply_spectral_filter!(
-    guard::GuardRT, S::CuArrays.CuArray{Complex{T}, 2},
+    S::CuArrays.CuArray{Complex{T}, 2}, guard::GuardRT,
 ) where T
     nth = guard.nthreadsNrNw
     nbl = guard.nblocksNrNw
-    @CUDAnative.cuda blocks=nbl threads=nth kernel(S, guard.K, guard.W)
+    @CUDAnative.cuda blocks=nbl threads=nth kernel!(S, guard.K, guard.W)
 end
 
 
 function apply_spectral_filter!(
-    guard::GuardXY, E::CuArrays.CuArray{Complex{T}, 2},
+    E::CuArrays.CuArray{Complex{T}, 2}, guard::GuardXY,
 ) where T
     nth = guard.nthreads
     nbl = guard.nblocks
-    @CUDAnative.cuda blocks=nbl threads=nth kernel(E, guard.KX, guard.KY)
+    @CUDAnative.cuda blocks=nbl threads=nth kernel!(E, guard.KX, guard.KY)
     return nothing
 end
 
 
-function kernel(
+function kernel!(
     F::CUDAnative.CuDeviceArray,
     A::CUDAnative.CuDeviceArray{T, 1},
     B::CUDAnative.CuDeviceArray{T, 1},
@@ -341,7 +341,7 @@ function kernel(
 end
 
 
-function kernel(
+function kernel!(
     F::CUDAnative.CuDeviceArray,
     A::CUDAnative.CuDeviceArray{T, 2},
     B::CUDAnative.CuDeviceArray{T, 1},
