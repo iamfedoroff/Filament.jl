@@ -21,30 +21,30 @@ abstract type Model end
 
 struct ModelR <: Model
     LP :: LinearPropagators.LinearPropagator
-    NP :: NonlinearPropagators.NonlinearPropagator
+    NP :: Union{NonlinearPropagators.NonlinearPropagator, Nothing}
     keys :: NamedTuple
 end
 
 
 struct ModelT <: Model
     LP :: LinearPropagators.LinearPropagator
-    NP :: NonlinearPropagators.NonlinearPropagator
-    PE :: PlasmaEquations.PlasmaEquation
+    NP :: Union{NonlinearPropagators.NonlinearPropagator, Nothing}
+    PE :: Union{PlasmaEquations.PlasmaEquation, Nothing}
     keys :: NamedTuple
 end
 
 
 struct ModelRT <: Model
     LP :: LinearPropagators.LinearPropagator
-    NP :: NonlinearPropagators.NonlinearPropagator
-    PE :: PlasmaEquations.PlasmaEquation
+    NP :: Union{NonlinearPropagators.NonlinearPropagator, Nothing}
+    PE :: Union{PlasmaEquations.PlasmaEquation, Nothing}
     keys :: NamedTuple
 end
 
 
 struct ModelXY <: Model
     LP :: LinearPropagators.LinearPropagator
-    NP :: NonlinearPropagators.NonlinearPropagator
+    NP :: Union{NonlinearPropagators.NonlinearPropagator, Nothing}
     keys :: NamedTuple
 end
 
@@ -55,16 +55,20 @@ function Model(
     field::Fields.FieldR,
     medium::Media.Medium,
     guard::Guards.GuardR,
-    responses_list,
+    responses_list::AbstractArray,
     keys::NamedTuple,
 )
     LP = LinearPropagators.LinearPropagator(
         unit, grid, medium, field, guard, keys,
     )
 
-    NP = NonlinearPropagators.NonlinearPropagator(
-        unit, grid, medium, field, guard, responses_list, keys,
-    )
+    if keys.NONLINEARITY
+        NP = NonlinearPropagators.NonlinearPropagator(
+            unit, grid, medium, field, guard, responses_list, keys,
+        )
+    else
+        NP = nothing
+    end
 
     return ModelR(LP, NP, keys)
 end
@@ -76,7 +80,7 @@ function Model(
     field::Fields.FieldT,
     medium::Media.Medium,
     guard::Guards.GuardT,
-    responses_list,
+    responses_list::AbstractArray,
     plasma_equation::Dict,
     keys::NamedTuple,
 )
@@ -84,15 +88,21 @@ function Model(
         unit, grid, medium, field, guard, keys,
     )
 
-    NP = NonlinearPropagators.NonlinearPropagator(
-        unit, grid, medium, field, guard, responses_list, keys,
-    )
+    if keys.NONLINEARITY
+        NP = NonlinearPropagators.NonlinearPropagator(
+            unit, grid, medium, field, guard, responses_list, keys,
+        )
+    else
+        NP = nothing
+    end
 
-    # Plasma equation:
-    n0 = Media.refractive_index(medium, field.w0)
-    PE = PlasmaEquations.PlasmaEquation(unit, n0, field.w0, plasma_equation)
     if keys.PLASMA
+        w0 = field.w0
+        n0 = Media.refractive_index(medium, w0)
+        PE = PlasmaEquations.PlasmaEquation(unit, n0, w0, plasma_equation)
         PE.solve!(field.rho, field.Kdrho, grid.t, field.E)
+    else
+        PE = nothing
     end
 
     return ModelT(LP, NP, PE, keys)
@@ -105,7 +115,7 @@ function Model(
     field::Fields.FieldRT,
     medium::Media.Medium,
     guard::Guards.GuardRT,
-    responses_list,
+    responses_list::AbstractArray,
     plasma_equation::Dict,
     keys::NamedTuple,
 )
@@ -113,17 +123,24 @@ function Model(
         unit, grid, medium, field, guard, keys,
     )
 
-    NP = NonlinearPropagators.NonlinearPropagator(
-        unit, grid, medium, field, guard, responses_list, keys,
-    )
+    if keys.NONLINEARITY
+        NP = NonlinearPropagators.NonlinearPropagator(
+            unit, grid, medium, field, guard, responses_list, keys,
+        )
+    else
+        NP = nothing
+    end
 
-    # Plasma equation:
-    n0 = Media.refractive_index(medium, field.w0)
-    PE = PlasmaEquations.PlasmaEquation(unit, n0, field.w0, plasma_equation)
     if keys.PLASMA
+        w0 = field.w0
+        n0 = Media.refractive_index(medium, w0)
+        PE = PlasmaEquations.PlasmaEquation(unit, n0, w0, plasma_equation)
+
         t = range(convert(FloatGPU, grid.tmin),
                   convert(FloatGPU, grid.tmax), length=grid.Nt)
         PE.solve!(field.rho, field.Kdrho, t, field.E)
+    else
+        PE = nothing
     end
 
     return ModelRT(LP, NP, PE, keys)
@@ -136,16 +153,20 @@ function Model(
     field::Fields.FieldXY,
     medium::Media.Medium,
     guard::Guards.GuardXY,
-    responses_list,
+    responses_list::AbstractArray,
     keys::NamedTuple,
 )
     LP = LinearPropagators.LinearPropagator(
         unit, grid, medium, field, guard, keys,
     )
 
-    NP = NonlinearPropagators.NonlinearPropagator(
-        unit, grid, medium, field, guard, responses_list, keys,
-    )
+    if keys.NONLINEARITY
+        NP = NonlinearPropagators.NonlinearPropagator(
+            unit, grid, medium, field, guard, responses_list, keys,
+        )
+    else
+        NP = nothing
+    end
 
     return ModelXY(LP, NP, keys)
 end

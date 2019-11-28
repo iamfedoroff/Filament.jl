@@ -40,6 +40,10 @@ include(file_initial_condition)
 file_medium = abspath(file_medium)
 include(file_medium)
 
+if ! NONLINEARITY
+    responses = []
+end
+
 p_field = (lam0, initial_condition)
 
 if geometry == "R"
@@ -55,6 +59,9 @@ if geometry == "R"
     p_model = (responses, keys)
     p_dzadaptive = (dzphimax, )
 elseif geometry == "T"
+    if ! PLASMA
+        plasma_equation = Dict()
+    end
     keys = (
         NONLINEARITY=NONLINEARITY,
         PLASMA=PLASMA,
@@ -66,6 +73,9 @@ elseif geometry == "T"
     p_model = (responses, plasma_equation, keys)
     p_dzadaptive = (dzphimax, mr, nuc)
 elseif geometry == "RT"
+    if ! PLASMA
+        plasma_equation = Dict()
+    end
     keys = (
         NONLINEARITY=NONLINEARITY,
         PLASMA=PLASMA,
