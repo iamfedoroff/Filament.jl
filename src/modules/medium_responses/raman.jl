@@ -21,7 +21,7 @@ function init_raman(unit, grid, field, medium, p)
     Hraman = Fourier.ifftshift(Hraman)
     Hramanw = FFTW.rfft(Hraman)   # time -> frequency
     if grid.geometry != "T"   # FIXME: should be removed in a generic code.
-        Hramanw = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, Hramanw))
+        Hramanw = CuArrays.CuArray(convert(Array{Complex{FloatGPU}, 1}, Hramanw))
     end
 
     if THG

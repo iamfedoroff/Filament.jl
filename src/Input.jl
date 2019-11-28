@@ -23,7 +23,6 @@ const ME = scipy_constants.m_e   # electron mass [kg]
 const HBAR = scipy_constants.hbar   # the Planck constant (divided by 2*pi) [J*s]
 
 const FloatGPU = Float32
-const ComplexGPU = ComplexF32
 
 const DEFPATHNR = joinpath(@__DIR__, "modules", "medium_responses")
 const DEFPATHPE = joinpath(@__DIR__, "modules", "plasma_equations")

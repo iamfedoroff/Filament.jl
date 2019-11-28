@@ -21,7 +21,7 @@ function init_current_free(unit, grid, field, medium, p)
 
     @. Rnl = conj(Rnl)
     if grid.geometry != "T"   # FIXME: should be removed in a generic code.
-        Rnl = CuArrays.CuArray(convert(Array{ComplexGPU, 1}, Rnl))
+        Rnl = CuArrays.CuArray(convert(Array{Complex{FloatGPU}, 1}, Rnl))
     end
 
     p_calc = (field.rho, )

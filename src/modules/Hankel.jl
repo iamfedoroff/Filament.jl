@@ -18,7 +18,6 @@ import CUDAdrv
 import PyCall
 
 const FloatGPU = Float32
-const ComplexGPU = ComplexF32
 const MAX_THREADS_PER_BLOCK =
         CUDAdrv.attribute(
             CUDAnative.CuDevice(0),
@@ -80,7 +79,7 @@ function HankelTransform(R::Float64, ndims::Int...; p::Int=0)
     JV = CuArrays.CuArray(convert(Array{FloatGPU, 1}, JV))
     VJ = CuArrays.CuArray(convert(Array{FloatGPU, 1}, VJ))
     JR = CuArrays.CuArray(convert(Array{FloatGPU, 1}, JR))
-    DM = CuArrays.zeros(ComplexGPU, ndims)
+    DM = CuArrays.zeros(Complex{FloatGPU}, ndims)
 
     NN = length(DM)
     nthreads = min(NN, MAX_THREADS_PER_BLOCK)
@@ -140,7 +139,7 @@ function kernel2(DM, TT, f::CUDAnative.CuDeviceArray{T, 1}) where T
     stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
     N = length(f)
     for i=id:stride:N
-        @inbounds DM[i] = ComplexGPU(0)
+        @inbounds DM[i] = 0
         for k=1:N
             @inbounds DM[i] = DM[i] + TT[i, k] * f[k]
         end
@@ -157,7 +156,7 @@ function kernel2(DM, TT, f::CUDAnative.CuDeviceArray{T, 2}) where T
     for k=id:stride:N1*N2
         i = cartesian[k][1]
         j = cartesian[k][2]
-        @inbounds DM[i, j] = ComplexGPU(0)
+        @inbounds DM[i, j] = 0
         for m=1:N1
             @inbounds DM[i, j] = DM[i, j] + TT[i, m] * f[m, j]
         end
