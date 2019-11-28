@@ -175,6 +175,8 @@ function info_field(
     field::Fields.FieldR,
 )
     a0 = Fields.beam_radius(grid, field) * unit.r
+    a0e2 = sqrt(2) * a0
+    a0fwhm = 2 * sqrt(log(2)) * a0
     I0 = Fields.peak_intensity(field) * unit.I
     lam0 = 2 * pi * C0 / field.w0
     f0 = field.w0 / (2 * pi)
@@ -182,7 +184,9 @@ function info_field(
 
     sdata =
     """
-    a0   = $(fmt(a0)) [m] - initial beam radius (1/e)
+    a0   = $(fmt(a0)) [m] - initial beam size (half width 1/e)
+    a0   = $(fmt(a0e2)) [m] - initial beam size (half width 1/e^2)
+    a0   = $(fmt(a0fwhm)) [m] - initial beam size (FWHM)
     I0   = $(fmt(I0)) [W/m^2] - initial intensity
     lam0 = $(fmt(lam0)) [m] - central wavelength
     f0   = $(fmt(f0)) [1/s] - central frequency
@@ -201,6 +205,8 @@ function info_field(
     field::Fields.FieldT,
 )
     t0 = Fields.pulse_duration(grid, field) * unit.t
+    t0e2 = sqrt(2) * t0
+    t0fwhm = 2 * sqrt(log(2)) * t0
     I0 = Fields.peak_intensity(field) * unit.I
     lam0 = 2 * pi * C0 / field.w0
     f0 = field.w0 / (2 * pi)
@@ -208,6 +214,8 @@ function info_field(
     sdata =
     """
     t0   = $(fmt(t0)) [s] - initial pulse duration (half width 1/e)
+    t0   = $(fmt(t0e2)) [s] - initial pulse duration (half width 1/e^2)
+    t0   = $(fmt(t0fwhm)) [s] - initial pulse duration (FWHM)
     I0   = $(fmt(I0)) [W/m^2] - initial intensity
     lam0 = $(fmt(lam0)) [m] - central wavelength
     f0   = $(fmt(f0)) [1/s] - central frequency
@@ -226,7 +234,11 @@ function info_field(
     field::Fields.FieldRT,
 )
     a0 = Fields.beam_radius(grid, field) * unit.r
+    a0e2 = sqrt(2) * a0
+    a0fwhm = 2 * sqrt(log(2)) * a0
     t0 = Fields.pulse_duration(grid, field) * unit.t
+    t0e2 = sqrt(2) * t0
+    t0fwhm = 2 * sqrt(log(2)) * t0
     I0 = Fields.peak_intensity(field) * unit.I
     lam0 = 2 * pi * C0 / field.w0
     f0 = field.w0 / (2 * pi)
@@ -234,8 +246,12 @@ function info_field(
 
     sdata =
     """
-    a0   = $(fmt(a0)) [m] - initial beam radius (1/e)
+    a0   = $(fmt(a0)) [m] - initial beam size (half width 1/e)
+    a0   = $(fmt(a0e2)) [m] - initial beam size (half width 1/e^2)
+    a0   = $(fmt(a0fwhm)) [m] - initial beam size (FWHM)
     t0   = $(fmt(t0)) [s] - initial pulse duration (half width 1/e)
+    t0   = $(fmt(t0e2)) [s] - initial pulse duration (half width 1/e^2)
+    t0   = $(fmt(t0fwhm)) [s] - initial pulse duration (FWHM)
     I0   = $(fmt(I0)) [W/m^2] - initial intensity
     lam0 = $(fmt(lam0)) [m] - central wavelength
     f0   = $(fmt(f0)) [1/s] - central frequency
@@ -258,6 +274,8 @@ function info_field(
     field::Fields.FieldXY,
 )
     a0 = Fields.beam_radius(grid, field) * sqrt(unit.x * unit.y)
+    a0e2 = sqrt(2) * a0
+    a0fwhm = 2 * sqrt(log(2)) * a0
     I0 = Fields.peak_intensity(field) * unit.I
     lam0 = 2 * pi * C0 / field.w0
     f0 = field.w0 / (2 * pi)
@@ -267,7 +285,9 @@ function info_field(
 
     sdata =
     """
-    a0   = $(fmt(a0)) [m] - initial beam radius (1/e)
+    a0   = $(fmt(a0)) [m] - initial beam size (half width 1/e)
+    a0   = $(fmt(a0e2)) [m] - initial beam size (half width 1/e^2)
+    a0   = $(fmt(a0fwhm)) [m] - initial beam size (FWHM)
     I0   = $(fmt(I0)) [W/m^2] - initial intensity
     lam0 = $(fmt(lam0)) [m] - central wavelength
     f0   = $(fmt(f0)) [1/s] - central frequency
