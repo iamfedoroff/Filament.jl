@@ -21,7 +21,11 @@ struct Problem{T<:Union{AbstractFloat,AbstractArray}, F<:Function}
 end
 
 
-function Problem(alg::String, u0::Union{AbstractFloat,StaticArrays.SVector}, func::Function)
+function Problem(
+    alg::String,
+    u0::Union{AbstractFloat,StaticArrays.SVector},
+    func::Function,
+)
     @assert alg in ("RK2", "RK3", "RK4", "Tsit5", "ATsit5")
     if alg == "RK2"
         step = step_rk2
@@ -40,7 +44,11 @@ function Problem(alg::String, u0::Union{AbstractFloat,StaticArrays.SVector}, fun
 end
 
 
-function Problem(alg::String, u0::AbstractArray, func::Function)
+function Problem(
+    alg::String,
+    u0::AbstractArray,
+    func::Function,
+)
     @assert alg in ("RK2", "RK3", "RK4", "Tsit5", "ATsit5")
     utmp = similar(u0)
     if alg == "RK2"
@@ -101,7 +109,13 @@ function tableau_rk2(T::Type)
 end
 
 
-function step_rk2(u::Union{AbstractFloat,StaticArrays.SVector}, t::T, dt::T, args::Tuple, p::Tuple) where T<:AbstractFloat
+function step_rk2(
+    u::Union{AbstractFloat,StaticArrays.SVector},
+    t::T,
+    dt::T,
+    args::Tuple,
+    p::Tuple,
+) where T<:AbstractFloat
     func, = p
 
     cs, as, bs = tableau_rk2(T)
@@ -121,7 +135,13 @@ function step_rk2(u::Union{AbstractFloat,StaticArrays.SVector}, t::T, dt::T, arg
 end
 
 
-function step_rk2!(u::AbstractArray, t::T, dt::T, args::Tuple, p::Tuple) where T<:AbstractFloat
+function step_rk2!(
+    u::AbstractArray,
+    t::T,
+    dt::T,
+    args::Tuple,
+    p::Tuple,
+) where T<:AbstractFloat
     func!, k1, k2, utmp = p
 
     cs, as, bs = tableau_rk2(T)
@@ -155,7 +175,13 @@ function tableau_rk3(T::Type)
 end
 
 
-function step_rk3(u::Union{AbstractFloat,StaticArrays.SVector}, t::T, dt::T, args::Tuple, p::Tuple) where T<:AbstractFloat
+function step_rk3(
+    u::Union{AbstractFloat,StaticArrays.SVector},
+    t::T,
+    dt::T,
+    args::Tuple,
+    p::Tuple,
+) where T<:AbstractFloat
     func, = p
 
     cs, as, bs = tableau_rk3(T)
@@ -179,7 +205,13 @@ function step_rk3(u::Union{AbstractFloat,StaticArrays.SVector}, t::T, dt::T, arg
 end
 
 
-function step_rk3!(u::AbstractArray, t::T, dt::T, args::Tuple, p::Tuple) where T<:AbstractFloat
+function step_rk3!(
+    u::AbstractArray,
+    t::T,
+    dt::T,
+    args::Tuple,
+    p::Tuple,
+) where T<:AbstractFloat
     func!, k1, k2, k3, utmp = p
 
     cs, as, bs = tableau_rk3(T)
@@ -217,7 +249,13 @@ function tableau_rk4(T::Type)
 end
 
 
-function step_rk4(u::Union{AbstractFloat,StaticArrays.SVector}, t::T, dt::T, args::Tuple, p::Tuple) where T<:AbstractFloat
+function step_rk4(
+    u::Union{AbstractFloat,StaticArrays.SVector},
+    t::T,
+    dt::T,
+    args::Tuple,
+    p::Tuple,
+) where T<:AbstractFloat
     func, = p
 
     cs, as, bs = tableau_rk4(T)
@@ -245,7 +283,13 @@ function step_rk4(u::Union{AbstractFloat,StaticArrays.SVector}, t::T, dt::T, arg
 end
 
 
-function step_rk4!(u::AbstractArray, t::T, dt::T, args::Tuple, p::Tuple) where T<:AbstractFloat
+function step_rk4!(
+    u::AbstractArray,
+    t::T,
+    dt::T,
+    args::Tuple,
+    p::Tuple,
+) where T<:AbstractFloat
     func!, k1, k2, k3, k4, utmp = p
 
     cs, as, bs = tableau_rk4(T)
@@ -306,7 +350,13 @@ function tableau_tsit5(T::Type)
 end
 
 
-function step_tsit5(u::Union{AbstractFloat,StaticArrays.SVector}, t::T, dt::T, args::Tuple, p::Tuple) where T<:AbstractFloat
+function step_tsit5(
+    u::Union{AbstractFloat,StaticArrays.SVector},
+    t::T,
+    dt::T,
+    args::Tuple,
+    p::Tuple,
+) where T<:AbstractFloat
     func, = p
 
     cs, as, bs = tableau_tsit5(T)
@@ -342,7 +392,13 @@ function step_tsit5(u::Union{AbstractFloat,StaticArrays.SVector}, t::T, dt::T, a
 end
 
 
-function step_tsit5!(u::AbstractArray, t::T, dt::T, args::Tuple, p::Tuple) where T<:AbstractFloat
+function step_tsit5!(
+    u::AbstractArray,
+    t::T,
+    dt::T,
+    args::Tuple,
+    p::Tuple,
+) where T<:AbstractFloat
     func!, k1, k2, k3, k4, k5, k6, utmp = p
 
     cs, as, bs = tableau_tsit5(T)
@@ -394,7 +450,13 @@ function tableau_atsit5(T::Type)
 end
 
 
-function step_atsit5(u::Union{AbstractFloat,StaticArrays.SVector}, t::T, dt0::T, args::Tuple, p::Tuple) where T<:AbstractFloat
+function step_atsit5(
+    u::Union{AbstractFloat,StaticArrays.SVector},
+    t::T,
+    dt0::T,
+    args::Tuple,
+    p::Tuple,
+) where T<:AbstractFloat
     func, = p
 
     cs, as, bs, bhats = tableau_atsit5(T)
@@ -441,15 +503,18 @@ function step_atsit5(u::Union{AbstractFloat,StaticArrays.SVector}, t::T, dt0::T,
 
         etmp = @. atol + rtol * max(abs(u), abs(utmp))
         etmp = @. abs(utmp - uhat) / etmp
-        # etmp = @. etmp^2
-        # err = sqrt(sum(etmp) / length(etmp))
-        # if err > 1
-        #     dt = convert(T, 0.9) * dt / err^convert(T, 0.2)   # 0.2 = 1/5
-        # end
-        etmp = @. CUDAnative.pow(etmp, 2)
-        err = CUDAnative.sqrt(CUDAnative.sum(etmp) / length(etmp))
-        if err > 1
-            dt = convert(T, 0.9) * dt / CUDAnative.pow(err, convert(T, 0.2))   # 0.2 = 1/5
+        if T == Float32   # FIXME Dirty hack for launching on both CPU and GPU
+            etmp = @. CUDAnative.pow(etmp, 2)
+            err = CUDAnative.sqrt(CUDAnative.sum(etmp) / length(etmp))
+            if err > 1
+                dt = convert(T, 0.9) * dt / CUDAnative.pow(err, convert(T, 0.2))   # 0.2 = 1/5
+            end
+        else
+            etmp = @. etmp^2
+            err = sqrt(sum(etmp) / length(etmp))
+            if err > 1
+                dt = convert(T, 0.9) * dt / err^convert(T, 0.2)   # 0.2 = 1/5
+            end
         end
     end
 
@@ -458,7 +523,13 @@ function step_atsit5(u::Union{AbstractFloat,StaticArrays.SVector}, t::T, dt0::T,
 end
 
 
-function step_atsit5!(u::AbstractArray, t::T, dt0::T, args::Tuple, p::Tuple) where T<:AbstractFloat
+function step_atsit5!(
+    u::AbstractArray,
+    t::T,
+    dt0::T,
+    args::Tuple,
+    p::Tuple,
+) where T<:AbstractFloat
     func!, k1, k2, k3, k4, k5, k6, utmp, uhat, etmp = p
 
     cs, as, bs, bhats = tableau_atsit5(T)
@@ -514,14 +585,6 @@ function step_atsit5!(u::AbstractArray, t::T, dt0::T, args::Tuple, p::Tuple) whe
     @. u = utmp
     tnew = t + dt
     return tnew
-end
-
-
-"""
-Complex version of CUDAnative.abs function.
-"""
-@inline function CUDAnative.abs(x::Complex{T}) where T
-    return CUDAnative.sqrt(x.re * x.re + x.im * x.im)
 end
 
 
