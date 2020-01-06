@@ -184,9 +184,9 @@ function info_field(
 
     sdata =
     """
-    a0   = $(fmt(a0)) [m] - initial beam size (half width 1/e)
-    a0   = $(fmt(a0e2)) [m] - initial beam size (half width 1/e^2)
-    a0   = $(fmt(a0fwhm)) [m] - initial beam size (FWHM)
+    a0e    = $(fmt(a0)) [m] - initial beam size (half width 1/e)
+    a0e2   = $(fmt(a0e2)) [m] - initial beam size (half width 1/e^2)
+    a0fwhm = $(fmt(a0fwhm)) [m] - initial beam size (FWHM)
     I0   = $(fmt(I0)) [W/m^2] - initial intensity
     lam0 = $(fmt(lam0)) [m] - central wavelength
     f0   = $(fmt(f0)) [1/s] - central frequency
@@ -213,9 +213,9 @@ function info_field(
 
     sdata =
     """
-    t0   = $(fmt(t0)) [s] - initial pulse duration (half width 1/e)
-    t0   = $(fmt(t0e2)) [s] - initial pulse duration (half width 1/e^2)
-    t0   = $(fmt(t0fwhm)) [s] - initial pulse duration (FWHM)
+    t0e     = $(fmt(t0)) [s] - initial pulse duration (half width 1/e)
+    t0e2    = $(fmt(t0e2)) [s] - initial pulse duration (half width 1/e^2)
+    t0fwhm  = $(fmt(t0fwhm)) [s] - initial pulse duration (FWHM)
     I0   = $(fmt(I0)) [W/m^2] - initial intensity
     lam0 = $(fmt(lam0)) [m] - central wavelength
     f0   = $(fmt(f0)) [1/s] - central frequency
@@ -246,12 +246,12 @@ function info_field(
 
     sdata =
     """
-    a0   = $(fmt(a0)) [m] - initial beam size (half width 1/e)
-    a0   = $(fmt(a0e2)) [m] - initial beam size (half width 1/e^2)
-    a0   = $(fmt(a0fwhm)) [m] - initial beam size (FWHM)
-    t0   = $(fmt(t0)) [s] - initial pulse duration (half width 1/e)
-    t0   = $(fmt(t0e2)) [s] - initial pulse duration (half width 1/e^2)
-    t0   = $(fmt(t0fwhm)) [s] - initial pulse duration (FWHM)
+    a0e     = $(fmt(a0)) [m] - initial beam size (half width 1/e)
+    a0e2    = $(fmt(a0e2)) [m] - initial beam size (half width 1/e^2)
+    a0fwhm  = $(fmt(a0fwhm)) [m] - initial beam size (FWHM)
+    t0e     = $(fmt(t0)) [s] - initial pulse duration (half width 1/e)
+    t0e2    = $(fmt(t0e2)) [s] - initial pulse duration (half width 1/e^2)
+    t0fwhm  = $(fmt(t0fwhm)) [s] - initial pulse duration (FWHM)
     I0   = $(fmt(I0)) [W/m^2] - initial intensity
     lam0 = $(fmt(lam0)) [m] - central wavelength
     f0   = $(fmt(f0)) [1/s] - central frequency
@@ -285,9 +285,9 @@ function info_field(
 
     sdata =
     """
-    a0   = $(fmt(a0)) [m] - initial beam size (half width 1/e)
-    a0   = $(fmt(a0e2)) [m] - initial beam size (half width 1/e^2)
-    a0   = $(fmt(a0fwhm)) [m] - initial beam size (FWHM)
+    a0e    = $(fmt(a0)) [m] - initial beam size (half width 1/e)
+    a0e2   = $(fmt(a0e2)) [m] - initial beam size (half width 1/e^2)
+    a0fwhm = $(fmt(a0fwhm)) [m] - initial beam size (FWHM)
     I0   = $(fmt(I0)) [W/m^2] - initial intensity
     lam0 = $(fmt(lam0)) [m] - central wavelength
     f0   = $(fmt(f0)) [1/s] - central frequency
