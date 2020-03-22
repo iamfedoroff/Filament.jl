@@ -18,18 +18,13 @@ function init_cubic(unit, grid, field, medium, p)
         calc = calc_cubic_nothg
     end
 
-    p_calc = ()
-    pcalc = Equations.PFunction(calc, p_calc)
-    return Media.NonlinearResponse(Rnl, pcalc)
+    p = ()
+    return Media.NonlinearResponse(Rnl, calc, p)
 end
 
 
 function calc_cubic(
-    F::AbstractArray{T},
-    E::AbstractArray{Complex{T}},
-    z::T,
-    args::Tuple,
-    p::Tuple,
+    F::AbstractArray{T}, E::AbstractArray{Complex{T}}, p::Tuple, z::T,
 ) where T<:AbstractFloat
     @. F = real(E)^3
     return nothing
@@ -37,11 +32,7 @@ end
 
 
 function calc_cubic_nothg(
-    F::AbstractArray{T},
-    E::AbstractArray{Complex{T}},
-    z::T,
-    args::Tuple,
-    p::Tuple,
+    F::AbstractArray{T}, E::AbstractArray{Complex{T}}, p::Tuple, z::T,
 ) where T<:AbstractFloat
     @. F = 3 / 4 * abs2(E) * real(E)
     return nothing
@@ -49,11 +40,7 @@ end
 
 
 function calc_cubic_nothg(
-    F::AbstractArray{Complex{T}},
-    E::AbstractArray{Complex{T}},
-    z::T,
-    args::Tuple,
-    p::Tuple,
+    F::AbstractArray{Complex{T}}, E::AbstractArray{Complex{T}}, p::Tuple, z::T,
 ) where T<:AbstractFloat
     @. F = 3 / 4 * abs2(E) * E
     return nothing

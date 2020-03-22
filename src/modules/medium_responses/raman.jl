@@ -30,18 +30,13 @@ function init_raman(unit, grid, field, medium, p)
         calc = calc_raman_nothg
     end
 
-    p_calc = (Hramanw, grid.FT)
-    pcalc = Equations.PFunction(calc, p_calc)
-    return Media.NonlinearResponse(Rnl, pcalc)
+    p = (Hramanw, grid.FT)
+    return Media.NonlinearResponse(Rnl, calc, p)
 end
 
 
 function calc_raman(
-    F::AbstractArray{T},
-    E::AbstractArray{Complex{T}},
-    z::T,
-    args::Tuple,
-    p::Tuple,
+    F::AbstractArray{T}, E::AbstractArray{Complex{T}}, p::Tuple, z::T,
 ) where T<:AbstractFloat
     Hramanw, FT = p
     @. F = real(E)^2
@@ -52,11 +47,7 @@ end
 
 
 function calc_raman_nothg(
-    F::AbstractArray{T},
-    E::AbstractArray{Complex{T}},
-    z::T,
-    args::Tuple,
-    p::Tuple,
+    F::AbstractArray{T}, E::AbstractArray{Complex{T}}, p::Tuple, z::T,
 ) where T<:AbstractFloat
     Hramanw, FT = p
     @. F = FloatGPU(3 / 4) * abs2(E)

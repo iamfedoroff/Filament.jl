@@ -55,6 +55,7 @@ function Model(
     field::Fields.FieldR,
     medium::Media.Medium,
     guard::Guards.GuardR,
+    zspan::Tuple,
     responses_list::AbstractArray,
     keys::NamedTuple,
 )
@@ -64,7 +65,7 @@ function Model(
 
     if keys.NONLINEARITY
         NP = NonlinearPropagators.NonlinearPropagator(
-            unit, grid, medium, field, guard, responses_list, keys,
+            unit, grid, medium, field, guard, zspan, responses_list, keys,
         )
     else
         NP = nothing
@@ -80,6 +81,7 @@ function Model(
     field::Fields.FieldT,
     medium::Media.Medium,
     guard::Guards.GuardT,
+    zspan::Tuple,
     responses_list::AbstractArray,
     plasma_equation::Dict,
     keys::NamedTuple,
@@ -90,7 +92,7 @@ function Model(
 
     if keys.NONLINEARITY
         NP = NonlinearPropagators.NonlinearPropagator(
-            unit, grid, medium, field, guard, responses_list, keys,
+            unit, grid, medium, field, guard, zspan, responses_list, keys,
         )
     else
         NP = nothing
@@ -115,6 +117,7 @@ function Model(
     field::Fields.FieldRT,
     medium::Media.Medium,
     guard::Guards.GuardRT,
+    zspan::Tuple,
     responses_list::AbstractArray,
     plasma_equation::Dict,
     keys::NamedTuple,
@@ -125,7 +128,7 @@ function Model(
 
     if keys.NONLINEARITY
         NP = NonlinearPropagators.NonlinearPropagator(
-            unit, grid, medium, field, guard, responses_list, keys,
+            unit, grid, medium, field, guard, zspan, responses_list, keys,
         )
     else
         NP = nothing
@@ -153,6 +156,7 @@ function Model(
     field::Fields.FieldXY,
     medium::Media.Medium,
     guard::Guards.GuardXY,
+    zspan::Tuple,
     responses_list::AbstractArray,
     keys::NamedTuple,
 )
@@ -162,7 +166,7 @@ function Model(
 
     if keys.NONLINEARITY
         NP = NonlinearPropagators.NonlinearPropagator(
-            unit, grid, medium, field, guard, responses_list, keys,
+            unit, grid, medium, field, guard, zspan, responses_list, keys,
         )
     else
         NP = nothing
@@ -185,7 +189,7 @@ function zstep(
 
     if model.keys.NONLINEARITY
         @timeit "nonlinearity" begin
-           NonlinearPropagators.propagate!(field.E, model.NP, z, dz)
+           NonlinearPropagators.propagate!(field.E, dz, model.NP)
            CUDAdrv.synchronize()
        end
     end
@@ -226,7 +230,7 @@ function zstep(
 
     if model.keys.NONLINEARITY
         @timeit "nonlinearity" begin
-           NonlinearPropagators.propagate!(field.S, model.NP, z, dz)
+           NonlinearPropagators.propagate!(field.S, dz, model.NP)
        end
     end
 
@@ -276,7 +280,7 @@ function zstep(
 
     if model.keys.NONLINEARITY
         @timeit "nonlinearity" begin
-           NonlinearPropagators.propagate!(field.S, model.NP, z, dz)
+           NonlinearPropagators.propagate!(field.S, dz, model.NP)
            CUDAdrv.synchronize()
        end
     end

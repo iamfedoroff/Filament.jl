@@ -18,6 +18,7 @@ end
 struct NonlinearResponse{T<:Union{AbstractFloat,AbstractArray}, F<:Function}
     Rnl :: T
     calculate :: F
+    p :: Tuple
 end
 
 

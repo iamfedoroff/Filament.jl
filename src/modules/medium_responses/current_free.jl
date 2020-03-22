@@ -24,18 +24,13 @@ function init_current_free(unit, grid, field, medium, p)
         Rnl = CuArrays.CuArray(convert(Array{Complex{FloatGPU}, 1}, Rnl))
     end
 
-    p_calc = (field.rho, )
-    pcalc = Equations.PFunction(calc_current_free, p_calc)
-    return Media.NonlinearResponse(Rnl, pcalc)
+    p = (field.rho, )
+    return Media.NonlinearResponse(Rnl, calc_current_free, p)
 end
 
 
 function calc_current_free(
-    F::AbstractArray{T},
-    E::AbstractArray{Complex{T}},
-    z::T,
-    args::Tuple,
-    p::Tuple,
+    F::AbstractArray{T}, E::AbstractArray{Complex{T}}, p::Tuple, z::T,
 ) where T<:AbstractFloat
     rho, = p
     @. F = rho * real(E)

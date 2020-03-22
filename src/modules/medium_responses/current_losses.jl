@@ -29,18 +29,13 @@ function init_current_losses(unit, grid, field, medium, p)
         fearg = fearg_abs2
     end
 
-    p_calc = (field.Kdrho, fearg)
-    pcalc = Equations.PFunction(calc_current_losses, p_calc)
-    return Media.NonlinearResponse(Rnl, pcalc)
+    p = (field.Kdrho, fearg)
+    return Media.NonlinearResponse(Rnl, calc_current_losses, p)
 end
 
 
 function calc_current_losses(
-    F::AbstractArray{T},
-    E::AbstractArray{Complex{T}},
-    z::T,
-    args::Tuple,
-    p::Tuple,
+    F::AbstractArray{T}, E::AbstractArray{Complex{T}}, p::Tuple, z::T,
 ) where T<:AbstractFloat
     Kdrho, fearg = p
     @. F = fearg(E)

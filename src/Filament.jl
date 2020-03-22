@@ -31,7 +31,6 @@ function main()
     # **************************************************************************
     # Prepare field
     # **************************************************************************
-    z = Input.z / unit.z   # convert initial z to dimensionless units
     field = Fields.Field(unit, grid, Input.p_field)
 
     # **************************************************************************
@@ -40,11 +39,16 @@ function main()
     medium = Media.Medium(Input.permittivity, Input.permeability, Input.n2)
 
     # **************************************************************************
-    # Prepare guards, model, and adaptive z step
+    # Prepare guards, adaptive z step, and model
     # **************************************************************************
     guard = Guards.Guard(unit, grid, field, medium, Input.p_guard...)
-    model = Models.Model(unit, grid, field, medium, guard, Input.p_model...)
     dzadaptive = AdaptiveSteps.AStep(unit, medium, field, Input.p_dzadaptive...)
+
+    z = Input.z / unit.z   # convert initial z to dimensionless units
+    zspan = (z, Input.zmax)
+    model = Models.Model(
+        unit, grid, field, medium, guard, zspan, Input.p_model...,
+    )
 
     # **************************************************************************
     # Prepare output files

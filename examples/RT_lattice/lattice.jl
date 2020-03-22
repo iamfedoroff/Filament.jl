@@ -18,17 +18,14 @@ function init_lattice(unit, grid, field, medium, p)
     dnr = @. dnr_func(grid.r, unit.r)
     dnr = CuArrays.CuArray(convert(Array{FloatGPU, 1}, dnr))
 
-    p_calc = (dnr, dnz_func, unit.z)
-    pcalc = Equations.PFunction(calc_lattice, p_calc)
-    return Media.NonlinearResponse(Rnl, pcalc)
+    p = (dnr, dnz_func, unit.z)
+    return Media.NonlinearResponse(Rnl, calc_lattice, p)
 end
 
 
-function calc_lattice(F::AbstractArray{T},
-                      E::AbstractArray{Complex{T}},
-                      z::T,
-                      args::Tuple,
-                      p::Tuple) where T<:AbstractFloat
+function calc_lattice(
+    F::AbstractArray{T}, E::AbstractArray{Complex{T}}, p::Tuple, z::T,
+) where T<:AbstractFloat
     dnr, dnz_func, zu = p
 
     dnz = dnz_func(z, zu)

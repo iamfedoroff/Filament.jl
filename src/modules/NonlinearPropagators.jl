@@ -4,7 +4,7 @@ import CuArrays
 import CUDAdrv
 import CUDAnative
 
-import Equations
+import Equations2
 import Fields
 import Fourier
 import Grids
@@ -26,7 +26,7 @@ const MAX_THREADS_PER_BLOCK =
 
 
 struct NonlinearPropagator
-    prob :: Equations.Problem
+    integ :: Equations2.Integrator
 end
 
 
@@ -36,6 +36,7 @@ function NonlinearPropagator(
     medium::Media.Medium,
     field::Fields.Field,
     guard::Guards.Guard,
+    zspan::Tuple,
     responses_list,
     keys::NamedTuple,
 )
@@ -77,11 +78,12 @@ function NonlinearPropagator(
     Ftmp = CuArrays.zeros(Complex{FloatGPU}, grid.Nr)
 
     # Problem:
+    zspan = (convert(FloatGPU, zspan[1]), convert(FloatGPU, zspan[2]))
     p = (responses, Ftmp, guard, QPARAXIAL, QZ, grid.HT)
-    pfunc = Equations.PFunction(_func_r!, p)
-    prob = Equations.Problem(ALG, Ftmp, pfunc)
+    prob = Equations2.Problem(_func_r!, Ftmp, zspan, p)
+    integ = Equations2.Integrator(prob, ALG)
 
-    return NonlinearPropagator(prob)
+    return NonlinearPropagator(integ)
 end
 
 
@@ -91,6 +93,7 @@ function NonlinearPropagator(
     medium::Media.Medium,
     field::Fields.Field,
     guard::Guards.Guard,
+    zspan::Tuple,
     responses_list,
     keys::NamedTuple,
 )
@@ -128,10 +131,10 @@ function NonlinearPropagator(
 
     # Problem:
     p = (responses, grid.FT, Etmp, Ftmp, Stmp, guard, QZ)
-    pfunc = Equations.PFunction(_func_t!, p)
-    prob = Equations.Problem(ALG, Stmp, pfunc)
+    prob = Equations2.Problem(_func_t!, Stmp, zspan, p)
+    integ = Equations2.Integrator(prob, ALG)
 
-    return NonlinearPropagator(prob)
+    return NonlinearPropagator(integ)
 end
 
 
@@ -141,6 +144,7 @@ function NonlinearPropagator(
     medium::Media.Medium,
     field::Fields.Field,
     guard::Guards.Guard,
+    zspan::Tuple,
     responses_list,
     keys::NamedTuple,
 )
@@ -192,11 +196,12 @@ function NonlinearPropagator(
     Stmp = CuArrays.zeros(Complex{FloatGPU}, (grid.Nr, grid.Nw))
 
     # Problem:
+    zspan = (convert(FloatGPU, zspan[1]), convert(FloatGPU, zspan[2]))
     p = (responses, grid.FT, Etmp, Ftmp, Stmp, guard, QPARAXIAL, QZ, grid.HT)
-    pfunc = Equations.PFunction(_func_rt!, p)
-    prob = Equations.Problem(ALG, Stmp, pfunc)
+    prob = Equations2.Problem(_func_rt!, Stmp, zspan, p)
+    integ = Equations2.Integrator(prob, ALG)
 
-    return NonlinearPropagator(prob)
+    return NonlinearPropagator(integ)
 end
 
 
@@ -206,6 +211,7 @@ function NonlinearPropagator(
     medium::Media.Medium,
     field::Fields.Field,
     guard::Guards.Guard,
+    zspan::Tuple,
     responses_list,
     keys::NamedTuple,
 )
@@ -250,43 +256,34 @@ function NonlinearPropagator(
     Ftmp = CuArrays.zeros(Complex{FloatGPU}, (grid.Nx, grid.Ny))
 
     # Problem:
+    zspan = (convert(FloatGPU, zspan[1]), convert(FloatGPU, zspan[2]))
     p = (responses, Ftmp, guard, QPARAXIAL, QZ, grid.FT)
-    pfunc = Equations.PFunction(_func_xy!, p)
-    prob = Equations.Problem(ALG, Ftmp, pfunc)
+    prob = Equations2.Problem(_func_xy!, Ftmp, zspan, p)
+    integ = Equations2.Integrator(prob, ALG)
 
-    return NonlinearPropagator(prob)
+    return NonlinearPropagator(integ)
 end
 
 
 function propagate!(
-    E::AbstractArray,
-    NP::NonlinearPropagator,
-    z::T,
-    dz::T,
+    E::AbstractArray, dz::T, NP::NonlinearPropagator,
 ) where T<:AbstractFloat
-    args = ()
-    znew = NP.prob.step(E, z, dz, args)
-    znext = z + dz
-    while znew < znext
-        dznew = znext - znew
-        znew = NP.prob.step(E, znew, dznew, args)
-    end
+    Equations2.step!(E, dz, NP.integ)
 end
 
 
 function _func_r!(
-    dE::CuArrays.CuArray{Complex{T}, 1},
-    E::CuArrays.CuArray{Complex{T}, 1},
-    z::T,
-    args::Tuple,
+    dE::AbstractArray{Complex{T}, 1},
+    E::AbstractArray{Complex{T}, 1},
     p::Tuple,
+    z::T,
 ) where T<:AbstractFloat
     responses, Ftmp, guard, QPARAXIAL, QZ, HT = p
 
     fill!(dE, 0)
 
     for resp in responses
-        resp.calculate(Ftmp, E, z, args)
+        resp.calculate(Ftmp, E, resp.p, z)
         Guards.apply_field_filter!(Ftmp, guard)
         @. dE = dE + resp.Rnl * Ftmp
     end
@@ -308,9 +305,8 @@ end
 function _func_t!(
     dS::AbstractArray{Complex{T}, 1},
     S::AbstractArray{Complex{T}, 1},
-    z::T,
-    args::Tuple,
     p::Tuple,
+    z::T,
 ) where T<:AbstractFloat
     responses, FT, Etmp, Ftmp, Stmp, guard, QZ = p
 
@@ -319,7 +315,7 @@ function _func_t!(
     fill!(dS, 0)
 
     for resp in responses
-        resp.calculate(Ftmp, Etmp, z, args)
+        resp.calculate(Ftmp, Etmp, resp.p, z)
         Guards.apply_field_filter!(Ftmp, guard)
         Fourier.rfft!(Stmp, FT, Ftmp)   # time -> frequency
         @. dS = dS + resp.Rnl * Stmp
@@ -331,11 +327,10 @@ end
 
 
 function _func_rt!(
-    dS::CuArrays.CuArray{Complex{T}, 2},
-    S::CuArrays.CuArray{Complex{T}, 2},
-    z::T,
-    args::Tuple,
+    dS::AbstractArray{Complex{T}, 2},
+    S::AbstractArray{Complex{T}, 2},
     p::Tuple,
+    z::T,
 ) where T<:AbstractFloat
     responses, FT, Etmp, Ftmp, Stmp, guard, QPARAXIAL, QZ, HT = p
 
@@ -344,7 +339,7 @@ function _func_rt!(
     fill!(dS, 0)
 
     for resp in responses
-        resp.calculate(Ftmp, Etmp, z, args)
+        resp.calculate(Ftmp, Etmp, resp.p, z)
         Guards.apply_field_filter!(Ftmp, guard)
         Fourier.rfft!(Stmp, FT, Ftmp)   # time -> frequency
         _update_dS!(dS, resp.Rnl, Stmp)   # dS = dS + Ra * Stmp
@@ -365,18 +360,17 @@ end
 
 
 function _func_xy!(
-    dE::CuArrays.CuArray{Complex{T}, 2},
-    E::CuArrays.CuArray{Complex{T}, 2},
-    z::T,
-    args::Tuple,
+    dE::AbstractArray{Complex{T}, 2},
+    E::AbstractArray{Complex{T}, 2},
     p::Tuple,
+    z::T,
 ) where T<:AbstractFloat
     responses, Ftmp, guard, QPARAXIAL, QZ, FT = p
 
     fill!(dE, 0)
 
     for resp in responses
-        resp.calculate(Ftmp, E, z, args)
+        resp.calculate(Ftmp, E, resp.p, z)
         Guards.apply_field_filter!(Ftmp, guard)
         @. dE = dE + resp.Rnl * Ftmp
     end
