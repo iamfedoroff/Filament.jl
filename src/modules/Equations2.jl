@@ -3,11 +3,11 @@ module Equations2
 import StaticArrays
 
 
-struct Problem{P}
-    func :: Function
-    u0 :: P
-    tspan :: Tuple
-    p :: Tuple
+struct Problem{F, U, P, T}
+    func :: F
+    u0 :: U
+    tspan :: Tuple{T, T}
+    p :: P
 end
 
 
@@ -32,8 +32,8 @@ function Integrator(prob, alg)
 end
 
 
-function isinplace(prob::Problem{P}) where P
-    if P <: AbstractArray
+function isinplace(prob::Problem{F, U, P, T}) where {F, U, P, T}
+    if U <: AbstractArray
         IIP = true
     else
         IIP = false
@@ -59,31 +59,32 @@ function _tableau_rk2(T::Type)
 end
 
 
-mutable struct IntegratorRK2{IIP, P, T} <: Integrator
-    prob :: Problem{P}
+mutable struct IntegratorRK2{IIP, F, U, P, T} <: Integrator
+    prob :: Problem{F, U, P, T}
     as :: StaticArrays.SVector{1, T}
     bs :: StaticArrays.SVector{2, T}
     cs :: StaticArrays.SVector{1, T}
-    ks :: Vector{P}
-    utmp :: P
+    ks :: Vector{U}
+    utmp :: U
     t :: T   # current time
 end
 
 
-function IntegratorRK2(prob::Problem{P}) where P
+function IntegratorRK2(prob::Problem{F, U, P, T}) where {F, U, P, T}
     u0 = prob.u0
     t0 = prob.tspan[1]
     IIP = isinplace(prob)
-    T = typeof(t0)
     as, bs, cs = _tableau_rk2(T)
     ks = [zero(u0) for i in 1:2]
     utmp = zero(u0)
-    return IntegratorRK2{IIP, P, T}(prob, as, bs, cs, ks, utmp, t0)
+    return IntegratorRK2{IIP, F, U, P, T}(prob, as, bs, cs, ks, utmp, t0)
 end
 
 
 # in place
-function step!(integ::IntegratorRK2{true, P, T}, u::P, dt::T) where {P, T}
+function step!(
+    integ::IntegratorRK2{true, F, U, P, T}, u::U, dt::T,
+) where {F, U, P, T}
     func = integ.prob.func
     p = integ.prob.p
 
@@ -110,8 +111,8 @@ end
 
 # out of place with args
 function step!(
-    integ::IntegratorRK2{false, P, T}, u::P, dt::T, args::Tuple,
-) where {P, T}
+    integ::IntegratorRK2{false, F, U, P, T}, u::U, dt::T, args::Tuple,
+) where {F, U, P, T}
     func = integ.prob.func
     p = integ.prob.p
 
@@ -126,11 +127,11 @@ function step!(
     ttmp = t + c2 * dt
     k2 = func(utmp, p, ttmp, args)
 
-    unew = u + dt * (b1 * k1 + b2 * k2)
+    utmp = u + dt * (b1 * k1 + b2 * k2)
 
     integ.t = integ.t + dt
 
-    return unew
+    return utmp
 end
 
 
@@ -145,31 +146,32 @@ function _tableau_rk3(T::Type)
 end
 
 
-mutable struct IntegratorRK3{IIP, P, T} <: Integrator
-    prob :: Problem{P}
+mutable struct IntegratorRK3{IIP, F, U, P, T} <: Integrator
+    prob :: Problem{F, U, P, T}
     as :: StaticArrays.SVector{3, T}
     bs :: StaticArrays.SVector{3, T}
     cs :: StaticArrays.SVector{2, T}
-    ks :: Vector{P}
-    utmp :: P
+    ks :: Vector{U}
+    utmp :: U
     t :: T   # current time
 end
 
 
-function IntegratorRK3(prob::Problem{P}) where P
+function IntegratorRK3(prob::Problem{F, U, P, T}) where {F, U, P, T}
     u0 = prob.u0
     t0 = prob.tspan[1]
     IIP = isinplace(prob)
-    T = typeof(t0)
     as, bs, cs = _tableau_rk3(T)
     ks = [zero(u0) for i in 1:3]
     utmp = zero(u0)
-    return IntegratorRK3{IIP, P, T}(prob, as, bs, cs, ks, utmp, t0)
+    return IntegratorRK3{IIP, F, U, P, T}(prob, as, bs, cs, ks, utmp, t0)
 end
 
 
 # in place
-function step!(integ::IntegratorRK3{true, P, T}, u::P, dt::T) where {P, T}
+function step!(
+    integ::IntegratorRK3{true, F, U, P, T}, u::U, dt::T,
+) where {F, U, P, T}
     func = integ.prob.func
     p = integ.prob.p
 
@@ -200,8 +202,8 @@ end
 
 # out of place with args
 function step!(
-    integ::IntegratorRK3{false, P, T}, u::P, dt::T, args::Tuple,
-) where {P, T}
+    integ::IntegratorRK3{false, F, U, P, T}, u::U, dt::T, args::Tuple,
+) where {F, U, P, T}
     func = integ.prob.func
     p = integ.prob.p
 
@@ -221,11 +223,11 @@ function step!(
     ttmp = t + c3 * dt
     k3 = func(utmp, p, ttmp, args)
 
-    unew = u + dt * (b1 * k1 + b2 * k2 + b3 * k3)
+    utmp = u + dt * (b1 * k1 + b2 * k2 + b3 * k3)
 
     integ.t = integ.t + dt
 
-    return unew
+    return utmp
 end
 
 
@@ -240,31 +242,32 @@ function _tableau_rk4(T::Type)
 end
 
 
-mutable struct IntegratorRK4{IIP, P, T} <: Integrator
-    prob :: Problem{P}
+mutable struct IntegratorRK4{IIP, F, U, P, T} <: Integrator
+    prob :: Problem{F, U, P, T}
     as :: StaticArrays.SVector{6, T}
     bs :: StaticArrays.SVector{4, T}
     cs :: StaticArrays.SVector{3, T}
-    ks :: Vector{P}
-    utmp :: P
+    ks :: Vector{U}
+    utmp :: U
     t :: T   # current time
 end
 
 
-function IntegratorRK4(prob::Problem{P}) where P
+function IntegratorRK4(prob::Problem{F, U, P, T}) where {F, U, P, T}
     u0 = prob.u0
     t0 = prob.tspan[1]
     IIP = isinplace(prob)
-    T = typeof(t0)
     as, bs, cs = _tableau_rk4(T)
     ks = [zero(u0) for i in 1:4]
     utmp = zero(u0)
-    return IntegratorRK4{IIP, P, T}(prob, as, bs, cs, ks, utmp, t0)
+    return IntegratorRK4{IIP, F, U, P, T}(prob, as, bs, cs, ks, utmp, t0)
 end
 
 
 # in place
-function step!(integ::IntegratorRK4{true, P, T}, u::P, dt::T) where {P, T}
+function step!(
+    integ::IntegratorRK4{true, F, U, P, T}, u::U, dt::T,
+) where {F, U, P, T}
     func = integ.prob.func
     p = integ.prob.p
 
@@ -299,8 +302,8 @@ end
 
 # out of place with args
 function step!(
-    integ::IntegratorRK4{false, P, T}, u::P, dt::T, args::Tuple,
-) where {P, T}
+    integ::IntegratorRK4{false, F, U, P, T}, u::U, dt::T, args::Tuple,
+) where {F, U, P, T}
     func = integ.prob.func
     p = integ.prob.p
 
@@ -323,11 +326,11 @@ function step!(
     ttmp = t + c4 * dt
     k4 = func(utmp, p, ttmp, args)
 
-    unew = u + dt * (b1 * k1 + b2 * k2 + b3 * k3 + b4 * k4)
+    utmp = u + dt * (b1 * k1 + b2 * k2 + b3 * k3 + b4 * k4)
 
     integ.t = integ.t + dt
 
-    return unew
+    return utmp
 end
 
 
@@ -365,31 +368,32 @@ function _tableau_tsit5(T::Type)
 end
 
 
-mutable struct IntegratorTsit5{IIP, P, T} <: Integrator
-    prob :: Problem{P}
+mutable struct IntegratorTsit5{IIP, F, U, P, T} <: Integrator
+    prob :: Problem{F, U, P, T}
     as :: StaticArrays.SVector{15, T}
     bs :: StaticArrays.SVector{6, T}
     cs :: StaticArrays.SVector{5, T}
-    ks :: Vector{P}
-    utmp :: P
+    ks :: Vector{U}
+    utmp :: U
     t :: T   # current time
 end
 
 
-function IntegratorTsit5(prob::Problem{P}) where P
+function IntegratorTsit5(prob::Problem{F, U, P, T}) where {F, U, P, T}
     u0 = prob.u0
     t0 = prob.tspan[1]
     IIP = isinplace(prob)
-    T = typeof(t0)
     as, bs, cs = _tableau_tsit5(T)
     ks = [zero(u0) for i in 1:6]
     utmp = zero(u0)
-    return IntegratorTsit5{IIP, P, T}(prob, as, bs, cs, ks, utmp, t0)
+    return IntegratorTsit5{IIP, F, U, P, T}(prob, as, bs, cs, ks, utmp, t0)
 end
 
 
 # in place
-function step!(integ::IntegratorTsit5{true, P, T}, u::P, dt::T) where {P, T}
+function step!(
+    integ::IntegratorTsit5{true, F, U, P, T}, u::U, dt::T,
+) where {F, U, P, T}
     func = integ.prob.func
     p = integ.prob.p
 
@@ -433,8 +437,8 @@ end
 
 # out of place with args
 function step!(
-    integ::IntegratorTsit5{false, P, T}, u::P, dt::T, args::Tuple,
-) where {P, T}
+    integ::IntegratorTsit5{false, F, U, P, T}, u::U, dt::T, args::Tuple,
+) where {F, U, P, T}
     func = integ.prob.func
     p = integ.prob.p
 
@@ -466,11 +470,11 @@ function step!(
     ttmp = t + c6 * dt
     k6 = func(utmp, p, ttmp, args)
 
-    unew = u + dt * (b1 * k1 + b2 * k2 + b3 * k3 + b4 * k4 + b5 * k5 + b6 * k6)
+    utmp = u + dt * (b1 * k1 + b2 * k2 + b3 * k3 + b4 * k4 + b5 * k5 + b6 * k6)
 
     integ.t = integ.t + dt
 
-    return unew
+    return utmp
 end
 
 
@@ -491,27 +495,26 @@ function _tableau_atsit5(T::Type)
 end
 
 
-mutable struct IntegratorATsit5{IIP, P, T} <: Integrator
-    prob :: Problem{P}
+mutable struct IntegratorATsit5{IIP, F, U, P, T} <: Integrator
+    prob :: Problem{F, U, P, T}
     as :: StaticArrays.SVector{15, T}
     bs :: StaticArrays.SVector{6, T}
     cs :: StaticArrays.SVector{5, T}
     bhats :: StaticArrays.SVector{6, T}
-    ks :: Vector{P}
-    utmp :: P
-    uhat :: P
-    etmp :: P
+    ks :: Vector{U}
+    utmp :: U
+    uhat :: U
+    etmp :: U
     atol :: T   # absolute tolerance
     rtol :: T   # relative tolerance
     t :: T   # current time
 end
 
 
-function IntegratorATsit5(prob::Problem{P}) where P
+function IntegratorATsit5(prob::Problem{F, U, P, T}) where {F, U, P, T}
     u0 = prob.u0
     t0 = prob.tspan[1]
     IIP = isinplace(prob)
-    T = typeof(t0)
     as, bs, cs, bhats = _tableau_atsit5(T)
     ks = [zero(u0) for i in 1:6]
     utmp = zero(u0)
@@ -519,14 +522,16 @@ function IntegratorATsit5(prob::Problem{P}) where P
     etmp = zero(u0)
     atol = convert(T, 1e-2)   # absolute tolerance
     rtol = convert(T, 1e-2)   # relative tolerance
-    return IntegratorATsit5{IIP, P, T}(
+    return IntegratorATsit5{IIP, F, U, P, T}(
         prob, as, bs, cs, bhats, ks, utmp, uhat, etmp, atol, rtol, t0,
     )
 end
 
 
 # in place
-function substep!(integ::IntegratorATsit5{true, P, T}, u::P, dt::T) where {P, T}
+function substep!(
+    integ::IntegratorATsit5{true, F, U, P, T}, u::U, dt::T,
+) where {F, U, P, T}
     func = integ.prob.func
     p = integ.prob.p
 
@@ -594,7 +599,9 @@ end
 
 
 # in place
-function step!(integ::IntegratorATsit5{true, P, T}, u::P, dt::T) where {P, T}
+function step!(
+    integ::IntegratorATsit5{true, F, U, P, T}, u::U, dt::T,
+) where {F, U, P, T}
     tend = integ.t + dt
 
     substep!(integ, u, dt)
@@ -610,8 +617,8 @@ end
 
 # out of place with args
 function substep!(
-    integ::IntegratorATsit5{false, P, T}, u::P, dt::T, args::Tuple,
-) where {P, T}
+    integ::IntegratorATsit5{false, F, U, P, T}, u::U, dt::T, args::Tuple,
+) where {F, U, P, T}
     func = integ.prob.func
     p = integ.prob.p
 
@@ -625,7 +632,7 @@ function substep!(
     t = integ.t
 
     err = Inf
-    unew = zero(u)
+    utmp = zero(u)
 
     while err > 1
         k1 = func(u, p, t, args)
@@ -650,15 +657,15 @@ function substep!(
         ttmp = t + c6 * dt
         k6 = func(utmp, p, ttmp, args)
 
-        unew = u + dt * (b1 * k1 + b2 * k2 + b3 * k3 + b4 * k4 + b5 * k5 +
+        utmp = u + dt * (b1 * k1 + b2 * k2 + b3 * k3 + b4 * k4 + b5 * k5 +
                          b6 * k6)
 
         # Error estimation:
         uhat = u + dt * (bhat1 * k1 + bhat2 * k2 + bhat3 * k3 + bhat4 * k4 +
                          bhat5 * k5 + bhat6 * k6)
 
-        etmp = atol + rtol * max(abs(u), abs(unew))
-        etmp = @. abs(unew - uhat) / etmp
+        etmp = atol + rtol * max(abs(u), abs(utmp))
+        etmp = @. abs(utmp - uhat) / etmp
         err = sqrt(sum(abs2, etmp) / length(etmp))
         if err > 1
             dt = convert(T, 0.9) * dt / err^convert(T, 1/5)
@@ -668,24 +675,24 @@ function substep!(
 
     integ.t = integ.t + dt
 
-    return unew
+    return utmp
 end
 
 
 # out of place with args
 function step!(
-    integ::IntegratorATsit5{false, P, T}, u::P, dt::T, args::Tuple,
-) where {P, T}
+    integ::IntegratorATsit5{false, F, U, P, T}, u::U, dt::T, args::Tuple,
+) where {F, U, P, T}
     tend = integ.t + dt
 
-    unew = substep!(integ, u, dt, args)
+    utmp = substep!(integ, u, dt, args)
 
     while integ.t < tend
-        dtnew = tend - integ.t
-        unew = substep!(integ, unew, dtnew, args)
+        dttmp = tend - integ.t
+        utmp = substep!(integ, utmp, dttmp, args)
     end
 
-    return unew
+    return utmp
 end
 
 
