@@ -42,6 +42,12 @@ function isinplace(prob::Problem{P}) where P
 end
 
 
+function reinit!(integ::Integrator)
+    integ.t = integ.prob.tspan[1]
+    return nothing
+end
+
+
 # ******************************************************************************
 # RK2
 # ******************************************************************************
@@ -76,7 +82,8 @@ function IntegratorRK2(prob::Problem{P}) where P
 end
 
 
-function step!(u::P, dt::T, integ::IntegratorRK2{true, P, T}) where {P, T}
+# in place
+function step!(integ::IntegratorRK2{true, P, T}, u::P, dt::T) where {P, T}
     func = integ.prob.func
     p = integ.prob.p
 
@@ -101,7 +108,10 @@ function step!(u::P, dt::T, integ::IntegratorRK2{true, P, T}) where {P, T}
 end
 
 
-function step(u::P, dt::T, integ::IntegratorRK2{false, P, T}) where {P, T}
+# out of place with args
+function step!(
+    integ::IntegratorRK2{false, P, T}, u::P, dt::T, args::Tuple,
+) where {P, T}
     func = integ.prob.func
     p = integ.prob.p
 
@@ -110,11 +120,11 @@ function step(u::P, dt::T, integ::IntegratorRK2{false, P, T}) where {P, T}
     c2, = integ.cs
     t = integ.t
 
-    k1 = func(u, p, t)
+    k1 = func(u, p, t, args)
 
     utmp = u + dt * a21 * k1
     ttmp = t + c2 * dt
-    k2 = func(utmp, p, ttmp)
+    k2 = func(utmp, p, ttmp, args)
 
     unew = u + dt * (b1 * k1 + b2 * k2)
 
@@ -158,7 +168,8 @@ function IntegratorRK3(prob::Problem{P}) where P
 end
 
 
-function step!(u::P, dt::T, integ::IntegratorRK3{true, P, T}) where {P, T}
+# in place
+function step!(integ::IntegratorRK3{true, P, T}, u::P, dt::T) where {P, T}
     func = integ.prob.func
     p = integ.prob.p
 
@@ -187,24 +198,28 @@ function step!(u::P, dt::T, integ::IntegratorRK3{true, P, T}) where {P, T}
 end
 
 
-function step(u::P, dt::T, integ::IntegratorRK3{false, P, T}) where {P, T}
+# out of place with args
+function step!(
+    integ::IntegratorRK3{false, P, T}, u::P, dt::T, args::Tuple,
+) where {P, T}
     func = integ.prob.func
     p = integ.prob.p
 
     a21, a31, a32 = integ.as
     b1, b2, b3 = integ.bs
     c2, c3 = integ.cs
+    k1, k2, k3 = integ.ks
     t = integ.t
 
-    k1 = func(u, p, t)
+    k1 = func(u, p, t, args)
 
     utmp = u + dt * a21 * k1
     ttmp = t + c2 * dt
-    k2 = func(utmp, p, ttmp)
+    k2 = func(utmp, p, ttmp, args)
 
     utmp = u + dt * (a31 * k1 + a32 * k2)
     ttmp = t + c3 * dt
-    k3 = func(utmp, p, ttmp)
+    k3 = func(utmp, p, ttmp, args)
 
     unew = u + dt * (b1 * k1 + b2 * k2 + b3 * k3)
 
@@ -248,7 +263,8 @@ function IntegratorRK4(prob::Problem{P}) where P
 end
 
 
-function step!(u::P, dt::T, integ::IntegratorRK4{true, P, T}) where {P, T}
+# in place
+function step!(integ::IntegratorRK4{true, P, T}, u::P, dt::T) where {P, T}
     func = integ.prob.func
     p = integ.prob.p
 
@@ -281,7 +297,10 @@ function step!(u::P, dt::T, integ::IntegratorRK4{true, P, T}) where {P, T}
 end
 
 
-function step(u::P, dt::T, integ::IntegratorRK4{false, P, T}) where {P, T}
+# out of place with args
+function step!(
+    integ::IntegratorRK4{false, P, T}, u::P, dt::T, args::Tuple,
+) where {P, T}
     func = integ.prob.func
     p = integ.prob.p
 
@@ -290,19 +309,19 @@ function step(u::P, dt::T, integ::IntegratorRK4{false, P, T}) where {P, T}
     c2, c3, c4 = integ.cs
     t = integ.t
 
-    k1 = func(u, p, t)
+    k1 = func(u, p, t, args)
 
     utmp = u + dt * a21 * k1
     ttmp = t + c2 * dt
-    k2 = func(utmp, p, ttmp)
+    k2 = func(utmp, p, ttmp, args)
 
     utmp = u + dt * (a31 * k1 + a32 * k2)
     ttmp = t + c3 * dt
-    k3 = func(utmp, p, ttmp)
+    k3 = func(utmp, p, ttmp, args)
 
     utmp = u + dt * (a41 * k1 + a42 * k2 + a43 * k3)
     ttmp = t + c4 * dt
-    k4 = func(utmp, p, ttmp)
+    k4 = func(utmp, p, ttmp, args)
 
     unew = u + dt * (b1 * k1 + b2 * k2 + b3 * k3 + b4 * k4)
 
@@ -369,7 +388,8 @@ function IntegratorTsit5(prob::Problem{P}) where P
 end
 
 
-function step!(u::P, dt::T, integ::IntegratorTsit5{true, P, T}) where {P, T}
+# in place
+function step!(integ::IntegratorTsit5{true, P, T}, u::P, dt::T) where {P, T}
     func = integ.prob.func
     p = integ.prob.p
 
@@ -411,7 +431,10 @@ function step!(u::P, dt::T, integ::IntegratorTsit5{true, P, T}) where {P, T}
 end
 
 
-function step(u::P, dt::T, integ::IntegratorTsit5{false, P, T}) where {P, T}
+# out of place with args
+function step!(
+    integ::IntegratorTsit5{false, P, T}, u::P, dt::T, args::Tuple,
+) where {P, T}
     func = integ.prob.func
     p = integ.prob.p
 
@@ -421,27 +444,27 @@ function step(u::P, dt::T, integ::IntegratorTsit5{false, P, T}) where {P, T}
     c2, c3, c4, c5, c6 = integ.cs
     t = integ.t
 
-    k1 = func(u, p, t)
+    k1 = func(u, p, t, args)
 
     utmp = u + dt * a21 * k1
     ttmp = t + c2 * dt
-    k2 = func(utmp, p, ttmp)
+    k2 = func(utmp, p, ttmp, args)
 
     utmp = u + dt * (a31 * k1 + a32 * k2)
     ttmp = t + c3 * dt
-    k3 = func(utmp, p, ttmp)
+    k3 = func(utmp, p, ttmp, args)
 
     utmp = u + dt * (a41 * k1 + a42 * k2 + a43 * k3)
     ttmp = t + c4 * dt
-    k4 = func(utmp, p, ttmp)
+    k4 = func(utmp, p, ttmp, args)
 
     utmp = u + dt * (a51 * k1 + a52 * k2 + a53 * k3 + a54 * k4)
     ttmp = t + c5 * dt
-    k5 = func(utmp, p, ttmp)
+    k5 = func(utmp, p, ttmp, args)
 
     utmp = u + dt * (a61 * k1 + a62 * k2 + a63 * k3 + a64 * k4 + a65 * k5)
     ttmp = t + c6 * dt
-    k6 = func(utmp, p, ttmp)
+    k6 = func(utmp, p, ttmp, args)
 
     unew = u + dt * (b1 * k1 + b2 * k2 + b3 * k3 + b4 * k4 + b5 * k5 + b6 * k6)
 
@@ -502,7 +525,8 @@ function IntegratorATsit5(prob::Problem{P}) where P
 end
 
 
-function substep!(u::P, dt::T, integ::IntegratorATsit5{true, P, T}) where {P, T}
+# in place
+function substep!(integ::IntegratorATsit5{true, P, T}, u::P, dt::T) where {P, T}
     func = integ.prob.func
     p = integ.prob.p
 
@@ -569,21 +593,25 @@ function substep!(u::P, dt::T, integ::IntegratorATsit5{true, P, T}) where {P, T}
 end
 
 
-function step!(u::P, dt::T, integ::IntegratorATsit5{true, P, T}) where {P, T}
+# in place
+function step!(integ::IntegratorATsit5{true, P, T}, u::P, dt::T) where {P, T}
     tend = integ.t + dt
 
-    substep!(u, dt, integ)
+    substep!(integ, u, dt)
 
     while integ.t < tend
         dtnew = tend - integ.t
-        substep!(u, dtnew, integ)
+        substep!(integ, u, dtnew)
     end
 
     return nothing
 end
 
 
-function substep(u::P, dt::T, integ::IntegratorATsit5{false, P, T}) where {P, T}
+# out of place with args
+function substep!(
+    integ::IntegratorATsit5{false, P, T}, u::P, dt::T, args::Tuple,
+) where {P, T}
     func = integ.prob.func
     p = integ.prob.p
 
@@ -600,27 +628,27 @@ function substep(u::P, dt::T, integ::IntegratorATsit5{false, P, T}) where {P, T}
     unew = zero(u)
 
     while err > 1
-        k1 = func(u, p, t)
+        k1 = func(u, p, t, args)
 
         utmp = u + dt * a21 * k1
         ttmp = t + c2 * dt
-        k2 = func(utmp, p, ttmp)
+        k2 = func(utmp, p, ttmp, args)
 
         utmp = u + dt * (a31 * k1 + a32 * k2)
         ttmp = t + c3 * dt
-        k3 = func(utmp, p, ttmp)
+        k3 = func(utmp, p, ttmp, args)
 
         utmp = u + dt * (a41 * k1 + a42 * k2 + a43 * k3)
         ttmp = t + c4 * dt
-        k4 = func(utmp, p, ttmp)
+        k4 = func(utmp, p, ttmp, args)
 
         utmp = u + dt * (a51 * k1 + a52 * k2 + a53 * k3 + a54 * k4)
         ttmp = t + c5 * dt
-        k5 = func(utmp, p, ttmp)
+        k5 = func(utmp, p, ttmp, args)
 
         utmp = u + dt * (a61 * k1 + a62 * k2 + a63 * k3 + a64 * k4 + a65 * k5)
         ttmp = t + c6 * dt
-        k6 = func(utmp, p, ttmp)
+        k6 = func(utmp, p, ttmp, args)
 
         unew = u + dt * (b1 * k1 + b2 * k2 + b3 * k3 + b4 * k4 + b5 * k5 +
                          b6 * k6)
@@ -644,14 +672,17 @@ function substep(u::P, dt::T, integ::IntegratorATsit5{false, P, T}) where {P, T}
 end
 
 
-function step(u::P, dt::T, integ::IntegratorATsit5{false, P, T}) where {P, T}
+# out of place with args
+function step!(
+    integ::IntegratorATsit5{false, P, T}, u::P, dt::T, args::Tuple,
+) where {P, T}
     tend = integ.t + dt
 
-    unew = substep(u, dt, integ)
+    unew = substep!(integ, u, dt, args)
 
     while integ.t < tend
         dtnew = tend - integ.t
-        unew = substep(unew, dtnew, integ)
+        unew = substep!(integ, unew, dtnew, args)
     end
 
     return unew

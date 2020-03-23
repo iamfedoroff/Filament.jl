@@ -266,9 +266,9 @@ end
 
 
 function propagate!(
-    E::AbstractArray, dz::T, NP::NonlinearPropagator,
-) where T<:AbstractFloat
-    Equations2.step!(E, dz, NP.integ)
+    E::AbstractArray, NP::NonlinearPropagator, dz::AbstractFloat,
+)
+    Equations2.step!(NP.integ, E, dz)
 end
 
 

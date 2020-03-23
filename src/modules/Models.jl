@@ -189,7 +189,7 @@ function zstep(
 
     if model.keys.NONLINEARITY
         @timeit "nonlinearity" begin
-           NonlinearPropagators.propagate!(field.E, dz, model.NP)
+           NonlinearPropagators.propagate!(field.E, model.NP, dz)
            CUDAdrv.synchronize()
        end
     end
@@ -230,7 +230,7 @@ function zstep(
 
     if model.keys.NONLINEARITY
         @timeit "nonlinearity" begin
-           NonlinearPropagators.propagate!(field.S, dz, model.NP)
+           NonlinearPropagators.propagate!(field.S, model.NP, dz)
        end
     end
 
@@ -280,7 +280,7 @@ function zstep(
 
     if model.keys.NONLINEARITY
         @timeit "nonlinearity" begin
-           NonlinearPropagators.propagate!(field.S, dz, model.NP)
+           NonlinearPropagators.propagate!(field.S, model.NP, dz)
            CUDAdrv.synchronize()
        end
     end
