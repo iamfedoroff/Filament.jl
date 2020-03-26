@@ -7,7 +7,7 @@ const C0 = scipy_constants.c   # speed of light in vacuum
 const EPS0 = scipy_constants.epsilon_0   # the electric constant (vacuum permittivity) [F/m]
 
 
-abstract type Unit{T<:AbstractFloat} end
+abstract type Unit{T} end
 
 
 struct UnitR{T} <: Unit{T}
@@ -60,28 +60,28 @@ function Unit(geometry::String, p::Tuple)
     elseif geometry == "XY"
         unit = UnitXY(p...)
     elseif geometry == "XYT"
-        throw(DomainError("XYT geometry is not implemented yet."))
+        error("XYT geometry is not implemented yet.")
     else
-        throw(DomainError("Wrong grid geometry."))
+        error("Wrong grid geometry.")
     end
     return unit
 end
 
 
-function UnitR(ru::T, zu::T, Iu::T) where T<:AbstractFloat
+function UnitR(ru::T, zu::T, Iu::T) where T
     ku = 1 / ru
     return UnitR(ru, ku, zu, Iu)
 end
 
 
-function UnitT(zu::T, tu::T, Iu::T, rhou::T) where T<:AbstractFloat
+function UnitT(zu::T, tu::T, Iu::T, rhou::T) where T
     wu = 1 / tu
     lamu = tu
     return UnitT(zu, tu, wu, lamu, Iu, rhou)
 end
 
 
-function UnitRT(ru::T, zu::T, tu::T, Iu::T, rhou::T) where T<:AbstractFloat
+function UnitRT(ru::T, zu::T, tu::T, Iu::T, rhou::T) where T
     ku = 1 / ru
     wu = 1 / tu
     lamu = tu
@@ -89,7 +89,7 @@ function UnitRT(ru::T, zu::T, tu::T, Iu::T, rhou::T) where T<:AbstractFloat
 end
 
 
-function UnitXY(xu::T, yu::T, zu::T, Iu::T) where T<:AbstractFloat
+function UnitXY(xu::T, yu::T, zu::T, Iu::T) where T
     kxu = 1 / xu
     kyu = 1 / yu
     return UnitXY(xu, yu, kxu, kyu, zu, Iu)
@@ -97,11 +97,12 @@ end
 
 
 """
-Units of electric field (depends on refractive index n)
+Units of electric field (depends on refractive index n0)
 """
-function E(unit::Unit, n::Union{AbstractFloat, Complex})
-    Eu = sqrt(unit.I / (0.5 * real(n) * EPS0 * C0))
-    return convert(typeof(unit.I), Eu)
+function E(unit::Unit{T}, n0::T) where T
+    ksi = n0 * EPS0 * C0 / 2
+    Eu = sqrt(unit.I / ksi)
+    return convert(T, Eu)
 end
 
 
