@@ -3,6 +3,7 @@ module Models
 import CUDAdrv
 using TimerOutputs
 
+import Constants: FloatGPU
 import Fields
 import Fourier
 import Grids
@@ -12,8 +13,6 @@ import Media
 import NonlinearPropagators
 import PlasmaEquations
 import Units
-
-const FloatGPU = Float32
 
 
 abstract type Model end

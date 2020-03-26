@@ -2,10 +2,9 @@ module Grids
 
 import CuArrays
 
+import Constants: FloatGPU
 import Fourier
 import Hankel
-
-const FloatGPU = Float32
 
 
 abstract type Grid end

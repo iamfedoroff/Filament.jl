@@ -4,11 +4,10 @@ import CuArrays
 import Formatting
 import HDF5
 
+import Constants: FloatGPU
 import Fields
 import Grids
 import Units
-
-const FloatGPU = Float32
 
 
 struct PlotVar{T<:AbstractFloat}

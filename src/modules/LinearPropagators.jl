@@ -2,6 +2,7 @@ module LinearPropagators
 
 import CuArrays
 
+import Constants: FloatGPU
 import Fields
 import Fourier
 import Grids
@@ -9,8 +10,6 @@ import Guards
 import Hankel
 import Media
 import Units
-
-const FloatGPU = Float32
 
 
 abstract type LinearPropagator end
