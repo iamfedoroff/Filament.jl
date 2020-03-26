@@ -2,16 +2,10 @@ module Fields
 
 import CuArrays
 
+import Constants: FloatGPU, C0, HBAR
 import Fourier
 import Grids
 import Units
-
-import PyCall
-scipy_constants = PyCall.pyimport("scipy.constants")
-const C0 = scipy_constants.c   # speed of light in vacuum
-const HBAR = scipy_constants.hbar   # the Planck constant (divided by 2*pi) [J*s]
-
-const FloatGPU = Float32
 
 
 abstract type Field end

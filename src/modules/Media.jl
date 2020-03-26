@@ -2,10 +2,7 @@ module Media
 
 # import ForwardDiff
 
-import PyCall
-scipy_constants = PyCall.pyimport("scipy.constants")
-const C0 = scipy_constants.c   # speed of light in vacuum
-const EPS0 = scipy_constants.epsilon_0   # the electric constant (vacuum permittivity) [F/m]
+import Constants: C0, EPS0
 
 
 struct Medium{T<:AbstractFloat}

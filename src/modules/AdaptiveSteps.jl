@@ -1,14 +1,8 @@
 module AdaptiveSteps
 
+import Constants: EPS0, MU0, QE, ME
 import Units
 import Media
-
-import PyCall
-scipy_constants = PyCall.pyimport("scipy.constants")
-const EPS0 = scipy_constants.epsilon_0   # the electric constant (vacuum permittivity) [F/m]
-const MU0 = scipy_constants.mu_0   # the magnetic constant [N/A^2]
-const QE = scipy_constants.e   # elementary charge [C]
-const ME = scipy_constants.m_e   # electron mass [kg]
 
 
 abstract type AStep end

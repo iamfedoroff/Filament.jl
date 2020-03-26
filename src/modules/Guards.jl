@@ -1,20 +1,13 @@
 module Guards
 
 import CuArrays
-import CUDAdrv
 import CUDAnative
 
+import Constants: FloatGPU, MAX_THREADS_PER_BLOCK
 import Fields
 import Grids
 import Media
 import Units
-
-const FloatGPU = Float32
-const MAX_THREADS_PER_BLOCK =
-        CUDAdrv.attribute(
-            CUDAnative.CuDevice(0),
-            CUDAdrv.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
-        )
 
 
 abstract type Guard end

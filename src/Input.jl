@@ -3,26 +3,15 @@ module Input
 # Modules and variables available in input files:
 import CUDAnative
 import CuArrays
-import CUDAdrv
 import FFTW
 import StaticArrays
 
+import Constants: FloatGPU, MAX_THREADS_PER_BLOCK, C0, EPS0, MU0, QE, ME, HBAR
 import Fourier
 import Units
 import Media
 import Equations
 import TabulatedFunctions
-
-import PyCall
-scipy_constants = PyCall.pyimport("scipy.constants")
-const C0 = scipy_constants.c   # speed of light in vacuum
-const EPS0 = scipy_constants.epsilon_0   # the electric constant (vacuum permittivity) [F/m]
-const MU0 = scipy_constants.mu_0   # the magnetic constant [N/A^2]
-const QE = scipy_constants.e   # elementary charge [C]
-const ME = scipy_constants.m_e   # electron mass [kg]
-const HBAR = scipy_constants.hbar   # the Planck constant (divided by 2*pi) [J*s]
-
-const FloatGPU = Float32
 
 const DEFPATHNR = joinpath(@__DIR__, "modules", "medium_responses")
 const DEFPATHPE = joinpath(@__DIR__, "modules", "plasma_equations")

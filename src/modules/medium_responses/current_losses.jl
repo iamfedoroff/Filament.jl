@@ -58,8 +58,6 @@ end
 
 function inverse!(F::CuArrays.CuArray{T}) where T<:AbstractFloat
     N = length(F)
-    dev = CUDAnative.CuDevice(0)
-    MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(dev, CUDAdrv.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK)
     nth = min(N, MAX_THREADS_PER_BLOCK)
     nbl = Int(ceil(N / nth))
     @CUDAnative.cuda blocks=nbl threads=nth inverse_kernel(F)

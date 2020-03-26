@@ -3,14 +3,11 @@ module Infos
 import Dates
 import Formatting
 
+import Constants: C0
 import Fields
 import Grids
 import Media
 import Units
-
-import PyCall
-scipy_constants = PyCall.pyimport("scipy.constants")
-const C0 = scipy_constants.c   # speed of light in vacuum
 
 
 fmt(x) = Formatting.fmt("18.12e", x)

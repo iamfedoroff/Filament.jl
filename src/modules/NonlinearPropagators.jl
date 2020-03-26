@@ -1,9 +1,9 @@
 module NonlinearPropagators
 
 import CuArrays
-import CUDAdrv
 import CUDAnative
 
+import Constants: FloatGPU, MAX_THREADS_PER_BLOCK, MU0
 import Equations
 import Fields
 import Fourier
@@ -12,17 +12,6 @@ import Guards
 import Hankel
 import Media
 import Units
-
-import PyCall
-scipy_constants = PyCall.pyimport("scipy.constants")
-const MU0 = scipy_constants.mu_0   # the magnetic constant [N/A^2]
-
-const FloatGPU = Float32
-const MAX_THREADS_PER_BLOCK =
-        CUDAdrv.attribute(
-            CUDAnative.CuDevice(0),
-            CUDAdrv.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
-        )
 
 
 struct NonlinearPropagator

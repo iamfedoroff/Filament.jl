@@ -13,16 +13,9 @@ module Hankel
 import SpecialFunctions
 import CUDAnative
 import CuArrays
-import CUDAdrv
-
 import PyCall
 
-const FloatGPU = Float32
-const MAX_THREADS_PER_BLOCK =
-        CUDAdrv.attribute(
-            CUDAnative.CuDevice(0),
-            CUDAdrv.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
-        )
+import Constants: FloatGPU, MAX_THREADS_PER_BLOCK
 
 
 struct HankelTransform{T}
