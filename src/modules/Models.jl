@@ -55,7 +55,6 @@ function Model(
     field::Fields.FieldR,
     medium::Media.Medium,
     guard::Guards.GuardR,
-    zspan::Tuple,
     responses_list::AbstractArray,
     keys::NamedTuple,
 )
@@ -65,7 +64,7 @@ function Model(
 
     if keys.NONLINEARITY
         NP = NonlinearPropagators.NonlinearPropagator(
-            unit, grid, medium, field, guard, zspan, responses_list, keys,
+            unit, grid, medium, field, guard, responses_list, keys,
         )
     else
         NP = nothing
@@ -81,7 +80,6 @@ function Model(
     field::Fields.FieldT,
     medium::Media.Medium,
     guard::Guards.GuardT,
-    zspan::Tuple,
     responses_list::AbstractArray,
     plasma_equation::Dict,
     keys::NamedTuple,
@@ -92,7 +90,7 @@ function Model(
 
     if keys.NONLINEARITY
         NP = NonlinearPropagators.NonlinearPropagator(
-            unit, grid, medium, field, guard, zspan, responses_list, keys,
+            unit, grid, medium, field, guard, responses_list, keys,
         )
     else
         NP = nothing
@@ -102,7 +100,7 @@ function Model(
         w0 = field.w0
         n0 = Media.refractive_index(medium, w0)
         PE = PlasmaEquations.PlasmaEquation(unit, n0, w0, plasma_equation)
-        PE.solve!(field.rho, field.Kdrho, grid.t, field.E)
+        PlasmaEquations.solve!(PE, field.rho, field.Kdrho, grid.t, field.E)
     else
         PE = nothing
     end
@@ -117,7 +115,6 @@ function Model(
     field::Fields.FieldRT,
     medium::Media.Medium,
     guard::Guards.GuardRT,
-    zspan::Tuple,
     responses_list::AbstractArray,
     plasma_equation::Dict,
     keys::NamedTuple,
@@ -128,7 +125,7 @@ function Model(
 
     if keys.NONLINEARITY
         NP = NonlinearPropagators.NonlinearPropagator(
-            unit, grid, medium, field, guard, zspan, responses_list, keys,
+            unit, grid, medium, field, guard, responses_list, keys,
         )
     else
         NP = nothing
@@ -141,7 +138,7 @@ function Model(
 
         t = range(convert(FloatGPU, grid.tmin),
                   convert(FloatGPU, grid.tmax), length=grid.Nt)
-        PE.solve!(field.rho, field.Kdrho, t, field.E)
+        PlasmaEquations.solve!(PE, field.rho, field.Kdrho, t, field.E)
     else
         PE = nothing
     end
@@ -156,7 +153,6 @@ function Model(
     field::Fields.FieldXY,
     medium::Media.Medium,
     guard::Guards.GuardXY,
-    zspan::Tuple,
     responses_list::AbstractArray,
     keys::NamedTuple,
 )
@@ -166,7 +162,7 @@ function Model(
 
     if keys.NONLINEARITY
         NP = NonlinearPropagators.NonlinearPropagator(
-            unit, grid, medium, field, guard, zspan, responses_list, keys,
+            unit, grid, medium, field, guard, responses_list, keys,
         )
     else
         NP = nothing
@@ -189,7 +185,7 @@ function zstep(
 
     if model.keys.NONLINEARITY
         @timeit "nonlinearity" begin
-           NonlinearPropagators.propagate!(field.E, model.NP, dz)
+           NonlinearPropagators.propagate!(field.E, model.NP, z, dz)
            CUDAdrv.synchronize()
        end
     end
@@ -219,7 +215,9 @@ function zstep(
     # Calculate plasma density:
     if model.keys.PLASMA
         @timeit "plasma" begin
-            model.PE.solve!(field.rho, field.Kdrho, grid.t, field.E)
+            PlasmaEquations.solve!(
+                model.PE, field.rho, field.Kdrho, grid.t, field.E,
+            )
         end
     end
 
@@ -230,7 +228,7 @@ function zstep(
 
     if model.keys.NONLINEARITY
         @timeit "nonlinearity" begin
-           NonlinearPropagators.propagate!(field.S, model.NP, dz)
+           NonlinearPropagators.propagate!(field.S, model.NP, z, dz)
        end
     end
 
@@ -267,7 +265,7 @@ function zstep(
         @timeit "plasma" begin
             t = range(convert(FloatGPU, grid.tmin),
                       convert(FloatGPU, grid.tmax), length=grid.Nt)
-            model.PE.solve!(field.rho, field.Kdrho, t, field.E)
+            PlasmaEquations.solve!(model.PE, field.rho, field.Kdrho, t, field.E)
             CUDAdrv.synchronize()
         end
     end
@@ -280,7 +278,7 @@ function zstep(
 
     if model.keys.NONLINEARITY
         @timeit "nonlinearity" begin
-           NonlinearPropagators.propagate!(field.S, model.NP, dz)
+           NonlinearPropagators.propagate!(field.S, model.NP, z, dz)
            CUDAdrv.synchronize()
        end
     end

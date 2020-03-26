@@ -53,25 +53,25 @@ function init_photoionization(unit, n0, w0, params)
 
     # Problem:
     p = (tabfuncs, fiarg, frhonts)   # step function parameters
-    pfunc = Equations.PFunction(func_photoionization, p)
-    prob = Equations.Problem(ALG, rho0u, pfunc)
+    prob = Equations.Problem(func_photoionization, rho0u, p)
+    integ = Equations.Integrator(prob, ALG)
 
     # Function to extract electron density out of the problem solution:
     extract(u::StaticArrays.SVector) = sum(u)
 
     # Function to calculate K * drho/dt:
-    p = (tabfuncs, fiarg, frhonts, Ks, KDEP)
-    kdrho_func = Equations.PFunction(kdrho_photoionization, p)
+    func_kdrho = kdrho_photoionization
+    p_kdrho = (tabfuncs, fiarg, frhonts, Ks, KDEP)
 
-    return prob, extract, kdrho_func
+    return integ, extract, func_kdrho, p_kdrho
 end
 
 
 function func_photoionization(
     rho::AbstractArray{T},
+    p::Tuple,
     t::T,
     args::Tuple,
-    p::Tuple,
 ) where T<:AbstractFloat
     tabfuncs, fiarg, frhonts = p
     E, = args
@@ -95,9 +95,9 @@ end
 
 function kdrho_photoionization(
     rho::AbstractArray{T},
+    p::Tuple,
     t::T,
     args::Tuple,
-    p::Tuple,
 ) where T<:AbstractFloat
     tabfuncs, fiarg, frhonts, Ks, KDEP = p
     E, = args

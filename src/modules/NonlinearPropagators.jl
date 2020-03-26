@@ -4,7 +4,7 @@ import CuArrays
 import CUDAdrv
 import CUDAnative
 
-import Equations2
+import Equations
 import Fields
 import Fourier
 import Grids
@@ -26,7 +26,7 @@ const MAX_THREADS_PER_BLOCK =
 
 
 struct NonlinearPropagator
-    integ :: Equations2.Integrator
+    integ :: Equations.Integrator
 end
 
 
@@ -36,7 +36,6 @@ function NonlinearPropagator(
     medium::Media.Medium,
     field::Fields.Field,
     guard::Guards.Guard,
-    zspan::Tuple,
     responses_list,
     keys::NamedTuple,
 )
@@ -78,10 +77,9 @@ function NonlinearPropagator(
     Ftmp = CuArrays.zeros(Complex{FloatGPU}, grid.Nr)
 
     # Problem:
-    zspan = (convert(FloatGPU, zspan[1]), convert(FloatGPU, zspan[2]))
     p = (responses, Ftmp, guard, QPARAXIAL, QZ, grid.HT)
-    prob = Equations2.Problem(_func_r!, Ftmp, zspan, p)
-    integ = Equations2.Integrator(prob, ALG)
+    prob = Equations.Problem(_func_r!, Ftmp, p)
+    integ = Equations.Integrator(prob, ALG)
 
     return NonlinearPropagator(integ)
 end
@@ -93,7 +91,6 @@ function NonlinearPropagator(
     medium::Media.Medium,
     field::Fields.Field,
     guard::Guards.Guard,
-    zspan::Tuple,
     responses_list,
     keys::NamedTuple,
 )
@@ -131,8 +128,8 @@ function NonlinearPropagator(
 
     # Problem:
     p = (responses, grid.FT, Etmp, Ftmp, Stmp, guard, QZ)
-    prob = Equations2.Problem(_func_t!, Stmp, zspan, p)
-    integ = Equations2.Integrator(prob, ALG)
+    prob = Equations.Problem(_func_t!, Stmp, p)
+    integ = Equations.Integrator(prob, ALG)
 
     return NonlinearPropagator(integ)
 end
@@ -144,7 +141,6 @@ function NonlinearPropagator(
     medium::Media.Medium,
     field::Fields.Field,
     guard::Guards.Guard,
-    zspan::Tuple,
     responses_list,
     keys::NamedTuple,
 )
@@ -196,10 +192,9 @@ function NonlinearPropagator(
     Stmp = CuArrays.zeros(Complex{FloatGPU}, (grid.Nr, grid.Nw))
 
     # Problem:
-    zspan = (convert(FloatGPU, zspan[1]), convert(FloatGPU, zspan[2]))
     p = (responses, grid.FT, Etmp, Ftmp, Stmp, guard, QPARAXIAL, QZ, grid.HT)
-    prob = Equations2.Problem(_func_rt!, Stmp, zspan, p)
-    integ = Equations2.Integrator(prob, ALG)
+    prob = Equations.Problem(_func_rt!, Stmp, p)
+    integ = Equations.Integrator(prob, ALG)
 
     return NonlinearPropagator(integ)
 end
@@ -211,7 +206,6 @@ function NonlinearPropagator(
     medium::Media.Medium,
     field::Fields.Field,
     guard::Guards.Guard,
-    zspan::Tuple,
     responses_list,
     keys::NamedTuple,
 )
@@ -256,19 +250,18 @@ function NonlinearPropagator(
     Ftmp = CuArrays.zeros(Complex{FloatGPU}, (grid.Nx, grid.Ny))
 
     # Problem:
-    zspan = (convert(FloatGPU, zspan[1]), convert(FloatGPU, zspan[2]))
     p = (responses, Ftmp, guard, QPARAXIAL, QZ, grid.FT)
-    prob = Equations2.Problem(_func_xy!, Ftmp, zspan, p)
-    integ = Equations2.Integrator(prob, ALG)
+    prob = Equations.Problem(_func_xy!, Ftmp, p)
+    integ = Equations.Integrator(prob, ALG)
 
     return NonlinearPropagator(integ)
 end
 
 
 function propagate!(
-    E::AbstractArray, NP::NonlinearPropagator, dz::AbstractFloat,
-)
-    Equations2.step!(NP.integ, E, dz)
+    E::AbstractArray, NP::NonlinearPropagator, z::T, dz::T,
+) where T<:AbstractFloat
+    Equations.step!(NP.integ, E, z, dz)
 end
 
 
