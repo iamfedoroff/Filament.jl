@@ -29,7 +29,7 @@ function init_current_losses(unit, grid, field, medium, p)
         fearg = fearg_abs2
     end
 
-    p = (field.Kdrho, fearg)
+    p = (field.kdrho, fearg)
     return Media.NonlinearResponse(Rnl, calc_current_losses, p)
 end
 
@@ -37,10 +37,10 @@ end
 function calc_current_losses(
     F::AbstractArray{T}, E::AbstractArray{Complex{T}}, p::Tuple, z::T,
 ) where T<:AbstractFloat
-    Kdrho, fearg = p
+    kdrho, fearg = p
     @. F = fearg(E)
     inverse!(F)
-    @. F = Kdrho * F * real(E)
+    @. F = kdrho * F * real(E)
     return nothing
 end
 

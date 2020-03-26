@@ -100,7 +100,7 @@ function Model(
         w0 = field.w0
         n0 = Media.refractive_index(medium, w0)
         PE = PlasmaEquations.PlasmaEquation(unit, n0, w0, plasma_equation)
-        PlasmaEquations.solve!(PE, field.rho, field.Kdrho, grid.t, field.E)
+        PlasmaEquations.solve!(PE, field.rho, field.kdrho, grid.t, field.E)
     else
         PE = nothing
     end
@@ -138,7 +138,7 @@ function Model(
 
         t = range(convert(FloatGPU, grid.tmin),
                   convert(FloatGPU, grid.tmax), length=grid.Nt)
-        PlasmaEquations.solve!(PE, field.rho, field.Kdrho, t, field.E)
+        PlasmaEquations.solve!(PE, field.rho, field.kdrho, t, field.E)
     else
         PE = nothing
     end
@@ -216,7 +216,7 @@ function zstep(
     if model.keys.PLASMA
         @timeit "plasma" begin
             PlasmaEquations.solve!(
-                model.PE, field.rho, field.Kdrho, grid.t, field.E,
+                model.PE, field.rho, field.kdrho, grid.t, field.E,
             )
         end
     end
@@ -265,7 +265,7 @@ function zstep(
         @timeit "plasma" begin
             t = range(convert(FloatGPU, grid.tmin),
                       convert(FloatGPU, grid.tmax), length=grid.Nt)
-            PlasmaEquations.solve!(model.PE, field.rho, field.Kdrho, t, field.E)
+            PlasmaEquations.solve!(model.PE, field.rho, field.kdrho, t, field.E)
             CUDAdrv.synchronize()
         end
     end

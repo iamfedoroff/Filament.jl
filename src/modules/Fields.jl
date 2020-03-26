@@ -22,7 +22,7 @@ struct FieldT{T<:AbstractFloat} <: Field
     E :: AbstractArray{Complex{T}, 1}
     S :: AbstractArray{Complex{T}, 1}
     rho :: AbstractArray{T, 1}
-    Kdrho :: AbstractArray{T, 1}
+    kdrho :: AbstractArray{T, 1}
 end
 
 
@@ -31,7 +31,7 @@ struct FieldRT{T<:AbstractFloat} <: Field
     E :: CuArrays.CuArray{Complex{T}, 2}
     S :: CuArrays.CuArray{Complex{T}, 2}
     rho :: CuArrays.CuArray{T, 2}
-    Kdrho :: CuArrays.CuArray{T, 2}
+    kdrho :: CuArrays.CuArray{T, 2}
 end
 
 
@@ -66,14 +66,14 @@ function Field(unit::Units.UnitT, grid::Grids.GridT, p::Tuple)
     Fourier.hilbert!(E, grid.FT, S)   # spectrum real to signal analytic
 
     rho = zeros(grid.Nt)
-    Kdrho = zeros(grid.Nt)
+    kdrho = zeros(grid.Nt)
 
     # Initialize a dummy GPU array in order to trigger the creation of the
     # device context. This will allow to call CUDAdrv.synchronize() in the
     # main cycle.
     tmp = CuArrays.zeros(1)
 
-    return FieldT(w0, E, S, rho, Kdrho)
+    return FieldT(w0, E, S, rho, kdrho)
 end
 
 
@@ -91,9 +91,9 @@ function Field(unit::Units.UnitRT, grid::Grids.GridRT, p::Tuple)
     Fourier.hilbert!(E, grid.FT, S)   # spectrum real to signal analytic
 
     rho = CuArrays.zeros(FloatGPU, (grid.Nr, grid.Nt))
-    Kdrho = CuArrays.zeros(FloatGPU, (grid.Nr, grid.Nt))
+    kdrho = CuArrays.zeros(FloatGPU, (grid.Nr, grid.Nt))
 
-    return FieldRT(w0, E, S, rho, Kdrho)
+    return FieldRT(w0, E, S, rho, kdrho)
 end
 
 
