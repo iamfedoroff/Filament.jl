@@ -5,22 +5,26 @@ import CuArrays
 import Constants: FloatGPU
 import Fourier
 import Hankel
+import HankelTransforms
 
 
 abstract type Grid end
 
 
-struct GridR{T<:AbstractFloat, I<:Int} <: Grid
-    geometry :: String
-
+struct GridR{
+    I <: Int,
+    T <: AbstractFloat,
+    U <: AbstractArray{T},
+    UG <: AbstractArray{T},
+    PH <: HankelTransforms.Plan,
+} <: Grid
     rmax :: T
     Nr :: I
-    r :: AbstractArray{T, 1}
-    dr :: AbstractArray{T, 1}
-    rdr :: CuArrays.CuArray{FloatGPU, 1}
-    k :: AbstractArray{T, 1}
-
-    HT :: Hankel.HankelTransform
+    r :: U
+    dr :: U
+    rdr :: UG
+    k :: U
+    HT :: PH
 end
 
 
@@ -93,22 +97,23 @@ function Grid(geometry::String, p::Tuple)
     elseif geometry == "XY"
         unit = GridXY(p...)
     elseif geometry == "XYT"
-        throw(DomainError("XYT geometry is not implemented yet."))
+        error("XYT geometry is not implemented yet.")
     else
-        throw(DomainError("Wrong grid geometry."))
+        error("Wrong grid geometry.")
     end
     return unit
 end
 
 
-function GridR(rmax, Nr)
-    geometry = "R"
-    HT = Hankel.HankelTransform(rmax, Nr)   # Hankel transform
-    r, dr, rdr, k = _grid_spatial_axial(HT)
+function GridR(rmax::T, Nr::Int) where T<:AbstractFloat
+    r, dr, rdr, k = _grid_spatial_axial(rmax, Nr)
 
-    rdr = CuArrays.CuArray(convert(Array{FloatGPU, 1}, rdr))
+    E = CuArrays.zeros(Complex{T}, Nr)
+    HT = HankelTransforms.plan(rmax, E)
 
-    return GridR(geometry, rmax, Nr, r, dr, rdr, k, HT)
+    rdr = CuArrays.CuArray(convert(Array{T, 1}, rdr))
+
+    return GridR(rmax, Nr, r, dr, rdr, k, HT)
 end
 
 
@@ -170,6 +175,21 @@ function _grid_spatial_axial(HT::Hankel.HankelTransform)
 
     return r, dr, rdr, k
 end
+function _grid_spatial_axial(rmax::T, Nr::Int) where T<:AbstractFloat
+    r = HankelTransforms.htcoord(rmax, Nr)
+    v = HankelTransforms.htfreq(rmax, Nr)
+    k = convert(T, 2 * pi) * v   # angular frequency
+
+    # nonuniform steps:
+    Nr = length(r)
+    dr = zeros(T, Nr)
+    for i=1:Nr
+        dr[i] = _step(i, r)
+    end
+    rdr = @. r * dr   # for calculation of spatial integrals
+
+    return r, dr, rdr, k
+end
 
 
 function _grid_temporal(tmin::T, tmax::T, Nt::Int) where T<:AbstractFloat
@@ -189,7 +209,7 @@ function _step(i::Int, x::AbstractArray{T, 1}) where T
     elseif i == Nx
         dx = x[Nx] - x[Nx - 1]
     else
-        dx = 0.5 * (x[i+1] - x[i-1])
+        dx = (x[i+1] - x[i-1]) / 2
     end
     return dx
 end

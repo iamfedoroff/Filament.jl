@@ -36,6 +36,9 @@ end
 p_field = (lam0, initial_condition)
 
 if geometry == "R"
+    rmax = convert(FloatGPU, rmax)
+    rguard = convert(FloatGPU, rguard)
+    kguard = convert(FloatGPU, kguard)
     keys = (
         NONLINEARITY=NONLINEARITY,
         KPARAXIAL=KPARAXIAL,

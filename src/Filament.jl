@@ -78,7 +78,7 @@ function main()
     file_plothdf = joinpath(prefix_dir, string(prefix_name, "plot.h5"))
     plothdf = WritePlots.PlotHDF(file_plothdf, unit, grid)
     WritePlots.writeHDF(plothdf, z, field)
-    if grid.geometry == "RT"
+    if typeof(grid) <: Grids.GridRT
         WritePlots.writeHDF_zdata(plothdf, z, pdata)
     end
 
@@ -89,7 +89,7 @@ function main()
 
     znext_plothdf = z + Input.dz_plothdf
 
-    if grid.geometry == "RT"
+    if typeof(grid) <: Grids.GridRT
         dz_zdata = 0.5 * Input.lam0 / unit.z
         znext_zdata = z + dz_zdata
     end
@@ -100,7 +100,7 @@ function main()
 
     while z < Input.zmax
 
-        if occursin("T", grid.geometry)
+        if (typeof(grid) <: Grids.GridT) | (typeof(grid) <: Grids.GridRT)
             if Input.NONLINEARITY
                 dz = dzadaptive(pdata.Imax, pdata.rhomax)
             else
@@ -150,7 +150,7 @@ function main()
             end
 
             # Write 1d field data to hdf file
-            if grid.geometry == "RT"
+            if typeof(grid) <: Grids.GridRT
                 if z >= znext_zdata
                     @timeit "writeHDF_zdata" begin
                         WritePlots.writeHDF_zdata(plothdf, z, pdata)

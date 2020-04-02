@@ -307,7 +307,7 @@ function PlotHDF(fname::String, unit::Units.Unit, grid::Grids.Grid)
     _write_group_unit(fp, unit)
     _write_group_grid(fp, grid)
     HDF5.g_create(fp, GROUP_FDAT)
-    if grid.geometry == "RT"
+    if typeof(grid) <: Grids.GridRT
         _write_group_zdat(fp, grid)
     end
     HDF5.close(fp)
@@ -367,7 +367,7 @@ end
 function _write_group_grid(fp, grid::Grids.GridR)
     HDF5.g_create(fp, GROUP_GRID)
     group = fp[GROUP_GRID]
-    group["geometry"] = grid.geometry
+    group["geometry"] = "R"
     group["rmax"] = grid.rmax
     group["Nr"] = grid.Nr
     return nothing

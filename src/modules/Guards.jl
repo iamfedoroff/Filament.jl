@@ -13,9 +13,9 @@ import Units
 abstract type Guard end
 
 
-struct GuardR{T} <: Guard
-    R :: AbstractArray{T, 1}
-    K :: AbstractArray{T, 1}
+struct GuardR{U<:AbstractArray} <: Guard
+    R :: U
+    K :: U
 end
 
 

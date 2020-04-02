@@ -1,6 +1,7 @@
 module LinearPropagators
 
 import CuArrays
+import HankelTransforms
 
 import Constants: FloatGPU
 import Fields
@@ -17,7 +18,7 @@ abstract type LinearPropagator end
 
 struct LinearPropagatorR{T} <: LinearPropagator
     KZ :: AbstractArray{Complex{T}, 1}
-    HT :: Hankel.HankelTransform
+    HT :: HankelTransforms.Plan
     guard :: Guards.Guard
 end
 
@@ -179,10 +180,12 @@ function propagate!(
     LP::LinearPropagatorR,
     z::T
 ) where T
-    Hankel.dht!(LP.HT, E)
+    # Hankel.dht!(LP.HT, E)
+    HankelTransforms.dht!(E, LP.HT)
     @. E = E * exp(-1im * LP.KZ * z)
     Guards.apply_spectral_filter!(E, LP.guard)
-    Hankel.idht!(LP.HT, E)
+    # Hankel.idht!(LP.HT, E)
+    HankelTransforms.idht!(E, LP.HT)
     return nothing
 end
 
