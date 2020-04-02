@@ -3,7 +3,6 @@ module Grids
 import CuArrays
 import HankelTransforms
 
-import Constants: FloatGPU
 import Fourier
 
 
@@ -27,18 +26,21 @@ struct GridR{
 end
 
 
-struct GridT{T<:AbstractFloat, I<:Int} <: Grid
-    geometry :: String
-
+struct GridT{
+    I <: Int,
+    T <: AbstractFloat,
+    U <: AbstractArray{T},
+    UT <: AbstractArray{T},
+    PF <: Fourier.FourierTransform,
+} <: Grid
     tmin :: T
     tmax :: T
     Nt :: I
-    t :: AbstractArray{T, 1}
+    t :: UT
     dt :: T
-    w :: AbstractArray{T, 1}
+    w :: U
     Nw :: I
-
-    FT :: Fourier.FourierTransform
+    FT :: PF
 end
 
 
@@ -71,24 +73,28 @@ struct GridRT{
 end
 
 
-struct GridXY{T<:AbstractFloat, I<:Int} <: Grid
-    geometry :: String
-
+struct GridXY{
+    I <: Int,
+    T <: AbstractFloat,
+    U <: AbstractArray{T},
+    UK <: AbstractArray{T},
+    PF <: Fourier.FourierTransform
+} <: Grid
     xmin :: T
     xmax :: T
     Nx :: I
-    x :: AbstractArray{T, 1}
+    x :: U
     dx :: T
-    kx :: AbstractArray{T, 1}
+    kx :: UK
 
     ymin :: T
     ymax :: T
     Ny :: I
-    y :: AbstractArray{T, 1}
+    y :: U
     dy :: T
-    ky :: AbstractArray{T, 1}
+    ky :: UK
 
-    FT :: Fourier.FourierTransform
+    FT :: PF
 end
 
 
@@ -122,11 +128,10 @@ function GridR(rmax::T, Nr::Int) where T<:AbstractFloat
 end
 
 
-function GridT(tmin, tmax, Nt)
-    geometry = "T"
+function GridT(tmin::T, tmax::T, Nt::Int) where T<:AbstractFloat
     t, dt, w, Nw = _grid_temporal(tmin, tmax, Nt)
-    FT = Fourier.FourierTransformT(Nt)   # Fourier transform
-    return GridT(geometry, tmin, tmax, Nt, t, dt, w, Nw, FT)
+    FT = Fourier.FourierTransformT(Nt)
+    return GridT(tmin, tmax, Nt, t, dt, w, Nw, FT)
 end
 
 
@@ -149,13 +154,14 @@ function GridRT(
 end
 
 
-function GridXY(xmin, xmax, Nx, ymin, ymax, Ny)
-    geometry = "XY"
+function GridXY(
+    xmin::T, xmax::T, Nx::I, ymin::T, ymax::T, Ny::I,
+) where {I<:Int, T<:AbstractFloat}
     x, dx, kx = _grid_spatial_rectangular(xmin, xmax, Nx)
     y, dy, ky = _grid_spatial_rectangular(ymin, ymax, Ny)
     FT = Fourier.FourierTransformXY(Nx, Ny)   # Fourier transform
     return GridXY(
-        geometry, xmin, xmax, Nx, x, dx, kx, ymin, ymax, Ny, y, dy, ky, FT,
+        xmin, xmax, Nx, x, dx, kx, ymin, ymax, Ny, y, dy, ky, FT,
     )
 end
 
@@ -165,7 +171,7 @@ function _grid_spatial_rectangular(
 ) where T<:AbstractFloat
     x = range(xmin, xmax, length=Nx)   # grid coordinates
     dx = x[2] - x[1]   # step
-    kx = 2 * pi * Fourier.fftfreq(Nx, dx)   # angular frequency
+    kx = convert(T, 2 * pi) * Fourier.fftfreq(Nx, dx)   # angular frequency
     return x, dx, kx
 end
 
