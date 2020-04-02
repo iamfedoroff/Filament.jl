@@ -1,11 +1,10 @@
 module Grids
 
 import CuArrays
+import HankelTransforms
 
 import Constants: FloatGPU
 import Fourier
-import Hankel
-import HankelTransforms
 
 
 abstract type Grid end
@@ -43,26 +42,32 @@ struct GridT{T<:AbstractFloat, I<:Int} <: Grid
 end
 
 
-struct GridRT{T<:AbstractFloat, I<:Int} <: Grid
-    geometry :: String
-
+struct GridRT{
+    I <: Int,
+    T <: AbstractFloat,
+    U <: AbstractArray{T},
+    UG <: AbstractArray{T},
+    UT <: AbstractArray{T},
+    PH <: HankelTransforms.Plan,
+    PF <: Fourier.FourierTransform
+} <: Grid
     rmax :: T
     Nr :: I
-    r :: AbstractArray{T, 1}
-    dr :: AbstractArray{T, 1}
-    rdr :: CuArrays.CuArray{FloatGPU, 1}
-    k :: AbstractArray{T, 1}
+    r :: U
+    dr :: U
+    rdr :: UG
+    k :: U
 
     tmin :: T
     tmax :: T
     Nt :: I
-    t :: AbstractArray{T, 1}
+    t :: UT
     dt :: T
-    w :: AbstractArray{T, 1}
+    w :: U
     Nw :: I
 
-    HT :: Hankel.HankelTransform
-    FT :: Fourier.FourierTransform
+    HT :: PH
+    FT :: PF
 end
 
 
@@ -111,7 +116,7 @@ function GridR(rmax::T, Nr::Int) where T<:AbstractFloat
     E = CuArrays.zeros(Complex{T}, Nr)
     HT = HankelTransforms.plan(rmax, E)
 
-    rdr = CuArrays.CuArray(convert(Array{T, 1}, rdr))
+    rdr = CuArrays.CuArray{T}(rdr)
 
     return GridR(rmax, Nr, r, dr, rdr, k, HT)
 end
@@ -125,17 +130,21 @@ function GridT(tmin, tmax, Nt)
 end
 
 
-function GridRT(rmax, Nr, tmin, tmax, Nt)
-    geometry = "RT"
-    HT = Hankel.HankelTransform(rmax, Nr, Nt)   # Hankel transform
-    r, dr, rdr, k = _grid_spatial_axial(HT)
+function GridRT(
+    rmax::T, Nr::I, tmin::T, tmax::T, Nt::I,
+) where {I<:Int, T<:AbstractFloat}
+    r, dr, rdr, k = _grid_spatial_axial(rmax, Nr)
     t, dt, w, Nw = _grid_temporal(tmin, tmax, Nt)
+
+    rdr = CuArrays.CuArray{T}(rdr)
+
+    S = CuArrays.zeros(Complex{T}, (Nr, Nw))
+    HT = HankelTransforms.plan(rmax, S)
+
     FT = Fourier.FourierTransformRT(Nr, Nt)   # Fourier transform
 
-    rdr = CuArrays.CuArray(convert(Array{FloatGPU, 1}, rdr))
-
     return GridRT(
-        geometry, rmax, Nr, r, dr, rdr, k, tmin, tmax, Nt, t, dt, w, Nw, HT, FT,
+        rmax, Nr, r, dr, rdr, k, tmin, tmax, Nt, t, dt, w, Nw, HT, FT,
     )
 end
 
@@ -161,20 +170,6 @@ function _grid_spatial_rectangular(
 end
 
 
-function _grid_spatial_axial(HT::Hankel.HankelTransform)
-    r = HT.r   # grid coordinates
-    k = 2 * pi * HT.v   # angular frequency
-
-    # nonuniform steps:
-    Nr = length(r)
-    dr = zeros(Nr)
-    for i=1:Nr
-        dr[i] = _step(i, r)
-    end
-    rdr = @. r * dr   # for calculation of spatial integrals
-
-    return r, dr, rdr, k
-end
 function _grid_spatial_axial(rmax::T, Nr::Int) where T<:AbstractFloat
     r = HankelTransforms.htcoord(rmax, Nr)
     v = HankelTransforms.htfreq(rmax, Nr)
@@ -195,7 +190,7 @@ end
 function _grid_temporal(tmin::T, tmax::T, Nt::Int) where T<:AbstractFloat
     t = range(tmin, tmax, length=Nt)   # grid coordinates
     dt = t[2] - t[1]   # step
-    w = 2 * pi * Fourier.rfftfreq(Nt, dt)   # angular frequency
+    w = convert(T, 2 * pi) * Fourier.rfftfreq(Nt, dt)   # angular frequency
     Nw = length(w)   # length of angular frequency array
     return t, dt, w, Nw
 end

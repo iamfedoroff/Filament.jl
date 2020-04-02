@@ -2,6 +2,7 @@ module NonlinearPropagators
 
 import CuArrays
 import CUDAnative
+import HankelTransforms
 
 import Constants: FloatGPU, MAX_THREADS_PER_BLOCK, MU0
 import Equations
@@ -9,7 +10,6 @@ import Fields
 import Fourier
 import Grids
 import Guards
-import Hankel
 import Media
 import Units
 
@@ -274,10 +274,10 @@ function _func_r!(
     if QPARAXIAL
         @. dE = -1im * QZ * dE
     else
-        Hankel.dht!(HT, dE)
+        HankelTransforms.dht!(dE, HT)
         @. dE = -1im * QZ * dE
         Guards.apply_spectral_filter!(dE, guard)
-        Hankel.idht!(HT, dE)
+        HankelTransforms.idht!(dE, HT)
     end
 
     return nothing
@@ -331,10 +331,10 @@ function _func_rt!(
     if QPARAXIAL
         @. dS = -1im * QZ * dS
     else
-        Hankel.dht!(HT, dS)
+        HankelTransforms.dht!(dS, HT)
         @. dS = -1im * QZ * dS
         Guards.apply_spectral_filter!(dS, guard)
-        Hankel.idht!(HT, dS)
+        HankelTransforms.idht!(dS, HT)
     end
 
     return nothing

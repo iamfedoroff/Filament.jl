@@ -8,7 +8,6 @@ import Fields
 import Fourier
 import Grids
 import Guards
-import Hankel
 import Media
 import Units
 
@@ -32,7 +31,7 @@ end
 
 struct LinearPropagatorRT{T} <: LinearPropagator
     KZ :: AbstractArray{Complex{T}, 2}
-    HT :: Hankel.HankelTransform
+    HT :: HankelTransforms.Plan
     guard :: Guards.Guard
 end
 
@@ -180,11 +179,9 @@ function propagate!(
     LP::LinearPropagatorR,
     z::T
 ) where T
-    # Hankel.dht!(LP.HT, E)
     HankelTransforms.dht!(E, LP.HT)
     @. E = E * exp(-1im * LP.KZ * z)
     Guards.apply_spectral_filter!(E, LP.guard)
-    # Hankel.idht!(LP.HT, E)
     HankelTransforms.idht!(E, LP.HT)
     return nothing
 end
@@ -206,10 +203,10 @@ function propagate!(
     LP::LinearPropagatorRT,
     z::T
 ) where T
-    Hankel.dht!(LP.HT, E)
+    HankelTransforms.dht!(E, LP.HT)
     @. E = E * exp(-1im * LP.KZ * z)
     Guards.apply_spectral_filter!(E, LP.guard)
-    Hankel.idht!(LP.HT, E)
+    HankelTransforms.idht!(E, LP.HT)
     return nothing
 end
 

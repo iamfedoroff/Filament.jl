@@ -388,7 +388,7 @@ end
 function _write_group_grid(fp, grid::Grids.GridRT)
     HDF5.g_create(fp, GROUP_GRID)
     group = fp[GROUP_GRID]
-    group["geometry"] = grid.geometry
+    group["geometry"] = "RT"
     group["rmax"] = grid.rmax
     group["Nr"] = grid.Nr
     group["tmin"] = grid.tmin

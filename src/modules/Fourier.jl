@@ -395,10 +395,10 @@ Return the Discrete Fourier Transform sample frequencies (for usage with
 rfft, irfft).
 https://github.com/numpy/numpy/blob/v1.15.0/numpy/fft/helper.py#L173-L221
 """
-function rfftfreq(n::Int, d::Float64)
+function rfftfreq(n::Int, d::T) where T<:AbstractFloat
     val = 1 / (n * d)
     N = Int(floor(n / 2))
-    results = Array(0:N)
+    results = Array{T}(0:N)
     return results * val
 end
 

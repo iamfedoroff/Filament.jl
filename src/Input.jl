@@ -8,6 +8,7 @@ import StaticArrays
 
 import Constants: FloatGPU, MAX_THREADS_PER_BLOCK, C0, EPS0, MU0, QE, ME, HBAR
 import Fourier
+import Grids
 import Units
 import Media
 import Equations
@@ -65,6 +66,13 @@ elseif geometry == "T"
     p_model = (responses, plasma_equation, keys)
     p_dzadaptive = (dzphimax, mr, nuc)
 elseif geometry == "RT"
+    rmax = convert(FloatGPU, rmax)
+    tmin = convert(FloatGPU, tmin)
+    tmax = convert(FloatGPU, tmax)
+    rguard = convert(FloatGPU, rguard)
+    tguard = convert(FloatGPU, tguard)
+    kguard = convert(FloatGPU, kguard)
+    wguard = convert(FloatGPU, wguard)
     if ! PLASMA
         plasma_equation = Dict()
     end

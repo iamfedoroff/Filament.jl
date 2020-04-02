@@ -134,10 +134,7 @@ function Model(
         w0 = field.w0
         n0 = Media.refractive_index(medium, w0)
         PE = PlasmaEquations.PlasmaEquation(unit, n0, w0, plasma_equation)
-
-        t = range(convert(FloatGPU, grid.tmin),
-                  convert(FloatGPU, grid.tmax), length=grid.Nt)
-        PlasmaEquations.solve!(PE, field.rho, field.kdrho, t, field.E)
+        PlasmaEquations.solve!(PE, field.rho, field.kdrho, grid.t, field.E)
     else
         PE = nothing
     end
@@ -262,9 +259,9 @@ function zstep(
     # Calculate plasma density:
     if model.keys.PLASMA
         @timeit "plasma" begin
-            t = range(convert(FloatGPU, grid.tmin),
-                      convert(FloatGPU, grid.tmax), length=grid.Nt)
-            PlasmaEquations.solve!(model.PE, field.rho, field.kdrho, t, field.E)
+            PlasmaEquations.solve!(
+                model.PE, field.rho, field.kdrho, grid.t, field.E,
+            )
             CUDAdrv.synchronize()
         end
     end

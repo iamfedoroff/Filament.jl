@@ -25,17 +25,17 @@ struct GuardT{T} <: Guard
 end
 
 
-struct GuardRT{T} <: Guard
-    R :: AbstractArray{T, 1}
-    K :: AbstractArray{T, 2}
-    T :: AbstractArray{T, 1}
-    W :: AbstractArray{T, 1}
-    nthreadsNt :: Int
-    nthreadsNrNt :: Int
-    nthreadsNrNw :: Int
-    nblocksNt :: Int
-    nblocksNrNt :: Int
-    nblocksNrNw :: Int
+struct GuardRT{I<:Int, U<:AbstractArray, U2<:AbstractArray} <: Guard
+    R :: U
+    K :: U2
+    T :: U
+    W :: U
+    nthreadsNt :: I
+    nthreadsNrNt :: I
+    nthreadsNrNw :: I
+    nblocksNt :: I
+    nblocksNrNt :: I
+    nblocksNrNw :: I
 end
 
 
@@ -59,13 +59,13 @@ function Guard(
 ) where T<:AbstractFloat
     # Spatial guard filter:
     Rguard = guard_window(grid.r, rguard, mode="right")
-    Rguard = CuArrays.CuArray(convert(Array{FloatGPU, 1}, Rguard))
+    Rguard = CuArrays.CuArray{T}(Rguard)
 
     # Angular guard filter:
     k0 = Media.k_func(medium, field.w0)
     kmax = k0 * sind(kguard)
     Kguard = @. exp(-((grid.k * unit.k)^2 / kmax^2)^20)
-    Kguard = CuArrays.CuArray(convert(Array{FloatGPU, 1}, Kguard))
+    Kguard = CuArrays.CuArray{T}(Kguard)
 
     return GuardR(Rguard, Kguard)
 end
@@ -101,15 +101,15 @@ function Guard(
 ) where T<:AbstractFloat
     # Spatial guard filter:
     Rguard = guard_window(grid.r, rguard, mode="right")
-    Rguard = CuArrays.CuArray(convert(Array{FloatGPU, 1}, Rguard))
+    Rguard = CuArrays.CuArray{T}(Rguard)
 
     # Temporal guard filter:
     Tguard = guard_window(grid.t, tguard, mode="both")
-    Tguard = CuArrays.CuArray(convert(Array{FloatGPU, 1}, Tguard))
+    Tguard = CuArrays.CuArray{T}(Tguard)
 
     # Frequency guard filter:
     Wguard = @. exp(-((grid.w * unit.w)^2 / wguard^2)^20)
-    Wguard = CuArrays.CuArray(convert(Array{FloatGPU, 1}, Wguard))
+    Wguard = CuArrays.CuArray{T}(Wguard)
 
     # Angular guard filter:
     k = Media.k_func.(Ref(medium), grid.w * unit.w)
@@ -117,12 +117,12 @@ function Guard(
     Kguard = zeros((grid.Nr, grid.Nw))
     for j=2:grid.Nw   # from 2 because kmax[1]=0 since w[1]=0
         for i=1:grid.Nr
-            if kmax[j] != 0.
+            if kmax[j] != 0
                 Kguard[i, j] = exp(-((grid.k[i] * unit.k)^2 / kmax[j]^2)^20)
             end
         end
     end
-    Kguard = CuArrays.CuArray(convert(Array{FloatGPU, 2}, Kguard))
+    Kguard = CuArrays.CuArray{T}(Kguard)
 
     # GPU:
     CuArrays.allowscalar(false)   # disable slow fallback methods
