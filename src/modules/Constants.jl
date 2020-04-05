@@ -2,20 +2,18 @@ module Constants
 
 import CUDAdrv
 import CUDAnative
-
-import PyCall
-sc = PyCall.pyimport("scipy.constants")
+using PhysicalConstants.CODATA2018
 
 # const TFloat = Float32
 const FloatGPU = Float32
 
 # const A = convert(TFloat, sc.A)
-const C0 = sc.c   # speed of light in vacuum
-const EPS0 = sc.epsilon_0   # the electric constant (vacuum permittivity) [F/m]
-const MU0 = sc.mu_0   # the magnetic constant [N/A^2]
-const QE = sc.e   # elementary charge [C]
-const ME = sc.m_e   # electron mass [kg]
-const HBAR = sc.hbar   # the Planck constant (divided by 2*pi) [J*s]
+const C0 = SpeedOfLightInVacuum.val
+const EPS0 = VacuumElectricPermittivity.val
+const MU0 = VacuumMagneticPermeability.val
+const QE = ElementaryCharge.val
+const ME = ElectronMass.val
+const HBAR = ReducedPlanckConstant.val
 
 const MAX_THREADS_PER_BLOCK =
         CUDAdrv.attribute(
