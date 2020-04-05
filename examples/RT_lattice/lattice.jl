@@ -13,10 +13,10 @@ function init_lattice(unit, grid, field, medium, p)
     Rnl = @. n / (MU0 * mu * C0^2) * Eu
 
     @. Rnl = conj(Rnl)
-    Rnl = CuArrays.CuArray(convert(Array{Complex{FloatGPU}, 1}, Rnl))
+    Rnl = CuArrays.CuArray{Complex{FloatGPU}}(Rnl)
 
     dnr = @. dnr_func(grid.r, unit.r)
-    dnr = CuArrays.CuArray(convert(Array{FloatGPU, 1}, dnr))
+    dnr = CuArrays.CuArray{FloatGPU}(dnr)
 
     p = (dnr, dnz_func, unit.z)
     return Media.NonlinearResponse(Rnl, calc_lattice, p)

@@ -47,7 +47,7 @@ function Field(unit::Units.UnitR, grid::Grids.GridR, p::Tuple)
     w0 = 2 * pi * C0 / lam0
 
     E = initial_condition(grid.r, unit.r, unit.I)
-    E = CuArrays.CuArray(convert(Array{Complex{FloatGPU}, 1}, E))
+    E = CuArrays.CuArray{Complex{FloatGPU}}(E)
     return FieldR(w0, E)
 end
 
@@ -58,7 +58,7 @@ function Field(unit::Units.UnitT, grid::Grids.GridT, p::Tuple)
     w0 = 2 * pi * C0 / lam0
 
     E = initial_condition(grid.t, unit.t, unit.I)
-    E = convert(Array{ComplexF64, 1}, E)
+    E = Array{ComplexF64}(E)
 
     S = zeros(ComplexF64, grid.Nw)
     Fourier.rfft!(S, grid.FT, E)   # time -> frequency
@@ -83,7 +83,7 @@ function Field(unit::Units.UnitRT, grid::Grids.GridRT, p::Tuple)
     w0 = 2 * pi * C0 / lam0
 
     E = initial_condition(grid.r, grid.t, unit.r, unit.t, unit.I)
-    E = CuArrays.CuArray(convert(Array{Complex{FloatGPU}, 2}, E))
+    E = CuArrays.CuArray{Complex{FloatGPU}}(E)
 
     S = CuArrays.zeros(Complex{FloatGPU}, (grid.Nr, grid.Nw))
     Fourier.rfft!(S, grid.FT, E)   # time -> frequency
@@ -103,7 +103,7 @@ function Field(unit::Units.UnitXY, grid::Grids.GridXY, p::Tuple)
     w0 = 2 * pi * C0 / lam0
 
     E = initial_condition(grid.x, grid.y, unit.x, unit.y, unit.I)
-    E = CuArrays.CuArray(convert(Array{Complex{FloatGPU}, 2}, E))
+    E = CuArrays.CuArray{Complex{FloatGPU}}(E)
     return FieldXY(w0, E)
 end
 

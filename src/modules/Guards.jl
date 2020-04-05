@@ -152,10 +152,10 @@ function Guard(
 ) where T<:AbstractFloat
     # Spatial guard filters:
     Xguard = guard_window(grid.x, xguard, mode="both")
-    Xguard = CuArrays.CuArray(convert(Array{FloatGPU, 1}, Xguard))
+    Xguard = CuArrays.CuArray{FloatGPU}(Xguard)
 
     Yguard = guard_window(grid.y, yguard, mode="both")
-    Yguard = CuArrays.CuArray(convert(Array{FloatGPU, 1}, Yguard))
+    Yguard = CuArrays.CuArray{FloatGPU}(Yguard)
 
     # Angular guard filters:
     k0 = Media.k_func(medium, field.w0)
@@ -163,10 +163,10 @@ function Guard(
     kymax = k0 * sind(kyguard)
 
     KXguard = @. exp(-((grid.kx * unit.kx)^2 / kxmax^2)^20)
-    KXguard = CuArrays.CuArray(convert(Array{FloatGPU, 1}, KXguard))
+    KXguard = CuArrays.CuArray{FloatGPU}(KXguard)
 
     KYguard = @. exp(-((grid.ky * unit.ky)^2 / kymax^2)^20)
-    KYguard = CuArrays.CuArray(convert(Array{FloatGPU, 1}, KYguard))
+    KYguard = CuArrays.CuArray{FloatGPU}(KYguard)
 
     nthreads = min(grid.Nx * grid.Ny, MAX_THREADS_PER_BLOCK)
     nblocks = Int(ceil(grid.Nx * grid.Ny / nthreads))

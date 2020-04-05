@@ -67,7 +67,7 @@ function LinearPropagator(
     @. KZ = (KZ - field.w0 / vf) * unit.z
 
     @. KZ = conj(KZ)
-    KZ = CuArrays.CuArray(convert(Array{Complex{FloatGPU}, 1}, KZ))
+    KZ = CuArrays.CuArray{Complex{FloatGPU}}(KZ)
 
     return LinearPropagatorR(KZ, grid.HT, guard)
 end
@@ -127,7 +127,7 @@ function LinearPropagator(
     end
     end
     @. KZ = conj(KZ)
-    KZ = CuArrays.CuArray(convert(Array{Complex{FloatGPU}, 2}, KZ))
+    KZ = CuArrays.CuArray{Complex{FloatGPU}}(KZ)
 
     return LinearPropagatorRT(KZ, grid.HT, guard)
 end
@@ -168,7 +168,7 @@ function LinearPropagator(
     @. KZ = (KZ - field.w0 / vf) * unit.z
 
     @. KZ = conj(KZ)
-    KZ = CuArrays.CuArray(convert(Array{Complex{FloatGPU}, 2}, KZ))
+    KZ = CuArrays.CuArray{Complex{FloatGPU}}(KZ)
 
     return LinearPropagatorXY(KZ, grid.FT, guard)
 end

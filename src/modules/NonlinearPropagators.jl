@@ -51,7 +51,7 @@ function NonlinearPropagator(
         end
     end
     @. QZ = conj(QZ)
-    QZ = CuArrays.CuArray(convert(Array{Complex{FloatGPU}, 1}, QZ))
+    QZ = CuArrays.CuArray{Complex{FloatGPU}}(QZ)
 
     # Responses:
     responses = []
@@ -164,7 +164,7 @@ function NonlinearPropagator(
         end
     end
     @. QZ = conj(QZ)
-    QZ = CuArrays.CuArray(convert(Array{Complex{FloatGPU}, 2}, QZ))
+    QZ = CuArrays.CuArray{Complex{FloatGPU}}(QZ)
 
     # Responses:
     responses = []
@@ -224,7 +224,7 @@ function NonlinearPropagator(
         end
     end
     @. QZ = conj(QZ)
-    QZ = CuArrays.CuArray(convert(Array{Complex{FloatGPU}, 2}, QZ))
+    QZ = CuArrays.CuArray{Complex{FloatGPU}}(QZ)
 
     # Responses:
     responses = []
