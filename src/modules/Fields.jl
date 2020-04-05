@@ -1,6 +1,7 @@
 module Fields
 
 import CuArrays
+import HankelTransforms
 
 import Constants: FloatGPU, C0, HBAR
 import Fourier
@@ -14,9 +15,11 @@ abstract type Field end
 struct FieldR{
     T<:AbstractFloat,
     UC<:AbstractArray{Complex{T}},
+    PH<:HankelTransforms.Plan,
 } <: Field
     w0 :: T
     E :: UC
+    HT :: PH
 end
 
 
@@ -37,12 +40,14 @@ struct FieldRT{
     T<:AbstractFloat,
     UC<:AbstractArray{Complex{T}},
     UF<:AbstractArray{T},
+    PH<:HankelTransforms.Plan,
 } <: Field
     w0 :: T
     E :: UC
     S :: UC
     rho :: UF
     kdrho :: UF
+    HT :: PH
 end
 
 
@@ -66,7 +71,9 @@ function Field(
 
     E = initial_condition(grid.r, unit.r, unit.I)
     E = CuArrays.CuArray{Complex{T}}(E)
-    return FieldR(w0, E)
+
+    HT = HankelTransforms.plan(grid.rmax, E)
+    return FieldR(w0, E, HT)
 end
 
 
@@ -119,7 +126,8 @@ function Field(
     rho = CuArrays.zeros(T, (grid.Nr, grid.Nt))
     kdrho = CuArrays.zeros(T, (grid.Nr, grid.Nt))
 
-    return FieldRT(w0, E, S, rho, kdrho)
+    HT = HankelTransforms.plan(grid.rmax, S)
+    return FieldRT(w0, E, S, rho, kdrho, HT)
 end
 
 

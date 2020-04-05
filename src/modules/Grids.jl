@@ -14,7 +14,6 @@ struct GridR{
     T <: AbstractFloat,
     U <: AbstractArray{T},
     UG <: AbstractArray{T},
-    PH <: HankelTransforms.Plan,
 } <: Grid
     rmax :: T
     Nr :: I
@@ -22,7 +21,6 @@ struct GridR{
     dr :: U
     rdr :: UG
     k :: U
-    HT :: PH
 end
 
 
@@ -50,7 +48,6 @@ struct GridRT{
     U <: AbstractArray{T},
     UG <: AbstractArray{T},
     UT <: AbstractArray{T},
-    PH <: HankelTransforms.Plan,
     PF <: Fourier.FourierTransform
 } <: Grid
     rmax :: T
@@ -68,7 +65,6 @@ struct GridRT{
     w :: U
     Nw :: I
 
-    HT :: PH
     FT :: PF
 end
 
@@ -118,13 +114,8 @@ end
 
 function GridR(rmax::T, Nr::Int) where T<:AbstractFloat
     r, dr, rdr, k = _grid_spatial_axial(rmax, Nr)
-
-    E = CuArrays.zeros(Complex{T}, Nr)
-    HT = HankelTransforms.plan(rmax, E)
-
     rdr = CuArrays.CuArray{T}(rdr)
-
-    return GridR(rmax, Nr, r, dr, rdr, k, HT)
+    return GridR(rmax, Nr, r, dr, rdr, k)
 end
 
 
@@ -140,16 +131,10 @@ function GridRT(
 ) where {I<:Int, T<:AbstractFloat}
     r, dr, rdr, k = _grid_spatial_axial(rmax, Nr)
     t, dt, w, Nw = _grid_temporal(tmin, tmax, Nt)
-
     rdr = CuArrays.CuArray{T}(rdr)
-
-    S = CuArrays.zeros(Complex{T}, (Nr, Nw))
-    HT = HankelTransforms.plan(rmax, S)
-
     FT = Fourier.FourierTransformRT(Nr, Nt)   # Fourier transform
-
     return GridRT(
-        rmax, Nr, r, dr, rdr, k, tmin, tmax, Nt, t, dt, w, Nw, HT, FT,
+        rmax, Nr, r, dr, rdr, k, tmin, tmax, Nt, t, dt, w, Nw, FT,
     )
 end
 

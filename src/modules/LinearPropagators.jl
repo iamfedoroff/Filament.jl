@@ -69,7 +69,7 @@ function LinearPropagator(
     @. KZ = conj(KZ)
     KZ = CuArrays.CuArray{Complex{FloatGPU}}(KZ)
 
-    return LinearPropagatorR(KZ, grid.HT, guard)
+    return LinearPropagatorR(KZ, field.HT, guard)
 end
 
 
@@ -129,7 +129,7 @@ function LinearPropagator(
     @. KZ = conj(KZ)
     KZ = CuArrays.CuArray{Complex{FloatGPU}}(KZ)
 
-    return LinearPropagatorRT(KZ, grid.HT, guard)
+    return LinearPropagatorRT(KZ, field.HT, guard)
 end
 
 
