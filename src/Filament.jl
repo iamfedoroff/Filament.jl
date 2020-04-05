@@ -32,7 +32,7 @@ function main()
     # Prepare field
     # **************************************************************************
     z = Input.z / unit.z   # convert initial z to dimensionless units
-    field = Fields.Field(unit, grid, Input.p_field)
+    field = Fields.Field(unit, grid, Input.lam0, Input.initial_condition)
 
     # **************************************************************************
     # Prepare medium

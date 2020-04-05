@@ -378,9 +378,9 @@ end
 Return the Discrete Fourier Transform sample frequencies.
 https://github.com/numpy/numpy/blob/v1.15.0/numpy/fft/helper.py#L124-L169
 """
-function fftfreq(n::Int, d::Float64)
+function fftfreq(n::Int, d::T) where T<:AbstractFloat
     val = 1 / (n * d)
-    results = zeros(n)
+    results = zeros(T, n)
     N = Int(floor((n - 1) / 2)) + 1
     p1 = Array(0:N-1)
     results[1:N] = p1

@@ -133,6 +133,7 @@ function Model(
     if keys.PLASMA
         w0 = field.w0
         n0 = Media.refractive_index(medium, w0)
+        n0 = convert(eltype(w0), real(n0))   # FIXME Should be removed when Media will be parametrized
         PE = PlasmaEquations.PlasmaEquation(unit, n0, w0, plasma_equation)
         PlasmaEquations.solve!(PE, field.rho, field.kdrho, grid.t, field.E)
     else

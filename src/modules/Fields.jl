@@ -11,99 +11,129 @@ import Units
 abstract type Field end
 
 
-struct FieldR{T<:AbstractFloat} <: Field
-    w0 :: Float64
-    E :: CuArrays.CuArray{Complex{T}, 1}
-end
-
-
-struct FieldT{T<:AbstractFloat} <: Field
+struct FieldR{
+    T<:AbstractFloat,
+    UC<:AbstractArray{Complex{T}},
+} <: Field
     w0 :: T
-    E :: AbstractArray{Complex{T}, 1}
-    S :: AbstractArray{Complex{T}, 1}
-    rho :: AbstractArray{T, 1}
-    kdrho :: AbstractArray{T, 1}
+    E :: UC
 end
 
 
-struct FieldRT{T<:AbstractFloat} <: Field
-    w0 :: Float64
-    E :: CuArrays.CuArray{Complex{T}, 2}
-    S :: CuArrays.CuArray{Complex{T}, 2}
-    rho :: CuArrays.CuArray{T, 2}
-    kdrho :: CuArrays.CuArray{T, 2}
+struct FieldT{
+    T<:AbstractFloat,
+    UC<:AbstractArray{Complex{T}},
+    UF<:AbstractArray{T},
+} <: Field
+    w0 :: T
+    E :: UC
+    S :: UC
+    rho :: UF
+    kdrho :: UF
 end
 
 
-struct FieldXY{T<:AbstractFloat} <: Field
-    w0 :: Float64
-    E :: CuArrays.CuArray{Complex{T}, 2}
+struct FieldRT{
+    T<:AbstractFloat,
+    UC<:AbstractArray{Complex{T}},
+    UF<:AbstractArray{T},
+} <: Field
+    w0 :: T
+    E :: UC
+    S :: UC
+    rho :: UF
+    kdrho :: UF
 end
 
 
-function Field(unit::Units.UnitR, grid::Grids.GridR, p::Tuple)
-    lam0, initial_condition = p
+struct FieldXY{
+    T<:AbstractFloat,
+    UC<:AbstractArray{Complex{T}},
+} <: Field
+    w0 :: T
+    E :: UC
+end
 
+
+function Field(
+    unit::Units.UnitR,
+    grid::Grids.GridR,
+    lam0::T,
+    initial_condition::Function,
+) where T<:AbstractFloat
     w0 = 2 * pi * C0 / lam0
+    w0 = convert(T, w0)
 
     E = initial_condition(grid.r, unit.r, unit.I)
-    E = CuArrays.CuArray{Complex{FloatGPU}}(E)
+    E = CuArrays.CuArray{Complex{T}}(E)
     return FieldR(w0, E)
 end
 
 
-function Field(unit::Units.UnitT, grid::Grids.GridT, p::Tuple)
-    lam0, initial_condition = p
-
+function Field(
+    unit::Units.UnitT,
+    grid::Grids.GridT,
+    lam0::T,
+    initial_condition::Function,
+) where T<:AbstractFloat
     w0 = 2 * pi * C0 / lam0
+    w0 = convert(T, w0)
 
     E = initial_condition(grid.t, unit.t, unit.I)
-    E = Array{ComplexF64}(E)
+    E = Array{Complex{T}}(E)
 
-    S = zeros(ComplexF64, grid.Nw)
+    S = zeros(Complex{T}, grid.Nw)
     Fourier.rfft!(S, grid.FT, E)   # time -> frequency
 
     Fourier.hilbert!(E, grid.FT, S)   # spectrum real to signal analytic
 
-    rho = zeros(grid.Nt)
-    kdrho = zeros(grid.Nt)
+    rho = zeros(T, grid.Nt)
+    kdrho = zeros(T, grid.Nt)
 
     # Initialize a dummy GPU array in order to trigger the creation of the
     # device context. This will allow to call CUDAdrv.synchronize() in the
     # main cycle.
-    tmp = CuArrays.zeros(1)
+    tmp = CuArrays.zeros(T, 1)
 
     return FieldT(w0, E, S, rho, kdrho)
 end
 
 
-function Field(unit::Units.UnitRT, grid::Grids.GridRT, p::Tuple)
-    lam0, initial_condition = p
-
+function Field(
+    unit::Units.UnitRT,
+    grid::Grids.GridRT,
+    lam0::T,
+    initial_condition::Function,
+) where T<:AbstractFloat
     w0 = 2 * pi * C0 / lam0
+    w0 = convert(T, w0)
 
     E = initial_condition(grid.r, grid.t, unit.r, unit.t, unit.I)
-    E = CuArrays.CuArray{Complex{FloatGPU}}(E)
+    E = CuArrays.CuArray{Complex{T}}(E)
 
-    S = CuArrays.zeros(Complex{FloatGPU}, (grid.Nr, grid.Nw))
+    S = CuArrays.zeros(Complex{T}, (grid.Nr, grid.Nw))
     Fourier.rfft!(S, grid.FT, E)   # time -> frequency
 
     Fourier.hilbert!(E, grid.FT, S)   # spectrum real to signal analytic
 
-    rho = CuArrays.zeros(FloatGPU, (grid.Nr, grid.Nt))
-    kdrho = CuArrays.zeros(FloatGPU, (grid.Nr, grid.Nt))
+    rho = CuArrays.zeros(T, (grid.Nr, grid.Nt))
+    kdrho = CuArrays.zeros(T, (grid.Nr, grid.Nt))
 
     return FieldRT(w0, E, S, rho, kdrho)
 end
 
 
-function Field(unit::Units.UnitXY, grid::Grids.GridXY, p::Tuple)
-    lam0, initial_condition = p
-
+function Field(
+    unit::Units.UnitXY,
+    grid::Grids.GridXY,
+    lam0::T,
+    initial_condition::Function,
+) where T<:AbstractFloat
     w0 = 2 * pi * C0 / lam0
+    w0 = convert(T, w0)
 
     E = initial_condition(grid.x, grid.y, unit.x, unit.y, unit.I)
-    E = CuArrays.CuArray{Complex{FloatGPU}}(E)
+    E = CuArrays.CuArray{Complex{T}}(E)
     return FieldXY(w0, E)
 end
 

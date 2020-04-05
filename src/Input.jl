@@ -34,12 +34,11 @@ if ! NONLINEARITY
     responses = []
 end
 
-p_field = (lam0, initial_condition)
-
 if geometry == "R"
     rmax = convert(FloatGPU, rmax)
     rguard = convert(FloatGPU, rguard)
     kguard = convert(FloatGPU, kguard)
+    lam0 = convert(FloatGPU, lam0)
     keys = (
         NONLINEARITY=NONLINEARITY,
         KPARAXIAL=KPARAXIAL,
@@ -73,6 +72,7 @@ elseif geometry == "RT"
     tguard = convert(FloatGPU, tguard)
     kguard = convert(FloatGPU, kguard)
     wguard = convert(FloatGPU, wguard)
+    lam0 = convert(FloatGPU, lam0)
     if ! PLASMA
         plasma_equation = Dict()
     end
@@ -89,6 +89,15 @@ elseif geometry == "RT"
     p_model = (responses, plasma_equation, keys)
     p_dzadaptive = (dzphimax, mr, nuc)
 elseif geometry == "XY"
+    xmin = convert(FloatGPU, xmin)
+    xmax = convert(FloatGPU, xmax)
+    ymin = convert(FloatGPU, ymin)
+    ymax = convert(FloatGPU, ymax)
+    xguard = convert(FloatGPU, xguard)
+    yguard = convert(FloatGPU, yguard)
+    kxguard = convert(FloatGPU, kxguard)
+    kyguard = convert(FloatGPU, kyguard)
+    lam0 = convert(FloatGPU, lam0)
     keys = (
         NONLINEARITY=NONLINEARITY,
         KPARAXIAL=KPARAXIAL,
