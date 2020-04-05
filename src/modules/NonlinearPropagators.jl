@@ -34,7 +34,7 @@ function NonlinearPropagator(
     # Prefactor:
     beta = Media.beta_func(medium, field.w0)
     n0 = Media.refractive_index(medium, field.w0)
-    Eu = Units.E(unit, n0)
+    Eu = Units.E(unit, real(n0))
     mu = medium.permeability(field.w0)
 
     Qfactor = 0.5 * MU0 * mu * field.w0^2 * unit.z / Eu
@@ -88,7 +88,7 @@ function NonlinearPropagator(
     # Prefactor:
     beta = Media.beta_func.(Ref(medium), grid.w * unit.w)
     n0 = real(Media.refractive_index(medium, field.w0))
-    Eu = Units.E(unit, n0)
+    Eu = Units.E(unit, real(n0))
     mu = medium.permeability(grid.w * unit.w)
 
     Qfactor = @. 0.5 * MU0 * mu * (grid.w * unit.w)^2 * unit.z / Eu
@@ -139,7 +139,7 @@ function NonlinearPropagator(
     # Prefactor:
     beta = Media.beta_func.(Ref(medium), grid.w * unit.w)
     n0 = Media.refractive_index(medium, field.w0)
-    Eu = Units.E(unit, n0)
+    Eu = Units.E(unit, real(n0))
     mu = medium.permeability(grid.w * unit.w)
 
     Qfactor = @. 0.5 * MU0 * mu * (grid.w * unit.w)^2 * unit.z / Eu
@@ -204,7 +204,7 @@ function NonlinearPropagator(
     # Prefactor:
     beta = Media.beta_func(medium, field.w0)
     n0 = Media.refractive_index(medium, field.w0)
-    Eu = Units.E(unit, n0)
+    Eu = Units.E(unit, real(n0))
     mu = medium.permeability(field.w0)
 
     Qfactor = 0.5 * MU0 * mu * field.w0^2 * unit.z / Eu
