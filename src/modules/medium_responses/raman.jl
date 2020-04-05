@@ -30,7 +30,7 @@ function init_raman(unit, grid, field, medium, p)
         calc = calc_raman_nothg
     end
 
-    p = (Hramanw, grid.FT)
+    p = (Hramanw, field.FT)
     return Media.NonlinearResponse(Rnl, calc, p)
 end
 

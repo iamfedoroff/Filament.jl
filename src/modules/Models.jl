@@ -220,7 +220,7 @@ function zstep(
 
     # Field -> temporal spectrum:
     @timeit "field -> spectr" begin
-        Fourier.rfft!(field.S, grid.FT, field.E)
+        Fourier.rfft!(field.S, field.FT, field.E)
     end
 
     if model.keys.NONLINEARITY
@@ -235,7 +235,7 @@ function zstep(
 
     # Temporal spectrum -> field:
     @timeit "spectr -> field" begin
-        Fourier.hilbert!(field.E, grid.FT, field.S)   # spectrum real to signal analytic
+        Fourier.hilbert!(field.E, field.FT, field.S)   # spectrum real to signal analytic
     end
 
     @timeit "field filter" begin
@@ -269,7 +269,7 @@ function zstep(
 
     # Field -> temporal spectrum:
     @timeit "field -> spectr" begin
-        Fourier.rfft!(field.S, grid.FT, field.E)
+        Fourier.rfft!(field.S, field.FT, field.E)
         CUDAdrv.synchronize()
     end
 
@@ -287,7 +287,7 @@ function zstep(
 
     # Temporal spectrum -> field:
     @timeit "spectr -> field" begin
-        Fourier.hilbert!(field.E, grid.FT, field.S)   # spectrum real to signal analytic
+        Fourier.hilbert!(field.E, field.FT, field.S)   # spectrum real to signal analytic
         CUDAdrv.synchronize()
     end
 

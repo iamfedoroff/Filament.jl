@@ -116,7 +116,7 @@ function NonlinearPropagator(
     Stmp = zeros(ComplexF64, grid.Nw)
 
     # Problem:
-    p = (responses, grid.FT, Etmp, Ftmp, Stmp, guard, QZ)
+    p = (responses, field.FT, Etmp, Ftmp, Stmp, guard, QZ)
     prob = Equations.Problem(_func_t!, Stmp, p)
     integ = Equations.Integrator(prob, ALG)
 
@@ -181,7 +181,7 @@ function NonlinearPropagator(
     Stmp = CuArrays.zeros(Complex{FloatGPU}, (grid.Nr, grid.Nw))
 
     # Problem:
-    p = (responses, grid.FT, Etmp, Ftmp, Stmp, guard, QPARAXIAL, QZ, field.HT)
+    p = (responses, field.FT, Etmp, Ftmp, Stmp, guard, QPARAXIAL, QZ, field.HT)
     prob = Equations.Problem(_func_rt!, Stmp, p)
     integ = Equations.Integrator(prob, ALG)
 
@@ -239,7 +239,7 @@ function NonlinearPropagator(
     Ftmp = CuArrays.zeros(Complex{FloatGPU}, (grid.Nx, grid.Ny))
 
     # Problem:
-    p = (responses, Ftmp, guard, QPARAXIAL, QZ, grid.FT)
+    p = (responses, Ftmp, guard, QPARAXIAL, QZ, field.FT)
     prob = Equations.Problem(_func_xy!, Ftmp, p)
     integ = Equations.Integrator(prob, ALG)
 

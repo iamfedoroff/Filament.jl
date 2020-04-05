@@ -10,10 +10,10 @@ abstract type Grid end
 
 
 struct GridR{
-    I <: Int,
-    T <: AbstractFloat,
-    U <: AbstractArray{T},
-    UG <: AbstractArray{T},
+    I<:Int,
+    T<:AbstractFloat,
+    U<:AbstractArray{T},
+    UG<:AbstractArray{T},
 } <: Grid
     rmax :: T
     Nr :: I
@@ -25,11 +25,10 @@ end
 
 
 struct GridT{
-    I <: Int,
-    T <: AbstractFloat,
-    U <: AbstractArray{T},
-    UT <: AbstractArray{T},
-    PF <: Fourier.FourierTransform,
+    I<:Int,
+    T<:AbstractFloat,
+    U<:AbstractArray{T},
+    UT<:AbstractArray{T},
 } <: Grid
     tmin :: T
     tmax :: T
@@ -38,17 +37,15 @@ struct GridT{
     dt :: T
     w :: U
     Nw :: I
-    FT :: PF
 end
 
 
 struct GridRT{
-    I <: Int,
-    T <: AbstractFloat,
-    U <: AbstractArray{T},
-    UG <: AbstractArray{T},
-    UT <: AbstractArray{T},
-    PF <: Fourier.FourierTransform
+    I<:Int,
+    T<:AbstractFloat,
+    U<:AbstractArray{T},
+    UG<:AbstractArray{T},
+    UT<:AbstractArray{T},
 } <: Grid
     rmax :: T
     Nr :: I
@@ -64,17 +61,14 @@ struct GridRT{
     dt :: T
     w :: U
     Nw :: I
-
-    FT :: PF
 end
 
 
 struct GridXY{
-    I <: Int,
-    T <: AbstractFloat,
-    U <: AbstractArray{T},
-    UK <: AbstractArray{T},
-    PF <: Fourier.FourierTransform
+    I<:Int,
+    T<:AbstractFloat,
+    U<:AbstractArray{T},
+    UK<:AbstractArray{T},
 } <: Grid
     xmin :: T
     xmax :: T
@@ -89,8 +83,6 @@ struct GridXY{
     y :: U
     dy :: T
     ky :: UK
-
-    FT :: PF
 end
 
 
@@ -121,8 +113,7 @@ end
 
 function GridT(tmin::T, tmax::T, Nt::Int) where T<:AbstractFloat
     t, dt, w, Nw = _grid_temporal(tmin, tmax, Nt)
-    FT = Fourier.FourierTransformT(Nt)
-    return GridT(tmin, tmax, Nt, t, dt, w, Nw, FT)
+    return GridT(tmin, tmax, Nt, t, dt, w, Nw)
 end
 
 
@@ -132,9 +123,8 @@ function GridRT(
     r, dr, rdr, k = _grid_spatial_axial(rmax, Nr)
     t, dt, w, Nw = _grid_temporal(tmin, tmax, Nt)
     rdr = CuArrays.CuArray{T}(rdr)
-    FT = Fourier.FourierTransformRT(Nr, Nt)   # Fourier transform
     return GridRT(
-        rmax, Nr, r, dr, rdr, k, tmin, tmax, Nt, t, dt, w, Nw, FT,
+        rmax, Nr, r, dr, rdr, k, tmin, tmax, Nt, t, dt, w, Nw,
     )
 end
 
@@ -144,9 +134,8 @@ function GridXY(
 ) where {I<:Int, T<:AbstractFloat}
     x, dx, kx = _grid_spatial_rectangular(xmin, xmax, Nx)
     y, dy, ky = _grid_spatial_rectangular(ymin, ymax, Ny)
-    FT = Fourier.FourierTransformXY(Nx, Ny)   # Fourier transform
     return GridXY(
-        xmin, xmax, Nx, x, dx, kx, ymin, ymax, Ny, y, dy, ky, FT,
+        xmin, xmax, Nx, x, dx, kx, ymin, ymax, Ny, y, dy, ky,
     )
 end
 

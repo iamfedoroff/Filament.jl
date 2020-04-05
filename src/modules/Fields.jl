@@ -27,12 +27,14 @@ struct FieldT{
     T<:AbstractFloat,
     UC<:AbstractArray{Complex{T}},
     UF<:AbstractArray{T},
+    PF <: Fourier.FourierTransform,
 } <: Field
     w0 :: T
     E :: UC
     S :: UC
     rho :: UF
     kdrho :: UF
+    FT :: PF
 end
 
 
@@ -41,6 +43,7 @@ struct FieldRT{
     UC<:AbstractArray{Complex{T}},
     UF<:AbstractArray{T},
     PH<:HankelTransforms.Plan,
+    PF<:Fourier.FourierTransform,
 } <: Field
     w0 :: T
     E :: UC
@@ -48,15 +51,18 @@ struct FieldRT{
     rho :: UF
     kdrho :: UF
     HT :: PH
+    FT :: PF
 end
 
 
 struct FieldXY{
     T<:AbstractFloat,
     UC<:AbstractArray{Complex{T}},
+    PF<:Fourier.FourierTransform
 } <: Field
     w0 :: T
     E :: UC
+    FT :: PF
 end
 
 
@@ -89,10 +95,12 @@ function Field(
     E = initial_condition(grid.t, unit.t, unit.I)
     E = Array{Complex{T}}(E)
 
-    S = zeros(Complex{T}, grid.Nw)
-    Fourier.rfft!(S, grid.FT, E)   # time -> frequency
+    FT = Fourier.FourierTransformT(grid.Nt)
 
-    Fourier.hilbert!(E, grid.FT, S)   # spectrum real to signal analytic
+    S = zeros(Complex{T}, grid.Nw)
+    Fourier.rfft!(S, FT, E)   # time -> frequency
+
+    Fourier.hilbert!(E, FT, S)   # spectrum real to signal analytic
 
     rho = zeros(T, grid.Nt)
     kdrho = zeros(T, grid.Nt)
@@ -102,7 +110,7 @@ function Field(
     # main cycle.
     tmp = CuArrays.zeros(T, 1)
 
-    return FieldT(w0, E, S, rho, kdrho)
+    return FieldT(w0, E, S, rho, kdrho, FT)
 end
 
 
@@ -118,16 +126,18 @@ function Field(
     E = initial_condition(grid.r, grid.t, unit.r, unit.t, unit.I)
     E = CuArrays.CuArray{Complex{T}}(E)
 
-    S = CuArrays.zeros(Complex{T}, (grid.Nr, grid.Nw))
-    Fourier.rfft!(S, grid.FT, E)   # time -> frequency
+    FT = Fourier.FourierTransformRT(grid.Nr, grid.Nt)
 
-    Fourier.hilbert!(E, grid.FT, S)   # spectrum real to signal analytic
+    S = CuArrays.zeros(Complex{T}, (grid.Nr, grid.Nw))
+    Fourier.rfft!(S, FT, E)   # time -> frequency
+
+    Fourier.hilbert!(E, FT, S)   # spectrum real to signal analytic
 
     rho = CuArrays.zeros(T, (grid.Nr, grid.Nt))
     kdrho = CuArrays.zeros(T, (grid.Nr, grid.Nt))
 
     HT = HankelTransforms.plan(grid.rmax, S)
-    return FieldRT(w0, E, S, rho, kdrho, HT)
+    return FieldRT(w0, E, S, rho, kdrho, HT, FT)
 end
 
 
@@ -142,7 +152,9 @@ function Field(
 
     E = initial_condition(grid.x, grid.y, unit.x, unit.y, unit.I)
     E = CuArrays.CuArray{Complex{T}}(E)
-    return FieldXY(w0, E)
+
+    FT = Fourier.FourierTransformXY(grid.Nx, grid.Ny)
+    return FieldXY(w0, E, FT)
 end
 
 
