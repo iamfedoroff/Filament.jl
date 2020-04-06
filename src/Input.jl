@@ -30,6 +30,8 @@ include(file_initial_condition)
 file_medium = abspath(file_medium)
 include(file_medium)
 
+z = z / zu   # convert initial z to dimensionless units
+
 if ! NONLINEARITY
     responses = []
 end
@@ -38,6 +40,7 @@ if geometry == "R"
     rmax = convert(FloatGPU, rmax)
     rguard = convert(FloatGPU, rguard)
     kguard = convert(FloatGPU, kguard)
+    z = convert(FloatGPU, z)
     lam0 = convert(FloatGPU, lam0)
     keys = (
         NONLINEARITY=NONLINEARITY,
@@ -72,6 +75,7 @@ elseif geometry == "RT"
     tguard = convert(FloatGPU, tguard)
     kguard = convert(FloatGPU, kguard)
     wguard = convert(FloatGPU, wguard)
+    z = convert(FloatGPU, z)
     lam0 = convert(FloatGPU, lam0)
     if ! PLASMA
         plasma_equation = Dict()
@@ -97,6 +101,7 @@ elseif geometry == "XY"
     yguard = convert(FloatGPU, yguard)
     kxguard = convert(FloatGPU, kxguard)
     kyguard = convert(FloatGPU, kyguard)
+    z = convert(FloatGPU, z)
     lam0 = convert(FloatGPU, lam0)
     keys = (
         NONLINEARITY=NONLINEARITY,

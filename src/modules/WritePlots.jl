@@ -5,95 +5,121 @@ import Formatting
 import HDF5
 
 import Constants: FloatGPU
+import FieldAnalyzers
 import Fields
 import Grids
 import Units
 
 
-struct PlotVar{T<:AbstractFloat}
-    name :: String
-    siunit :: String
+# ******************************************************************************
+# PlotDAT
+# ******************************************************************************
+struct PlotVar{S<:AbstractString, T<:AbstractFloat}
+    name :: S
+    siunit :: S
     unit :: T
 end
 
 
+struct PlotDAT{S<:AbstractString}
+    fname :: S
+end
+
+
+fmt(x) = Formatting.fmt("18.12e", Float64(x))
+
+
+function _write_header(fname, plotvars)
+    fp = open(fname, "w")
+
+    # write names:
+    write(fp, "#")
+    for pvar in plotvars
+        write(fp, " $(Formatting.fmt("<18", pvar.name))")
+    end
+    write(fp, "\n")
+
+    # write SI units:
+    write(fp, "#")
+    for pvar in plotvars
+        write(fp, " $(Formatting.fmt("<18", pvar.siunit))")
+    end
+    write(fp, "\n")
+
+    # write dimensionless units:
+    write(fp, "#")
+    for pvar in plotvars
+        write(fp, " $(Formatting.fmt("<18", pvar.unit))")
+    end
+    write(fp, "\n")
+
+    close(fp)
+    return nothing
+end
+
+
 # ******************************************************************************
-# PlotVarData
+# R
 # ******************************************************************************
-abstract type PlotVarData end
-
-
-mutable struct PlotVarDataR{T<:AbstractFloat} <: PlotVarData
-    plotvars :: Array{PlotVar{T}, 1}
-    Imax :: T
-    rfil :: T
-    P :: T
-    I :: Array{FloatGPU, 1}
-    Igpu :: CuArrays.CuArray{FloatGPU, 1}
-end
-
-
-mutable struct PlotVarDataT{T<:AbstractFloat} <: PlotVarData
-    plotvars :: Array{PlotVar{T}, 1}
-    Imax :: T
-    rhomax :: T
-    duration :: T
-    F :: T
-end
-
-
-mutable struct PlotVarDataRT{T<:AbstractFloat} <: PlotVarData
-    plotvars :: Array{PlotVar{T}, 1}
-    Fmax :: T
-    Imax :: T
-    rhomax :: T
-    De :: T
-    rfil :: T
-    rpl :: T
-    W :: T
-    I :: CuArrays.CuArray{FloatGPU, 2}
-    F :: Array{FloatGPU, 1}
-    rho :: Array{FloatGPU, 1}
-    S :: Array{FloatGPU, 1}
-end
-
-
-mutable struct PlotVarDataXY{T<:AbstractFloat} <: PlotVarData
-    plotvars :: Array{PlotVar{T}, 1}
-    Imax :: T
-    ax :: T
-    ay :: T
-    P :: T
-    I :: Array{FloatGPU, 2}
-    Igpu :: CuArrays.CuArray{FloatGPU, 2}
-end
-
-
-function PlotVarData(unit::Units.UnitR, grid::Grids.GridR)
+function PlotDAT(fname::String, unit::Units.UnitR)
     plotvars = [
+        PlotVar("z", "m", unit.z),
         PlotVar("Imax", "W/m2", unit.I),
         PlotVar("rfil", "m", unit.r),
         PlotVar("P", "W", unit.r^2 * unit.I),
     ]
-    I = zeros(FloatGPU, grid.Nr)
-    Igpu = CuArrays.zeros(FloatGPU, grid.Nr)
-    return PlotVarDataR(plotvars, 0., 0., 0., I, Igpu)
+    _write_header(fname, plotvars)
+    return PlotDAT(fname)
 end
 
 
-function PlotVarData(unit::Units.UnitT, grid::Grids.GridT)
+function writeDAT(plotdat::PlotDAT, analyzer::FieldAnalyzers.FieldAnalyzerR)
+    fp = open(plotdat.fname, "a")
+    write(fp, "  ")
+    write(fp, "$(fmt(analyzer.z)) ")
+    write(fp, "$(fmt(analyzer.Imax)) ")
+    write(fp, "$(fmt(analyzer.rfil)) ")
+    write(fp, "$(fmt(analyzer.P)) ")
+    write(fp, "\n")
+    close(fp)
+end
+
+
+# ******************************************************************************
+# T
+# ******************************************************************************
+function PlotDAT(fname::String, unit::Units.UnitT)
     plotvars = [
+        PlotVar("z", "m", unit.z),
         PlotVar("Imax", "W/m2", unit.I),
         PlotVar("Nemax", "1/m3", unit.rho),
         PlotVar("duration", "s", unit.t),
         PlotVar("F", "J/m^2", unit.t * unit.I),
     ]
-    return PlotVarDataT(plotvars, 0., 0., 0., 0.)
+    _write_header(fname, plotvars)
+    return PlotDAT(fname)
 end
 
 
-function PlotVarData(unit::Units.UnitRT, grid::Grids.GridRT)
+function writeDAT(plotdat::PlotDAT, analyzer::FieldAnalyzers.FieldAnalyzerT)
+    fp = open(plotdat.fname, "a")
+    write(fp, "  ")
+    write(fp, "$(fmt(analyzer.z)) ")
+    write(fp, "$(fmt(analyzer.Imax)) ")
+    write(fp, "$(fmt(analyzer.rhomax)) ")
+    write(fp, "$(fmt(analyzer.duration)) ")
+    write(fp, "$(fmt(analyzer.F)) ")
+    write(fp, "\n")
+    close(fp)
+end
+
+
+# ******************************************************************************
+# RT
+# ******************************************************************************
+function PlotDAT(fname::String, unit::Units.UnitRT)
     plotvars = [
+        PlotVar("z", "m", unit.z),
         PlotVar("Fmax", "J/m^2", unit.t * unit.I),
         PlotVar("Imax", "W/m2", unit.I),
         PlotVar("Nemax", "1/m3", unit.rho),
@@ -102,182 +128,51 @@ function PlotVarData(unit::Units.UnitRT, grid::Grids.GridRT)
         PlotVar("rpl", "m", unit.r),
         PlotVar("W", "J", unit.r^2 * unit.t * unit.I),
     ]
-    I = CuArrays.zeros(FloatGPU, (grid.Nr, grid.Nt))
-    F = zeros(FloatGPU, grid.Nr)
-    rho = zeros(FloatGPU, grid.Nr)
-    S = zeros(FloatGPU, grid.Nw)
-    return PlotVarDataRT(plotvars, 0., 0., 0., 0., 0., 0., 0., I, F, rho, S)
+    _write_header(fname, plotvars)
+    return PlotDAT(fname)
 end
 
 
-function PlotVarData(unit::Units.UnitXY, grid::Grids.GridXY)
+function writeDAT(plotdat::PlotDAT, analyzer::FieldAnalyzers.FieldAnalyzerRT)
+    fp = open(plotdat.fname, "a")
+    write(fp, "  ")
+    write(fp, "$(fmt(analyzer.z)) ")
+    write(fp, "$(fmt(analyzer.Fmax)) ")
+    write(fp, "$(fmt(analyzer.Imax)) ")
+    write(fp, "$(fmt(analyzer.rhomax)) ")
+    write(fp, "$(fmt(analyzer.De)) ")
+    write(fp, "$(fmt(analyzer.rfil)) ")
+    write(fp, "$(fmt(analyzer.rpl)) ")
+    write(fp, "$(fmt(analyzer.W)) ")
+    write(fp, "\n")
+    close(fp)
+end
+
+
+# ******************************************************************************
+# XY
+# ******************************************************************************
+function PlotDAT(fname::String, unit::Units.UnitXY)
     plotvars = [
+        PlotVar("z", "m", unit.z),
         PlotVar("Imax", "W/m2", unit.I),
         PlotVar("ax", "m", unit.x),
         PlotVar("ay", "m", unit.y),
         PlotVar("P", "W", unit.x * unit.y * unit.I),
     ]
-    I = zeros(FloatGPU, (grid.Nx, grid.Ny))
-    Igpu = CuArrays.zeros(FloatGPU, (grid.Nx, grid.Ny))
-    return PlotVarDataXY(plotvars, 0., 0., 0., 0., I, Igpu)
-end
-
-
-function pdata_update!(
-    pdata::PlotVarDataR,
-    grid::Grids.GridR,
-    field::Fields.FieldR,
-)
-    pdata.Igpu .= abs2.(field.E)
-    pdata.I[:] = CuArrays.collect(pdata.Igpu)
-
-    pdata.Imax = Float64(maximum(pdata.Igpu))
-    pdata.rfil = 2. * Grids.radius(grid.r, pdata.I)
-    pdata.P = sum(pdata.Igpu .* grid.rdr) * 2. * pi
-    return nothing
-end
-
-
-function pdata_update!(
-    pdata::PlotVarDataT,
-    grid::Grids.GridT,
-    field::Fields.FieldT,
-)
-    pdata.Imax = Fields.peak_intensity(field)
-    pdata.rhomax = maximum(field.rho)
-    pdata.duration = Fields.pulse_duration(grid, field)
-    pdata.F = Fields.peak_fluence(grid, field)
-    return nothing
-end
-
-
-function pdata_update!(
-    pdata::PlotVarDataRT,
-    grid::Grids.GridRT,
-    field::Fields.FieldRT,
-)
-    pdata.I .= abs2.(field.E)
-
-    F = sum(pdata.I .* FloatGPU(grid.dt), dims=2)
-    pdata.F[:] = CuArrays.collect(F)[:, 1]
-
-    rho = field.rho[:, end]
-    pdata.rho[:] = CuArrays.collect(rho)
-
-    pdata.Fmax = Float64(maximum(F))
-    pdata.Imax = Float64(maximum(pdata.I))
-    pdata.rhomax = Float64(maximum(rho))
-    pdata.De = sum(rho .* grid.rdr) * 2. * pi
-    pdata.rfil = 2. * Grids.radius(grid.r, pdata.F)
-    pdata.rpl = 2. * Grids.radius(grid.r, pdata.rho)
-    pdata.W = sum(F .* grid.rdr) * 2. * pi
-    pdata.S = Fields.integral_power_spectrum(grid, field)
-    return nothing
-end
-
-
-function pdata_update!(
-    pdata::PlotVarDataXY,
-    grid::Grids.GridXY,
-    field::Fields.FieldXY,
-)
-    pdata.Igpu .= abs2.(field.E)
-    pdata.I[:] = CuArrays.collect(pdata.Igpu)
-
-    pdata.Imax, imax = findmax(pdata.I)
-    pdata.ax = Grids.radius(grid.x, pdata.I[:, imax[2]])
-    pdata.ay = Grids.radius(grid.y, pdata.I[imax[1], :])
-    pdata.P = sum(pdata.Igpu) * grid.dx * grid.dy
-    return nothing
-end
-
-
-# ******************************************************************************
-# PlotDAT
-# ******************************************************************************
-struct PlotDAT
-    fname :: String
-end
-
-
-function PlotDAT(fname::String, unit::Units.Unit, pdata::PlotVarData)
-    fp = open(fname, "w")
-
-    # write names:
-    write(fp, "#")
-    write(fp, " $(Formatting.fmt("<18", "z"))")
-    for plotvar in pdata.plotvars
-        write(fp, " $(Formatting.fmt("<18", plotvar.name))")
-    end
-    write(fp, "\n")
-
-    # write SI units:
-    write(fp, "#")
-    write(fp, " $(Formatting.fmt("<18", "m"))")
-    for plotvar in pdata.plotvars
-        write(fp, " $(Formatting.fmt("<18", plotvar.siunit))")
-    end
-    write(fp, "\n")
-
-    # write dimensionless units:
-    write(fp, "#")
-    write(fp, " $(Formatting.fmt("<18", unit.z))")
-    for plotvar in pdata.plotvars
-        write(fp, " $(Formatting.fmt("<18", plotvar.unit))")
-    end
-    write(fp, "\n")
-
-    close(fp)
-
+    _write_header(fname, plotvars)
     return PlotDAT(fname)
 end
 
 
-function writeDAT(plotdat::PlotDAT, z::Float64, pdata::PlotVarDataR)
+function writeDAT(plotdat::PlotDAT, analyzer::FieldAnalyzers.FieldAnalyzerXY)
     fp = open(plotdat.fname, "a")
-    write(fp, "  $(Formatting.fmt("18.12e", z)) ")   # z
-    write(fp, "$(Formatting.fmt("18.12e", pdata.Imax)) ")   # Imax
-    write(fp, "$(Formatting.fmt("18.12e", pdata.rfil)) ")   # rfil
-    write(fp, "$(Formatting.fmt("18.12e", pdata.P)) ")   # P
-    write(fp, "\n")
-    close(fp)
-end
-
-
-function writeDAT(plotdat::PlotDAT, z::AbstractFloat, pdata::PlotVarDataT)
-    fp = open(plotdat.fname, "a")
-    write(fp, "  $(Formatting.fmt("18.12e", z)) ")   # z
-    write(fp, "$(Formatting.fmt("18.12e", pdata.Imax)) ")   # Imax
-    write(fp, "$(Formatting.fmt("18.12e", pdata.rhomax)) ")   # Nemax
-    write(fp, "$(Formatting.fmt("18.12e", pdata.duration)) ")   # duration
-    write(fp, "$(Formatting.fmt("18.12e", pdata.F)) ")   # F
-    write(fp, "\n")
-    close(fp)
-end
-
-
-function writeDAT(plotdat::PlotDAT, z::Float64, pdata::PlotVarDataRT)
-    fp = open(plotdat.fname, "a")
-    write(fp, "  $(Formatting.fmt("18.12e", z)) ")   # z
-    write(fp, "$(Formatting.fmt("18.12e", pdata.Fmax)) ")   # Fmax
-    write(fp, "$(Formatting.fmt("18.12e", pdata.Imax)) ")   # Imax
-    write(fp, "$(Formatting.fmt("18.12e", pdata.rhomax)) ")   # Nemax
-    write(fp, "$(Formatting.fmt("18.12e", pdata.De)) ")   # De
-    write(fp, "$(Formatting.fmt("18.12e", pdata.rfil)) ")   # rfil
-    write(fp, "$(Formatting.fmt("18.12e", pdata.rpl)) ")   # rpl
-    write(fp, "$(Formatting.fmt("18.12e", pdata.W)) ")   # W
-    write(fp, "\n")
-    close(fp)
-end
-
-
-function writeDAT(plotdat::PlotDAT, z::Float64, pdata::PlotVarDataXY)
-    fp = open(plotdat.fname, "a")
-    write(fp, "  $(Formatting.fmt("18.12e", z)) ")   # z
-    write(fp, "$(Formatting.fmt("18.12e", pdata.Imax)) ")   # Imax
-    write(fp, "$(Formatting.fmt("18.12e", pdata.ax)) ")   # ax
-    write(fp, "$(Formatting.fmt("18.12e", pdata.ay)) ")   # ay
-    write(fp, "$(Formatting.fmt("18.12e", pdata.P)) ")   # P
+    write(fp, "  ")
+    write(fp, "$(fmt(analyzer.z)) ")
+    write(fp, "$(fmt(analyzer.Imax)) ")
+    write(fp, "$(fmt(analyzer.ax)) ")
+    write(fp, "$(fmt(analyzer.ay)) ")
+    write(fp, "$(fmt(analyzer.P)) ")
     write(fp, "\n")
     close(fp)
 end
@@ -426,7 +321,11 @@ function _write_group_zdat(fp, grid::Grids.GridRT)
 end
 
 
-function writeHDF(plothdf::PlotHDF, z::Float64, field::Fields.Field)
+function writeHDF(
+    plothdf::PlotHDF,
+    field::Fields.Field,
+    z::T,
+) where T<:AbstractFloat
     if z == plothdf.previous_z
         return
     end
@@ -445,7 +344,9 @@ function writeHDF(plothdf::PlotHDF, z::Float64, field::Fields.Field)
 end
 
 
-function writeHDF_zdata(plothdf::PlotHDF, z::Float64, pdata::PlotVarData)
+function writeHDF_zdata(
+    plothdf::PlotHDF, analyzer::FieldAnalyzers.FieldAnalyzerRT,
+)
     plothdf.iz = plothdf.iz + 1
     iz = plothdf.iz
 
@@ -455,25 +356,25 @@ function writeHDF_zdata(plothdf::PlotHDF, z::Float64, pdata::PlotVarData)
 
     data = group_zdat["z"]
     HDF5.set_dims!(data, (iz,))
-    data[iz] = FloatGPU(z)
+    data[iz] = analyzer.z
 
     data = group_zdat["Fzx"]
     # HDF5.set_dims!(data, (iz, grid.Nr))
-    # data[iz, :] = pdata.F
-    HDF5.set_dims!(data, (length(pdata.F), iz))
-    data[:, iz] = pdata.F
+    # data[iz, :] = analyzer.F
+    HDF5.set_dims!(data, (length(analyzer.F), iz))
+    data[:, iz] = analyzer.F
 
     data = group_zdat["Nezx"]
     # HDF5.set_dims!(data, (iz, grid.Nr))
-    # data[iz, :] = pdata.rho
-    HDF5.set_dims!(data, (length(pdata.rho), iz))
-    data[:, iz] = pdata.rho
+    # data[iz, :] = analyzer.rho
+    HDF5.set_dims!(data, (length(analyzer.rho), iz))
+    data[:, iz] = analyzer.rho
 
     data = group_zdat["iSzf"]
     # HDF5.set_dims!(data, (iz, grid.Nw))
-    # data[iz, :] = pdata.S
-    HDF5.set_dims!(data, (length(pdata.S), iz))
-    data[:, iz] = pdata.S
+    # data[iz, :] = analyzer.S
+    HDF5.set_dims!(data, (length(analyzer.S), iz))
+    data[:, iz] = analyzer.S
 
     HDF5.close(fp)
 end

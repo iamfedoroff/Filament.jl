@@ -286,16 +286,4 @@ function peak_power_gauss(grid::Grids.Grid, field::Field)
 end
 
 
-"""
-Integral power spectrum:
-    Ew = rfft(Et)
-    Ew = 2 * Ew * dt
-    S = 2 * pi * Int[|Ew|^2 * r * dr]
-"""
-function integral_power_spectrum(grid::Grids.GridRT, field::FieldRT)
-    S = sum(abs2.(field.S) .* grid.rdr .* FloatGPU(8 * pi * grid.dt^2), dims=1)
-    return CuArrays.collect(S)[1, :]
-end
-
-
 end

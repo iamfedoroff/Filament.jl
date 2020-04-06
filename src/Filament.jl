@@ -9,6 +9,7 @@ import CUDAdrv
 push!(LOAD_PATH, joinpath(@__DIR__, "modules"))
 import Units
 import Grids
+import FieldAnalyzers
 import Fields
 import Media
 import Guards
@@ -31,7 +32,7 @@ function main()
     # **************************************************************************
     # Prepare field
     # **************************************************************************
-    z = Input.z / unit.z   # convert initial z to dimensionless units
+    z = Input.z
     field = Fields.Field(unit, grid, Input.lam0, Input.initial_condition)
 
     # **************************************************************************
@@ -45,6 +46,9 @@ function main()
     guard = Guards.Guard(unit, grid, field, medium, Input.p_guard...)
     model = Models.Model(unit, grid, field, medium, guard, Input.p_model...)
     dzadaptive = AdaptiveSteps.AStep(unit, medium, field, Input.p_dzadaptive...)
+
+    analyzer = FieldAnalyzers.FieldAnalyzer(field, z)
+    FieldAnalyzers.analyze!(analyzer, grid, field, z)
 
     # **************************************************************************
     # Prepare output files
@@ -68,18 +72,15 @@ function main()
         medium,
     )
 
-    pdata = WritePlots.PlotVarData(unit, grid)
-    WritePlots.pdata_update!(pdata, grid, field)
-
     file_plotdat = joinpath(prefix_dir, string(prefix_name, "plot.dat"))
-    plotdat = WritePlots.PlotDAT(file_plotdat, unit, pdata)
-    WritePlots.writeDAT(plotdat, z, pdata)
+    plotdat = WritePlots.PlotDAT(file_plotdat, unit)
+    WritePlots.writeDAT(plotdat, analyzer)
 
     file_plothdf = joinpath(prefix_dir, string(prefix_name, "plot.h5"))
     plothdf = WritePlots.PlotHDF(file_plothdf, unit, grid)
-    WritePlots.writeHDF(plothdf, z, field)
+    WritePlots.writeHDF(plothdf, field, z)
     if typeof(grid) <: Grids.GridRT
-        WritePlots.writeHDF_zdata(plothdf, z, pdata)
+        WritePlots.writeHDF_zdata(plothdf, analyzer)
     end
 
     # **************************************************************************
@@ -102,21 +103,21 @@ function main()
 
         if (typeof(grid) <: Grids.GridT) | (typeof(grid) <: Grids.GridRT)
             if Input.NONLINEARITY
-                dz = dzadaptive(pdata.Imax, pdata.rhomax)
+                dz = dzadaptive(analyzer.Imax, analyzer.rhomax)
             else
                 dz = Input.dz_initial
             end
             println("z=$(Formatting.fmt("18.12e", z))[zu] " *
-                    "I=$(Formatting.fmt("18.12e", pdata.Imax))[Iu] " *
-                    "rho=$(Formatting.fmt("18.12e", pdata.rhomax))[rhou]")
+                    "I=$(Formatting.fmt("18.12e", analyzer.Imax))[Iu] " *
+                    "rho=$(Formatting.fmt("18.12e", analyzer.rhomax))[rhou]")
         else
             if Input.NONLINEARITY
-                dz = dzadaptive(pdata.Imax)
+                dz = dzadaptive(analyzer.Imax)
             else
                 dz = Input.dz_initial
             end
             println("z=$(Formatting.fmt("18.12e", z))[zu] " *
-                    "I=$(Formatting.fmt("18.12e", pdata.Imax))[Iu] ")
+                    "I=$(Formatting.fmt("18.12e", analyzer.Imax))[Iu] ")
         end
 
         dz = min(Input.dz_initial, Input.dz_plothdf, dz)
@@ -129,21 +130,21 @@ function main()
 
         @timeit "plots" begin
             # Update plot cache
-            @timeit "plot cache" begin
-                WritePlots.pdata_update!(pdata, grid, field)
+            @timeit "field analyzer" begin
+                FieldAnalyzers.analyze!(analyzer, grid, field, z)
                 CUDAdrv.synchronize()
             end
 
             # Write integral parameters to dat file
             @timeit "writeDAT" begin
-                WritePlots.writeDAT(plotdat, z, pdata)
+                WritePlots.writeDAT(plotdat, analyzer)
                 CUDAdrv.synchronize()
             end
 
             # Write field to hdf file
             if z >= znext_plothdf
                 @timeit "writeHDF" begin
-                    WritePlots.writeHDF(plothdf, z, field)
+                    WritePlots.writeHDF(plothdf, field, z)
                     znext_plothdf = znext_plothdf + Input.dz_plothdf
                     CUDAdrv.synchronize()
                 end
@@ -153,7 +154,7 @@ function main()
             if typeof(grid) <: Grids.GridRT
                 if z >= znext_zdata
                     @timeit "writeHDF_zdata" begin
-                        WritePlots.writeHDF_zdata(plothdf, z, pdata)
+                        WritePlots.writeHDF_zdata(plothdf, analyzer)
                         znext_zdata = z + dz_zdata
                         CUDAdrv.synchronize()
                     end
@@ -162,7 +163,7 @@ function main()
         end
 
         # Exit conditions
-        if pdata.Imax > Input.Istop
+        if analyzer.Imax > Input.Istop
             message = "Stop (Imax >= Istop): z=$(z)[zu], z=$(z * unit.z)[m]"
             Infos.write_message(info, message)
             break
