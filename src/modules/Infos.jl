@@ -3,7 +3,8 @@ module Infos
 import Dates
 import Formatting
 
-import Constants: C0
+import Constants: C0, HBAR
+import FieldAnalyzers
 import Fields
 import Grids
 import Media
@@ -27,6 +28,7 @@ function Info(
     grid::Grids.Grid,
     field::Fields.Field,
     medium::Media.Medium,
+    analyzer::FieldAnalyzers.FieldAnalyzer,
 )
     revision = vcs_revision()
 
@@ -35,8 +37,8 @@ function Info(
     file_medium_content = read(file_medium, String)
 
     sdata_grid = info_grid(unit, grid)
-    sdata_field = info_field(unit, grid, field)
-    sdata_medium = info_medium(unit, grid, field, medium)
+    sdata_field = info_field(unit, grid, field, analyzer)
+    sdata_medium = info_medium(unit, grid, field, medium, analyzer)
 
     sdata =
 """
@@ -170,14 +172,20 @@ function info_field(
     unit::Units.UnitR,
     grid::Grids.GridR,
     field::Fields.FieldR,
+    analyzer::FieldAnalyzers.FieldAnalyzerR,
 )
-    a0 = Fields.beam_radius(grid, field) * unit.r
+    w0 = field.w0
+    f0 = w0 / (2 * pi)
+    lam0 = 2 * pi * C0 / w0
+
+    a0 = analyzer.rfil * unit.r
     a0e2 = sqrt(2) * a0
     a0fwhm = 2 * sqrt(log(2)) * a0
-    I0 = Fields.peak_intensity(field) * unit.I
-    lam0 = 2 * pi * C0 / field.w0
-    f0 = field.w0 / (2 * pi)
-    P = Fields.peak_power(grid, field) * unit.r^2 * unit.I
+    I0 = analyzer.Imax * unit.I
+    P = analyzer.P * unit.r^2 * unit.I
+
+    Pg = pi * a0^2 * I0
+    Wph = HBAR * w0
 
     sdata =
     """
@@ -187,10 +195,10 @@ function info_field(
     I0   = $(fmt(I0)) [W/m^2] - initial intensity
     lam0 = $(fmt(lam0)) [m] - central wavelength
     f0   = $(fmt(f0)) [1/s] - central frequency
-    w0   = $(fmt(field.w0)) [1/s] - central frequency (angular)
+    w0   = $(fmt(w0)) [1/s] - central frequency (angular)
     P    = $(fmt(P)) [W] - peak power
-    Pg   = $(fmt(Fields.peak_power_gauss(grid, field) * unit.r^2 * unit.I)) [W] - Gaussian peak power (pi*a0^2*I0)
-    Wph  = $(fmt(Fields.energy_photon(field))) [J] - energy of one photon
+    Pg   = $(fmt(Pg)) [W] - Gaussian peak power (pi*a0^2*I0)
+    Wph  = $(fmt(Wph)) [J] - energy of one photon
     """
     return sdata
 end
@@ -200,13 +208,20 @@ function info_field(
     unit::Units.UnitT,
     grid::Grids.GridT,
     field::Fields.FieldT,
+    analyzer::FieldAnalyzers.FieldAnalyzerT,
 )
-    t0 = Fields.pulse_duration(grid, field) * unit.t
+    w0 = field.w0
+    f0 = field.w0 / (2 * pi)
+    lam0 = 2 * pi * C0 / w0
+
+    t0 = analyzer.duration * unit.t
     t0e2 = sqrt(2) * t0
     t0fwhm = 2 * sqrt(log(2)) * t0
-    I0 = Fields.peak_intensity(field) * unit.I
-    lam0 = 2 * pi * C0 / field.w0
-    f0 = field.w0 / (2 * pi)
+    I0 = analyzer.Imax * unit.I
+    F = analyzer.F * unit.t * unit.I
+
+    Fg = sqrt(pi) * t0 * I0
+    Wph = HBAR * w0
 
     sdata =
     """
@@ -216,10 +231,10 @@ function info_field(
     I0   = $(fmt(I0)) [W/m^2] - initial intensity
     lam0 = $(fmt(lam0)) [m] - central wavelength
     f0   = $(fmt(f0)) [1/s] - central frequency
-    w0   = $(fmt(field.w0)) [1/s] - central frequency (angular)
-    F    = $(fmt(Fields.peak_fluence(grid, field) * unit.t * unit.I)) [J/m^2] - peak fluence
-    Fg   = $(fmt(Fields.peak_fluence_gauss(grid, field) * unit.t * unit.I)) [J/m^2] - Gaussian peak fluence (pi^0.5*t0*I0)
-    Wph  = $(fmt(Fields.energy_photon(field))) [J] - energy of one photon
+    w0   = $(fmt(w0)) [1/s] - central frequency (angular)
+    F    = $(fmt(F)) [J/m^2] - peak fluence
+    Fg   = $(fmt(Fg)) [J/m^2] - Gaussian peak fluence (pi^0.5*t0*I0)
+    Wph  = $(fmt(Wph)) [J] - energy of one photon
     """
     return sdata
 end
@@ -229,17 +244,27 @@ function info_field(
     unit::Units.UnitRT,
     grid::Grids.GridRT,
     field::Fields.FieldRT,
+    analyzer::FieldAnalyzers.FieldAnalyzerRT,
 )
-    a0 = Fields.beam_radius(grid, field) * unit.r
+    w0 = field.w0
+    f0 = field.w0 / (2 * pi)
+    lam0 = 2 * pi * C0 / w0
+
+    a0 = analyzer.rfil * unit.r
     a0e2 = sqrt(2) * a0
     a0fwhm = 2 * sqrt(log(2)) * a0
-    t0 = Fields.pulse_duration(grid, field) * unit.t
+    t0 = analyzer.tau * unit.t
     t0e2 = sqrt(2) * t0
     t0fwhm = 2 * sqrt(log(2)) * t0
-    I0 = Fields.peak_intensity(field) * unit.I
-    lam0 = 2 * pi * C0 / field.w0
-    f0 = field.w0 / (2 * pi)
-    P = Fields.peak_power(grid, field) * unit.r^2 * unit.I
+    I0 = analyzer.Imax * unit.I
+    F = analyzer.Fmax * unit.t * unit.I
+    W = analyzer.W * unit.r^2 * unit.t * unit.I
+
+    P = W / t0 / sqrt(pi)
+    Pg = pi * a0^2 * I0
+    Fg = sqrt(pi) * t0 * I0
+    Wg = pi^1.5 * t0 * a0^2 * I0
+    Wph = HBAR * w0
 
     sdata =
     """
@@ -252,14 +277,14 @@ function info_field(
     I0   = $(fmt(I0)) [W/m^2] - initial intensity
     lam0 = $(fmt(lam0)) [m] - central wavelength
     f0   = $(fmt(f0)) [1/s] - central frequency
-    w0   = $(fmt(field.w0)) [1/s] - central frequency (angular)
+    w0   = $(fmt(w0)) [1/s] - central frequency (angular)
     P    = $(fmt(P)) [W] - peak power
-    Pg   = $(fmt(Fields.peak_power_gauss(grid, field) * unit.r^2 * unit.I)) [W] - Gaussian peak power (pi*a0^2*I0)
-    F    = $(fmt(Fields.peak_fluence(grid, field) * unit.t * unit.I)) [J/m^2] - peak fluence
-    Fg   = $(fmt(Fields.peak_fluence_gauss(grid, field) * unit.t * unit.I)) [J/m^2] - Gaussian peak fluence (pi^0.5*t0*I0)
-    W    = $(fmt(Fields.energy(grid, field) * unit.r^2 * unit.t * unit.I)) [J] - pulse energy
-    Wg   = $(fmt(Fields.energy_gauss(grid, field) * unit.r^2 * unit.t * unit.I)) [J] - Gaussian pulse energy (pi^1.5*t0*a0^2*I0)
-    Wph  = $(fmt(Fields.energy_photon(field))) [J] - energy of one photon
+    Pg   = $(fmt(Pg)) [W] - Gaussian peak power (pi*a0^2*I0)
+    F    = $(fmt(F)) [J/m^2] - peak fluence
+    Fg   = $(fmt(Fg)) [J/m^2] - Gaussian peak fluence (pi^0.5*t0*I0)
+    W    = $(fmt(W)) [J] - pulse energy
+    Wg   = $(fmt(Wg)) [J] - Gaussian pulse energy (pi^1.5*t0*a0^2*I0)
+    Wph  = $(fmt(Wph)) [J] - energy of one photon
     """
     return sdata
 end
@@ -269,16 +294,20 @@ function info_field(
     unit::Units.UnitXY,
     grid::Grids.GridXY,
     field::Fields.FieldXY,
+    analyzer::FieldAnalyzers.FieldAnalyzerXY,
 )
-    a0 = Fields.beam_radius(grid, field) * sqrt(unit.x * unit.y)
+    w0 = field.w0
+    f0 = w0 / (2 * pi)
+    lam0 = 2 * pi * C0 / w0
+
+    a0 = sqrt(analyzer.ax * analyzer.ay * unit.x * unit.y)
     a0e2 = sqrt(2) * a0
     a0fwhm = 2 * sqrt(log(2)) * a0
-    I0 = Fields.peak_intensity(field) * unit.I
-    lam0 = 2 * pi * C0 / field.w0
-    f0 = field.w0 / (2 * pi)
-    P = Fields.peak_power(grid, field) * unit.x * unit.y * unit.I
-    Pgauss = Fields.peak_power_gauss(grid, field) * unit.x * unit.y * unit.I
-    Wph = Fields.energy_photon(field)
+    I0 = analyzer.Imax * unit.I
+    P = analyzer.P * unit.x * unit.y * unit.I
+
+    Pg = pi * a0^2 * I0
+    Wph = HBAR * w0
 
     sdata =
     """
@@ -288,9 +317,9 @@ function info_field(
     I0   = $(fmt(I0)) [W/m^2] - initial intensity
     lam0 = $(fmt(lam0)) [m] - central wavelength
     f0   = $(fmt(f0)) [1/s] - central frequency
-    w0   = $(fmt(field.w0)) [1/s] - central frequency (angular)
+    w0   = $(fmt(w0)) [1/s] - central frequency (angular)
     P    = $(fmt(P)) [W] - peak power
-    Pg   = $(fmt(Pgauss)) [W] - Gaussian peak power (pi*a0^2*I0)
+    Pg   = $(fmt(Pg)) [W] - Gaussian peak power (pi*a0^2*I0)
     Wph  = $(fmt(Wph)) [J] - energy of one photon
     """
     return sdata
@@ -302,31 +331,35 @@ function info_medium(
     grid::Grids.GridR,
     field::Fields.FieldR,
     medium::Media.Medium,
+    analyzer::FieldAnalyzers.FieldAnalyzerR,
 )
-    a0 = Fields.beam_radius(grid, field) * unit.r
-    I0 = Fields.peak_intensity(field) * unit.I
-    P = Fields.peak_power(grid, field) * unit.r^2 * unit.I
-    Pcr = Media.critical_power(medium, field.w0)
+    w0 = field.w0
+
+    a0 = analyzer.rfil * unit.r
+    I0 = analyzer.Imax * unit.I
+    P = analyzer.P * unit.r^2 * unit.I
+
+    Pcr = Media.critical_power(medium, w0)
 
     sdata =
     """
-    n0re = $(fmt(real(Media.refractive_index(medium, field.w0)))) [-] - refractive index (real part)
-    n0im = $(fmt(imag(Media.refractive_index(medium, field.w0)))) [-] - refractive index (imaginary part)
-    k0 = $(fmt(Media.k_func(medium, field.w0))) [1/m] - wave number
-    k1 = $(fmt(Media.k1_func(medium, field.w0))) [s/m] - 1st derivative of wave number: d(k0)/dw
-    k2 = $(fmt(Media.k2_func(medium, field.w0))) [s^2/m] - 2nd derivative of wave number: d(k1)/dw
-    k3 = $(fmt(Media.k3_func(medium, field.w0))) [s^3/m] - 3rd derivative of wave number: d(k2)/dw
-    ga = $(fmt(Media.absorption_coefficient(medium, field.w0))) [1/m] - linear absorption coefficient (by field)
-    vp = $(fmt(Media.phase_velocity(medium, field.w0) / C0)) [C0] - phase velocity
-    vg = $(fmt(Media.group_velocity(medium, field.w0) / C0)) [C0] - group velocity
+    n0re = $(fmt(real(Media.refractive_index(medium, w0)))) [-] - refractive index (real part)
+    n0im = $(fmt(imag(Media.refractive_index(medium, w0)))) [-] - refractive index (imaginary part)
+    k0 = $(fmt(Media.k_func(medium, w0))) [1/m] - wave number
+    k1 = $(fmt(Media.k1_func(medium, w0))) [s/m] - 1st derivative of wave number: d(k0)/dw
+    k2 = $(fmt(Media.k2_func(medium, w0))) [s^2/m] - 2nd derivative of wave number: d(k1)/dw
+    k3 = $(fmt(Media.k3_func(medium, w0))) [s^3/m] - 3rd derivative of wave number: d(k2)/dw
+    ga = $(fmt(Media.absorption_coefficient(medium, w0))) [1/m] - linear absorption coefficient (by field)
+    vp = $(fmt(Media.phase_velocity(medium, w0) / C0)) [C0] - phase velocity
+    vg = $(fmt(Media.group_velocity(medium, w0) / C0)) [C0] - group velocity
     n2  = $(fmt(medium.n2)) [m^2/W] - Kerr nonlinear index
-    chi3 = $(fmt(Media.chi3_func(medium, field.w0))) [m/V] - 3rd order nonlinear susceptibility
+    chi3 = $(fmt(Media.chi3_func(medium, w0))) [m/V] - 3rd order nonlinear susceptibility
     P   = $(fmt(P / Pcr)) [Pcr] - peak power
     Pcr = $(fmt(Pcr)) [W] - critical power
-    Ld     = $(fmt(Media.diffraction_length(medium, field.w0, a0))) [m] - diffraction length
-    La     = $(fmt(Media.absorption_length(medium, field.w0))) [m] - linear absorption length
-    Lnl    = $(fmt(Media.nonlinearity_length(medium, field.w0, I0))) [m] - length of Kerr nonlinearity
-    zf     = $(fmt(Media.selffocusing_length(medium, field.w0, a0, P))) [m] - self-focusing distance
+    Ld     = $(fmt(Media.diffraction_length(medium, w0, a0))) [m] - diffraction length
+    La     = $(fmt(Media.absorption_length(medium, w0))) [m] - linear absorption length
+    Lnl    = $(fmt(Media.nonlinearity_length(medium, w0, I0))) [m] - length of Kerr nonlinearity
+    zf     = $(fmt(Media.selffocusing_length(medium, w0, a0, P))) [m] - self-focusing distance
     """
     return sdata
 end
@@ -337,27 +370,30 @@ function info_medium(
     grid::Grids.GridT,
     field::Fields.FieldT,
     medium::Media.Medium,
+    analyzer::FieldAnalyzers.FieldAnalyzerT,
 )
-    t0 = Fields.pulse_duration(grid, field) * unit.t
-    I0 = Fields.peak_intensity(field) * unit.I
+    w0 = field.w0
+
+    t0 = analyzer.duration * unit.t
+    I0 = analyzer.Imax * unit.I
 
     sdata =
     """
-    n0re = $(fmt(real(Media.refractive_index(medium, field.w0)))) [-] - refractive index (real part)
-    n0im = $(fmt(imag(Media.refractive_index(medium, field.w0)))) [-] - refractive index (imaginary part)
-    k0 = $(fmt(Media.k_func(medium, field.w0))) [1/m] - wave number
-    k1 = $(fmt(Media.k1_func(medium, field.w0))) [s/m] - 1st derivative of wave number: d(k0)/dw
-    k2 = $(fmt(Media.k2_func(medium, field.w0))) [s^2/m] - 2nd derivative of wave number: d(k1)/dw
-    k3 = $(fmt(Media.k3_func(medium, field.w0))) [s^3/m] - 3rd derivative of wave number: d(k2)/dw
-    ga = $(fmt(Media.absorption_coefficient(medium, field.w0))) [1/m] - linear absorption coefficient (by field)
-    vp = $(fmt(Media.phase_velocity(medium, field.w0) / C0)) [C0] - phase velocity
-    vg = $(fmt(Media.group_velocity(medium, field.w0) / C0)) [C0] - group velocity
+    n0re = $(fmt(real(Media.refractive_index(medium, w0)))) [-] - refractive index (real part)
+    n0im = $(fmt(imag(Media.refractive_index(medium, w0)))) [-] - refractive index (imaginary part)
+    k0 = $(fmt(Media.k_func(medium, w0))) [1/m] - wave number
+    k1 = $(fmt(Media.k1_func(medium, w0))) [s/m] - 1st derivative of wave number: d(k0)/dw
+    k2 = $(fmt(Media.k2_func(medium, w0))) [s^2/m] - 2nd derivative of wave number: d(k1)/dw
+    k3 = $(fmt(Media.k3_func(medium, w0))) [s^3/m] - 3rd derivative of wave number: d(k2)/dw
+    ga = $(fmt(Media.absorption_coefficient(medium, w0))) [1/m] - linear absorption coefficient (by field)
+    vp = $(fmt(Media.phase_velocity(medium, w0) / C0)) [C0] - phase velocity
+    vg = $(fmt(Media.group_velocity(medium, w0) / C0)) [C0] - group velocity
     n2  = $(fmt(medium.n2)) [m^2/W] - Kerr nonlinear index
-    chi3 = $(fmt(Media.chi3_func(medium, field.w0))) [m/V] - 3rd order nonlinear susceptibility
-    Ldisp  = $(fmt(Media.dispersion_length(medium, field.w0, t0))) [m] - dispersion length
-    Ldisp3 = $(fmt(Media.dispersion_length3(medium, field.w0, t0))) [m] - 3rd order dispersion length (t0^3/k3)
-    La     = $(fmt(Media.absorption_length(medium, field.w0))) [m] - linear absorption length
-    Lnl    = $(fmt(Media.nonlinearity_length(medium, field.w0, I0))) [m] - length of Kerr nonlinearity
+    chi3 = $(fmt(Media.chi3_func(medium, w0))) [m/V] - 3rd order nonlinear susceptibility
+    Ldisp  = $(fmt(Media.dispersion_length(medium, w0, t0))) [m] - dispersion length
+    Ldisp3 = $(fmt(Media.dispersion_length3(medium, w0, t0))) [m] - 3rd order dispersion length (t0^3/k3)
+    La     = $(fmt(Media.absorption_length(medium, w0))) [m] - linear absorption length
+    Lnl    = $(fmt(Media.nonlinearity_length(medium, w0, I0))) [m] - length of Kerr nonlinearity
     """
     return sdata
 end
@@ -368,34 +404,39 @@ function info_medium(
     grid::Grids.GridRT,
     field::Fields.FieldRT,
     medium::Media.Medium,
+    analyzer::FieldAnalyzers.FieldAnalyzerRT,
 )
-    a0 = Fields.beam_radius(grid, field) * unit.r
-    t0 = Fields.pulse_duration(grid, field) * unit.t
-    I0 = Fields.peak_intensity(field) * unit.I
-    P = Fields.peak_power(grid, field) * unit.r^2 * unit.I
-    Pcr = Media.critical_power(medium, field.w0)
+    w0 = field.w0
+
+    a0 = analyzer.rfil * unit.r
+    t0 = analyzer.tau * unit.t
+    I0 = analyzer.Imax * unit.I
+    W = analyzer.W * unit.r^2 * unit.t * unit.I
+
+    P = W / t0 / sqrt(pi)
+    Pcr = Media.critical_power(medium, w0)
 
     sdata =
     """
-    n0re = $(fmt(real(Media.refractive_index(medium, field.w0)))) [-] - refractive index (real part)
-    n0im = $(fmt(imag(Media.refractive_index(medium, field.w0)))) [-] - refractive index (imaginary part)
-    k0 = $(fmt(Media.k_func(medium, field.w0))) [1/m] - wave number
-    k1 = $(fmt(Media.k1_func(medium, field.w0))) [s/m] - 1st derivative of wave number: d(k0)/dw
-    k2 = $(fmt(Media.k2_func(medium, field.w0))) [s^2/m] - 2nd derivative of wave number: d(k1)/dw
-    k3 = $(fmt(Media.k3_func(medium, field.w0))) [s^3/m] - 3rd derivative of wave number: d(k2)/dw
-    ga = $(fmt(Media.absorption_coefficient(medium, field.w0))) [1/m] - linear absorption coefficient (by field)
-    vp = $(fmt(Media.phase_velocity(medium, field.w0) / C0)) [C0] - phase velocity
-    vg = $(fmt(Media.group_velocity(medium, field.w0) / C0)) [C0] - group velocity
+    n0re = $(fmt(real(Media.refractive_index(medium, w0)))) [-] - refractive index (real part)
+    n0im = $(fmt(imag(Media.refractive_index(medium, w0)))) [-] - refractive index (imaginary part)
+    k0 = $(fmt(Media.k_func(medium, w0))) [1/m] - wave number
+    k1 = $(fmt(Media.k1_func(medium, w0))) [s/m] - 1st derivative of wave number: d(k0)/dw
+    k2 = $(fmt(Media.k2_func(medium, w0))) [s^2/m] - 2nd derivative of wave number: d(k1)/dw
+    k3 = $(fmt(Media.k3_func(medium, w0))) [s^3/m] - 3rd derivative of wave number: d(k2)/dw
+    ga = $(fmt(Media.absorption_coefficient(medium, w0))) [1/m] - linear absorption coefficient (by field)
+    vp = $(fmt(Media.phase_velocity(medium, w0) / C0)) [C0] - phase velocity
+    vg = $(fmt(Media.group_velocity(medium, w0) / C0)) [C0] - group velocity
     n2  = $(fmt(medium.n2)) [m^2/W] - Kerr nonlinear index
-    chi3 = $(fmt(Media.chi3_func(medium, field.w0))) [m/V] - 3rd order nonlinear susceptibility
+    chi3 = $(fmt(Media.chi3_func(medium, w0))) [m/V] - 3rd order nonlinear susceptibility
     P   = $(fmt(P / Pcr)) [Pcr] - peak power
     Pcr = $(fmt(Pcr)) [W] - critical power
-    Ld     = $(fmt(Media.diffraction_length(medium, field.w0, a0))) [m] - diffraction length
-    Ldisp  = $(fmt(Media.dispersion_length(medium, field.w0, t0))) [m] - dispersion length
-    Ldisp3 = $(fmt(Media.dispersion_length3(medium, field.w0, t0))) [m] - 3rd order dispersion length (t0^3/k3)
-    La     = $(fmt(Media.absorption_length(medium, field.w0))) [m] - linear absorption length
-    Lnl    = $(fmt(Media.nonlinearity_length(medium, field.w0, I0))) [m] - length of Kerr nonlinearity
-    zf     = $(fmt(Media.selffocusing_length(medium, field.w0, a0, P))) [m] - self-focusing distance
+    Ld     = $(fmt(Media.diffraction_length(medium, w0, a0))) [m] - diffraction length
+    Ldisp  = $(fmt(Media.dispersion_length(medium, w0, t0))) [m] - dispersion length
+    Ldisp3 = $(fmt(Media.dispersion_length3(medium, w0, t0))) [m] - 3rd order dispersion length (t0^3/k3)
+    La     = $(fmt(Media.absorption_length(medium, w0))) [m] - linear absorption length
+    Lnl    = $(fmt(Media.nonlinearity_length(medium, w0, I0))) [m] - length of Kerr nonlinearity
+    zf     = $(fmt(Media.selffocusing_length(medium, w0, a0, P))) [m] - self-focusing distance
     """
     return sdata
 end
@@ -406,31 +447,35 @@ function info_medium(
     grid::Grids.GridXY,
     field::Fields.FieldXY,
     medium::Media.Medium,
+    analyzer::FieldAnalyzers.FieldAnalyzerXY,
 )
-    a0 = Fields.beam_radius(grid, field) * sqrt(unit.x * unit.y)
-    I0 = Fields.peak_intensity(field) * unit.I
-    P = Fields.peak_power(grid, field) * unit.x * unit.y * unit.I
-    Pcr = Media.critical_power(medium, field.w0)
+    w0 = field.w0
+
+    a0 = sqrt(analyzer.ax * analyzer.ay * unit.x * unit.y)
+    I0 = analyzer.Imax * unit.I
+    P = analyzer.P * unit.x * unit.y * unit.I
+
+    Pcr = Media.critical_power(medium, w0)
 
     sdata =
     """
-    n0re = $(fmt(real(Media.refractive_index(medium, field.w0)))) [-] - refractive index (real part)
-    n0im = $(fmt(imag(Media.refractive_index(medium, field.w0)))) [-] - refractive index (imaginary part)
-    k0 = $(fmt(Media.k_func(medium, field.w0))) [1/m] - wave number
-    k1 = $(fmt(Media.k1_func(medium, field.w0))) [s/m] - 1st derivative of wave number: d(k0)/dw
-    k2 = $(fmt(Media.k2_func(medium, field.w0))) [s^2/m] - 2nd derivative of wave number: d(k1)/dw
-    k3 = $(fmt(Media.k3_func(medium, field.w0))) [s^3/m] - 3rd derivative of wave number: d(k2)/dw
-    ga = $(fmt(Media.absorption_coefficient(medium, field.w0))) [1/m] - linear absorption coefficient (by field)
-    vp = $(fmt(Media.phase_velocity(medium, field.w0) / C0)) [C0] - phase velocity
-    vg = $(fmt(Media.group_velocity(medium, field.w0) / C0)) [C0] - group velocity
+    n0re = $(fmt(real(Media.refractive_index(medium, w0)))) [-] - refractive index (real part)
+    n0im = $(fmt(imag(Media.refractive_index(medium, w0)))) [-] - refractive index (imaginary part)
+    k0 = $(fmt(Media.k_func(medium, w0))) [1/m] - wave number
+    k1 = $(fmt(Media.k1_func(medium, w0))) [s/m] - 1st derivative of wave number: d(k0)/dw
+    k2 = $(fmt(Media.k2_func(medium, w0))) [s^2/m] - 2nd derivative of wave number: d(k1)/dw
+    k3 = $(fmt(Media.k3_func(medium, w0))) [s^3/m] - 3rd derivative of wave number: d(k2)/dw
+    ga = $(fmt(Media.absorption_coefficient(medium, w0))) [1/m] - linear absorption coefficient (by field)
+    vp = $(fmt(Media.phase_velocity(medium, w0) / C0)) [C0] - phase velocity
+    vg = $(fmt(Media.group_velocity(medium, w0) / C0)) [C0] - group velocity
     n2  = $(fmt(medium.n2)) [m^2/W] - Kerr nonlinear index
-    chi3 = $(fmt(Media.chi3_func(medium, field.w0))) [m/V] - 3rd order nonlinear susceptibility
+    chi3 = $(fmt(Media.chi3_func(medium, w0))) [m/V] - 3rd order nonlinear susceptibility
     P   = $(fmt(P / Pcr)) [Pcr] - peak power
     Pcr = $(fmt(Pcr)) [W] - critical power
-    Ld     = $(fmt(Media.diffraction_length(medium, field.w0, a0))) [m] - diffraction length
-    La     = $(fmt(Media.absorption_length(medium, field.w0))) [m] - linear absorption length
-    Lnl    = $(fmt(Media.nonlinearity_length(medium, field.w0, I0))) [m] - length of Kerr nonlinearity
-    zf     = $(fmt(Media.selffocusing_length(medium, field.w0, a0, P))) [m] - self-focusing distance
+    Ld     = $(fmt(Media.diffraction_length(medium, w0, a0))) [m] - diffraction length
+    La     = $(fmt(Media.absorption_length(medium, w0))) [m] - linear absorption length
+    Lnl    = $(fmt(Media.nonlinearity_length(medium, w0, I0))) [m] - length of Kerr nonlinearity
+    zf     = $(fmt(Media.selffocusing_length(medium, w0, a0, P))) [m] - self-focusing distance
     """
     return sdata
 end

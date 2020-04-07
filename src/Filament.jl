@@ -70,6 +70,7 @@ function main()
         grid,
         field,
         medium,
+        analyzer,
     )
 
     file_plotdat = joinpath(prefix_dir, string(prefix_name, "plot.dat"))

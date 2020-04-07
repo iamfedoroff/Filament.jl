@@ -64,7 +64,7 @@ end
 function PlotDAT(fname::String, unit::Units.UnitR)
     plotvars = [
         PlotVar("z", "m", unit.z),
-        PlotVar("Imax", "W/m2", unit.I),
+        PlotVar("Imax", "W/m^2", unit.I),
         PlotVar("rfil", "m", unit.r),
         PlotVar("P", "W", unit.r^2 * unit.I),
     ]
@@ -91,8 +91,8 @@ end
 function PlotDAT(fname::String, unit::Units.UnitT)
     plotvars = [
         PlotVar("z", "m", unit.z),
-        PlotVar("Imax", "W/m2", unit.I),
-        PlotVar("Nemax", "1/m3", unit.rho),
+        PlotVar("Imax", "W/m^2", unit.I),
+        PlotVar("Nemax", "1/m^3", unit.rho),
         PlotVar("duration", "s", unit.t),
         PlotVar("F", "J/m^2", unit.t * unit.I),
     ]
@@ -121,11 +121,12 @@ function PlotDAT(fname::String, unit::Units.UnitRT)
     plotvars = [
         PlotVar("z", "m", unit.z),
         PlotVar("Fmax", "J/m^2", unit.t * unit.I),
-        PlotVar("Imax", "W/m2", unit.I),
-        PlotVar("Nemax", "1/m3", unit.rho),
+        PlotVar("Imax", "W/m^2", unit.I),
+        PlotVar("Nemax", "1/m^3", unit.rho),
         PlotVar("De", "1/m", unit.r^2 * unit.rho),
         PlotVar("rfil", "m", unit.r),
         PlotVar("rpl", "m", unit.r),
+        PlotVar("tau", "s", unit.t),
         PlotVar("W", "J", unit.r^2 * unit.t * unit.I),
     ]
     _write_header(fname, plotvars)
@@ -143,6 +144,7 @@ function writeDAT(plotdat::PlotDAT, analyzer::FieldAnalyzers.FieldAnalyzerRT)
     write(fp, "$(fmt(analyzer.De)) ")
     write(fp, "$(fmt(analyzer.rfil)) ")
     write(fp, "$(fmt(analyzer.rpl)) ")
+    write(fp, "$(fmt(analyzer.tau)) ")
     write(fp, "$(fmt(analyzer.W)) ")
     write(fp, "\n")
     close(fp)
@@ -155,7 +157,7 @@ end
 function PlotDAT(fname::String, unit::Units.UnitXY)
     plotvars = [
         PlotVar("z", "m", unit.z),
-        PlotVar("Imax", "W/m2", unit.I),
+        PlotVar("Imax", "W/m^2", unit.I),
         PlotVar("ax", "m", unit.x),
         PlotVar("ay", "m", unit.y),
         PlotVar("P", "W", unit.x * unit.y * unit.I),
@@ -313,6 +315,7 @@ function _write_group_zdat(fp, grid::Grids.GridRT)
     d_create(group, "z", FloatGPU, ((1,), (-1,)))
     # d_create(group, "Fzx", FloatGPU, ((1, grid.Nr), (-1, grid.Nr)))
     d_create(group, "Fzx", FloatGPU, ((grid.Nr, 1), (grid.Nr, -1)))
+    d_create(group, "Ft", FloatGPU, ((grid.Nt, 1), (grid.Nt, -1)))
     # d_create(group, "Nezx", FloatGPU, ((1, grid.Nr), (-1, grid.Nr)))
     d_create(group, "Nezx", FloatGPU, ((grid.Nr, 1), (grid.Nr, -1)))
     # d_create(group, "iSzf", FloatGPU, ((1, grid.Nw), (-1, grid.Nw)))
@@ -361,8 +364,12 @@ function writeHDF_zdata(
     data = group_zdat["Fzx"]
     # HDF5.set_dims!(data, (iz, grid.Nr))
     # data[iz, :] = analyzer.F
-    HDF5.set_dims!(data, (length(analyzer.F), iz))
-    data[:, iz] = analyzer.F
+    HDF5.set_dims!(data, (length(analyzer.Fr), iz))
+    data[:, iz] = analyzer.Fr
+
+    data = group_zdat["Ft"]
+    HDF5.set_dims!(data, (length(analyzer.Ft), iz))
+    data[:, iz] = analyzer.Ft
 
     data = group_zdat["Nezx"]
     # HDF5.set_dims!(data, (iz, grid.Nr))

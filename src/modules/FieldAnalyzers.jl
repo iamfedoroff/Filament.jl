@@ -49,9 +49,7 @@ function analyze!(
 
     analyzer.rfil = 2 * Grids.radius(grid.r, analyzer.I)
 
-    # Warning! Igpu is rewritten!
-    @. analyzer.Igpu = analyzer.Igpu * grid.rdr
-    analyzer.P = convert(T, 2 * pi) * sum(analyzer.Igpu)
+    analyzer.P = convert(T, 2 * pi) * sum(analyzer.Igpu .* grid.rdr)
     return nothing
 end
 
@@ -118,12 +116,15 @@ mutable struct FieldAnalyzerRT{
     De :: T
     rfil :: T
     rpl :: T
+    tau :: T
     W :: T
     # Storage arrays:
-    F :: U2
+    Fr :: U2
+    Ft :: U2
     rho :: U1
     S :: U2
-    Fgpu :: UG2
+    Frgpu :: UG2
+    Ftgpu :: UG2
     rhogpu :: UG1
     Sgpu :: UG2
     Igpu :: UG2
@@ -131,18 +132,21 @@ end
 
 
 function FieldAnalyzer(field::Fields.FieldRT, z::T) where T<:AbstractFloat
-    Fmax, Imax, rhomax, De, rfil, rpl, W = [zero(T) for i=1:7]
+    Fmax, Imax, rhomax, De, rfil, rpl, tau, W = [zero(T) for i=1:8]
     Nr, Nt = size(field.E)
     Nr, Nw = size(field.S)
-    F = zeros(T, (Nr, 1))
+    Fr = zeros(T, (Nr, 1))
+    Ft = zeros(T, (1, Nt))
     rho = zeros(T, Nr)
     S = zeros(T, (1, Nw))
-    Fgpu = CuArrays.zeros(T, (Nr, 1))
+    Frgpu = CuArrays.zeros(T, (Nr, 1))
+    Ftgpu = CuArrays.zeros(T, (1, Nt))
     rhogpu = CuArrays.zeros(T, Nr)
     Sgpu = CuArrays.zeros(T, (1, Nw))
     Igpu = CuArrays.zeros(T, (Nr, Nt))
     return FieldAnalyzerRT(
-        z, Fmax, Imax, rhomax, De, rfil, rpl, W, F, rho, S, Fgpu, rhogpu, Sgpu, Igpu,
+        z, Fmax, Imax, rhomax, De, rfil, rpl, tau, W, Fr, Ft, rho, S, Frgpu,
+        Ftgpu, rhogpu, Sgpu, Igpu,
     )
 end
 
@@ -154,8 +158,13 @@ function analyze!(
 
     @. analyzer.Igpu = abs2(field.E)
 
-    analyzer.Fgpu .= sum(analyzer.Igpu .* grid.dt, dims=2)
-    copyto!(analyzer.F, analyzer.Fgpu)
+    analyzer.Frgpu .= sum(analyzer.Igpu .* grid.dt, dims=2)
+    copyto!(analyzer.Fr, analyzer.Frgpu)
+
+    analyzer.Ftgpu .= sum(
+        convert(T, 2 * pi) .* analyzer.Igpu .* grid.rdr, dims=1,
+    )
+    copyto!(analyzer.Ft, analyzer.Ftgpu)
 
     @views @. analyzer.rhogpu = field.rho[:, end]
     copyto!(analyzer.rho, analyzer.rhogpu)
@@ -168,7 +177,7 @@ function analyze!(
                          grid.dt^2, dims=1)
     copyto!(analyzer.S, analyzer.Sgpu)
 
-    analyzer.Fmax = maximum(analyzer.Fgpu)
+    analyzer.Fmax = maximum(analyzer.Frgpu)
 
     analyzer.Imax = maximum(analyzer.Igpu)
 
@@ -176,11 +185,13 @@ function analyze!(
 
     analyzer.De = convert(T, 2 * pi) * sum(analyzer.rhogpu .* grid.rdr)
 
-    analyzer.rfil = 2 * Grids.radius(grid.r, analyzer.F)
+    analyzer.rfil = 2 * Grids.radius(grid.r, analyzer.Fr)
 
     analyzer.rpl = 2 * Grids.radius(grid.r, analyzer.rho)
 
-    analyzer.W = convert(T, 2 * pi) * sum(analyzer.Fgpu .* grid.rdr)
+    analyzer.tau = Grids.radius(grid.t, analyzer.Ft)
+
+    analyzer.W = convert(T, 2 * pi) * sum(analyzer.Frgpu .* grid.rdr)
     return nothing
 end
 
