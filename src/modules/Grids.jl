@@ -8,79 +8,6 @@ import Fourier
 abstract type Grid end
 
 
-struct GridR{
-    I<:Int,
-    T<:AbstractFloat,
-    U<:AbstractArray{T},
-} <: Grid
-    rmax :: T
-    Nr :: I
-    r :: U
-    dr :: U
-    k :: U
-end
-
-
-struct GridT{
-    I<:Int,
-    T<:AbstractFloat,
-    U<:AbstractArray{T},
-    UT<:AbstractArray{T},
-} <: Grid
-    tmin :: T
-    tmax :: T
-    Nt :: I
-    t :: UT
-    dt :: T
-    w :: U
-    Nw :: I
-end
-
-
-struct GridRT{
-    I<:Int,
-    T<:AbstractFloat,
-    U<:AbstractArray{T},
-    UT<:AbstractArray{T},
-} <: Grid
-    rmax :: T
-    Nr :: I
-    r :: U
-    dr :: U
-    k :: U
-
-    tmin :: T
-    tmax :: T
-    Nt :: I
-    t :: UT
-    dt :: T
-    w :: U
-    Nw :: I
-end
-
-
-struct GridXY{
-    I<:Int,
-    T<:AbstractFloat,
-    U<:AbstractArray{T},
-    UK<:AbstractArray{T},
-} <: Grid
-    xmin :: T
-    xmax :: T
-    Nx :: I
-    x :: U
-    dx :: T
-    kx :: UK
-
-    ymin :: T
-    ymax :: T
-    Ny :: I
-    y :: U
-    dy :: T
-    ky :: UK
-end
-
-
 function Grid(geometry::String, p::Tuple)
     if geometry == "R"
         unit = GridR(p...)
@@ -99,15 +26,75 @@ function Grid(geometry::String, p::Tuple)
 end
 
 
+# ******************************************************************************
+# R
+# ******************************************************************************
+struct GridR{
+    I<:Int,
+    T<:AbstractFloat,
+    A<:AbstractArray{T},
+} <: Grid
+    rmax :: T
+    Nr :: I
+    r :: A
+    dr :: A
+    k :: A
+end
+
+
 function GridR(rmax::T, Nr::Int) where T<:AbstractFloat
     r, dr, k = _grid_spatial_axial(rmax, Nr)
     return GridR(rmax, Nr, r, dr, k)
 end
 
 
+# ******************************************************************************
+# T
+# ******************************************************************************
+struct GridT{
+    I<:Int,
+    T<:AbstractFloat,
+    A<:AbstractArray{T},
+    AR<:AbstractArray{T},
+} <: Grid
+    tmin :: T
+    tmax :: T
+    Nt :: I
+    t :: AR
+    dt :: T
+    w :: A
+    Nw :: I
+end
+
+
 function GridT(tmin::T, tmax::T, Nt::Int) where T<:AbstractFloat
     t, dt, w, Nw = _grid_temporal(tmin, tmax, Nt)
     return GridT(tmin, tmax, Nt, t, dt, w, Nw)
+end
+
+
+# ******************************************************************************
+# RT
+# ******************************************************************************
+struct GridRT{
+    I<:Int,
+    T<:AbstractFloat,
+    A<:AbstractArray{T},
+    AR<:AbstractArray{T},
+} <: Grid
+    rmax :: T
+    Nr :: I
+    r :: A
+    dr :: A
+    k :: A
+
+    tmin :: T
+    tmax :: T
+    Nt :: I
+    t :: AR
+    dt :: T
+    w :: A
+    Nw :: I
 end
 
 
@@ -122,6 +109,31 @@ function GridRT(
 end
 
 
+# ******************************************************************************
+# XY
+# ******************************************************************************
+struct GridXY{
+    I<:Int,
+    T<:AbstractFloat,
+    A<:AbstractArray{T},
+    AR<:AbstractArray{T},
+} <: Grid
+    xmin :: T
+    xmax :: T
+    Nx :: I
+    x :: AR
+    dx :: T
+    kx :: A
+
+    ymin :: T
+    ymax :: T
+    Ny :: I
+    y :: AR
+    dy :: T
+    ky :: A
+end
+
+
 function GridXY(
     xmin::T, xmax::T, Nx::I, ymin::T, ymax::T, Ny::I,
 ) where {I<:Int, T<:AbstractFloat}
@@ -133,6 +145,7 @@ function GridXY(
 end
 
 
+# ******************************************************************************
 function _grid_spatial_rectangular(
     xmin::T, xmax::T, Nx::Int,
 ) where T<:AbstractFloat
@@ -168,7 +181,7 @@ end
 
 
 """Calculates step dx for a specific index i on a nonuniform grid x."""
-function _step(i::Int, x::AbstractArray{T, 1}) where T
+function _step(i::Int, x::AbstractArray)
     Nx = length(x)
     if i == 1
         dx = x[2] - x[1]

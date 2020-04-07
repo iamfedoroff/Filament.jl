@@ -12,57 +12,17 @@ import Units
 abstract type Field end
 
 
+# ******************************************************************************
+# R
+# ******************************************************************************
 struct FieldR{
     T<:AbstractFloat,
-    UC<:AbstractArray{Complex{T}},
+    AC<:AbstractArray{Complex{T}},
     PH<:HankelTransforms.Plan,
 } <: Field
     w0 :: T
-    E :: UC
+    E :: AC
     HT :: PH
-end
-
-
-struct FieldT{
-    T<:AbstractFloat,
-    UC<:AbstractArray{Complex{T}},
-    UF<:AbstractArray{T},
-    PF <: Fourier.FourierTransform,
-} <: Field
-    w0 :: T
-    E :: UC
-    S :: UC
-    rho :: UF
-    kdrho :: UF
-    FT :: PF
-end
-
-
-struct FieldRT{
-    T<:AbstractFloat,
-    UC<:AbstractArray{Complex{T}},
-    UF<:AbstractArray{T},
-    PH<:HankelTransforms.Plan,
-    PF<:Fourier.FourierTransform,
-} <: Field
-    w0 :: T
-    E :: UC
-    S :: UC
-    rho :: UF
-    kdrho :: UF
-    HT :: PH
-    FT :: PF
-end
-
-
-struct FieldXY{
-    T<:AbstractFloat,
-    UC<:AbstractArray{Complex{T}},
-    PF<:Fourier.FourierTransform
-} <: Field
-    w0 :: T
-    E :: UC
-    FT :: PF
 end
 
 
@@ -72,8 +32,7 @@ function Field(
     lam0::T,
     initial_condition::Function,
 ) where T<:AbstractFloat
-    w0 = 2 * pi * C0 / lam0
-    w0 = convert(T, w0)
+    w0 = convert(T, 2 * pi * C0 / lam0)
 
     E = initial_condition(grid.r, unit.r, unit.I)
     E = CuArrays.CuArray{Complex{T}}(E)
@@ -83,14 +42,31 @@ function Field(
 end
 
 
+# ******************************************************************************
+# T
+# ******************************************************************************
+struct FieldT{
+    T<:AbstractFloat,
+    A<:AbstractArray{T},
+    AC<:AbstractArray{Complex{T}},
+    PF <: Fourier.FourierTransform,
+} <: Field
+    w0 :: T
+    E :: AC
+    S :: AC
+    rho :: A
+    kdrho :: A
+    FT :: PF
+end
+
+
 function Field(
     unit::Units.UnitT,
     grid::Grids.GridT,
     lam0::T,
     initial_condition::Function,
 ) where T<:AbstractFloat
-    w0 = 2 * pi * C0 / lam0
-    w0 = convert(T, w0)
+    w0 = convert(T, 2 * pi * C0 / lam0)
 
     E = initial_condition(grid.t, unit.t, unit.I)
     E = Array{Complex{T}}(E)
@@ -114,14 +90,33 @@ function Field(
 end
 
 
+# ******************************************************************************
+# RT
+# ******************************************************************************
+struct FieldRT{
+    T<:AbstractFloat,
+    A<:AbstractArray{T},
+    AC<:AbstractArray{Complex{T}},
+    PH<:HankelTransforms.Plan,
+    PF<:Fourier.FourierTransform,
+} <: Field
+    w0 :: T
+    E :: AC
+    S :: AC
+    rho :: A
+    kdrho :: A
+    HT :: PH
+    FT :: PF
+end
+
+
 function Field(
     unit::Units.UnitRT,
     grid::Grids.GridRT,
     lam0::T,
     initial_condition::Function,
 ) where T<:AbstractFloat
-    w0 = 2 * pi * C0 / lam0
-    w0 = convert(T, w0)
+    w0 = convert(T, 2 * pi * C0 / lam0)
 
     E = initial_condition(grid.r, grid.t, unit.r, unit.t, unit.I)
     E = CuArrays.CuArray{Complex{T}}(E)
@@ -141,14 +136,27 @@ function Field(
 end
 
 
+# ******************************************************************************
+# XY
+# ******************************************************************************
+struct FieldXY{
+    T<:AbstractFloat,
+    AC<:AbstractArray{Complex{T}},
+    PF<:Fourier.FourierTransform
+} <: Field
+    w0 :: T
+    E :: AC
+    FT :: PF
+end
+
+
 function Field(
     unit::Units.UnitXY,
     grid::Grids.GridXY,
     lam0::T,
     initial_condition::Function,
 ) where T<:AbstractFloat
-    w0 = 2 * pi * C0 / lam0
-    w0 = convert(T, w0)
+    w0 = convert(T, 2 * pi * C0 / lam0)
 
     E = initial_condition(grid.x, grid.y, unit.x, unit.y, unit.I)
     E = CuArrays.CuArray{Complex{T}}(E)
