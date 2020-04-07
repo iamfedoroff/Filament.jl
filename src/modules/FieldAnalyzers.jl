@@ -23,17 +23,24 @@ mutable struct FieldAnalyzerR{
     rfil :: T
     P :: T
     # Storage arrays:
+    rdr :: UG
     I :: U
     Igpu :: UG
 end
 
 
-function FieldAnalyzer(field::Fields.FieldR, z::T) where T<:AbstractFloat
+function FieldAnalyzer(
+    grid::Grids.GridR, field::Fields.FieldR, z::T,
+) where T<:AbstractFloat
     Imax, rfil, P = [zero(T) for i=1:3]
+
+    rdr = @. grid.r * grid.dr
+    rdr = CuArrays.CuArray{T}(rdr)
+
     Nr = length(field.E)
     I = zeros(T, Nr)
     Igpu = CuArrays.zeros(T, Nr)
-    return FieldAnalyzerR(z, Imax, rfil, P, I, Igpu)
+    return FieldAnalyzerR(z, Imax, rfil, P, rdr, I, Igpu)
 end
 
 
@@ -47,9 +54,9 @@ function analyze!(
 
     analyzer.Imax = maximum(analyzer.Igpu)
 
-    analyzer.rfil = 2 * Grids.radius(grid.r, analyzer.I)
+    analyzer.rfil = 2 * radius(grid.r, analyzer.I)
 
-    analyzer.P = convert(T, 2 * pi) * sum(analyzer.Igpu .* grid.rdr)
+    analyzer.P = convert(T, 2 * pi) * sum(analyzer.Igpu .* analyzer.rdr)
     return nothing
 end
 
@@ -72,7 +79,9 @@ mutable struct FieldAnalyzerT{
 end
 
 
-function FieldAnalyzer(field::Fields.FieldT, z::T) where T<:AbstractFloat
+function FieldAnalyzer(
+    grid::Grids.GridT, field::Fields.FieldT, z::T,
+) where T<:AbstractFloat
     Imax, rhomax, duration, F = [zero(T) for i=1:4]
     Nt = length(field.E)
     I = zeros(T, Nt)
@@ -91,7 +100,7 @@ function analyze!(
 
     analyzer.rhomax = maximum(field.rho)
 
-    analyzer.duration = Grids.radius(grid.t, analyzer.I)
+    analyzer.duration = radius(grid.t, analyzer.I)
 
     analyzer.F = sum(analyzer.I) * grid.dt
     return nothing
@@ -119,6 +128,7 @@ mutable struct FieldAnalyzerRT{
     tau :: T
     W :: T
     # Storage arrays:
+    rdr :: UG1
     Fr :: U2
     Ft :: U2
     rho :: U1
@@ -131,8 +141,14 @@ mutable struct FieldAnalyzerRT{
 end
 
 
-function FieldAnalyzer(field::Fields.FieldRT, z::T) where T<:AbstractFloat
+function FieldAnalyzer(
+    grid::Grids.GridRT, field::Fields.FieldRT, z::T,
+) where T<:AbstractFloat
     Fmax, Imax, rhomax, De, rfil, rpl, tau, W = [zero(T) for i=1:8]
+
+    rdr = @. grid.r * grid.dr
+    rdr = CuArrays.CuArray{T}(rdr)
+
     Nr, Nt = size(field.E)
     Nr, Nw = size(field.S)
     Fr = zeros(T, (Nr, 1))
@@ -145,8 +161,8 @@ function FieldAnalyzer(field::Fields.FieldRT, z::T) where T<:AbstractFloat
     Sgpu = CuArrays.zeros(T, (1, Nw))
     Igpu = CuArrays.zeros(T, (Nr, Nt))
     return FieldAnalyzerRT(
-        z, Fmax, Imax, rhomax, De, rfil, rpl, tau, W, Fr, Ft, rho, S, Frgpu,
-        Ftgpu, rhogpu, Sgpu, Igpu,
+        z, Fmax, Imax, rhomax, De, rfil, rpl, tau, W,
+        rdr, Fr, Ft, rho, S, Frgpu, Ftgpu, rhogpu, Sgpu, Igpu,
     )
 end
 
@@ -162,7 +178,7 @@ function analyze!(
     copyto!(analyzer.Fr, analyzer.Frgpu)
 
     analyzer.Ftgpu .= sum(
-        convert(T, 2 * pi) .* analyzer.Igpu .* grid.rdr, dims=1,
+        convert(T, 2 * pi) .* analyzer.Igpu .* analyzer.rdr, dims=1,
     )
     copyto!(analyzer.Ft, analyzer.Ftgpu)
 
@@ -173,7 +189,7 @@ function analyze!(
     #     Ew = rfft(Et)
     #     Ew = 2 * Ew * dt
     #     S = 2 * pi * Int[|Ew|^2 * r * dr]
-    analyzer.Sgpu .= sum(convert(T, 8 * pi) .* abs2.(field.S) .* grid.rdr .*
+    analyzer.Sgpu .= sum(convert(T, 8 * pi) .* abs2.(field.S) .* analyzer.rdr .*
                          grid.dt^2, dims=1)
     copyto!(analyzer.S, analyzer.Sgpu)
 
@@ -183,15 +199,15 @@ function analyze!(
 
     analyzer.rhomax = maximum(analyzer.rhogpu)
 
-    analyzer.De = convert(T, 2 * pi) * sum(analyzer.rhogpu .* grid.rdr)
+    analyzer.De = convert(T, 2 * pi) * sum(analyzer.rhogpu .* analyzer.rdr)
 
-    analyzer.rfil = 2 * Grids.radius(grid.r, analyzer.Fr)
+    analyzer.rfil = 2 * radius(grid.r, analyzer.Fr)
 
-    analyzer.rpl = 2 * Grids.radius(grid.r, analyzer.rho)
+    analyzer.rpl = 2 * radius(grid.r, analyzer.rho)
 
-    analyzer.tau = Grids.radius(grid.t, analyzer.Ft)
+    analyzer.tau = radius(grid.t, analyzer.Ft)
 
-    analyzer.W = convert(T, 2 * pi) * sum(analyzer.Frgpu .* grid.rdr)
+    analyzer.W = convert(T, 2 * pi) * sum(analyzer.Frgpu .* analyzer.rdr)
     return nothing
 end
 
@@ -216,7 +232,9 @@ mutable struct FieldAnalyzerXY{
 end
 
 
-function FieldAnalyzer(field::Fields.FieldXY, z::T) where T<:AbstractFloat
+function FieldAnalyzer(
+    grid::Grids.GridXY, field::Fields.FieldXY, z::T,
+) where T<:AbstractFloat
     Imax, ax, ay, P = [zero(T) for i=1:4]
     Nx, Ny = size(field.E)
     I = zeros(T, (Nx, Ny))
@@ -236,12 +254,39 @@ function analyze!(
 
     analyzer.Imax, imax = findmax(analyzer.I)
 
-    @views analyzer.ax = Grids.radius(grid.x, analyzer.I[:, imax[2]])
+    @views analyzer.ax = radius(grid.x, analyzer.I[:, imax[2]])
 
-    @views analyzer.ay = Grids.radius(grid.y, analyzer.I[imax[1], :])
+    @views analyzer.ay = radius(grid.y, analyzer.I[imax[1], :])
 
     analyzer.P = sum(analyzer.Igpu) * grid.dx * grid.dy
     return nothing
+end
+
+
+# ******************************************************************************
+function radius(
+    x::AbstractArray{T}, y::AbstractArray{T}, level::T=convert(T, exp(-1)),
+) where T<:AbstractFloat
+    Nx = length(x)
+    ylevel = maximum(y) * level
+
+    radl = zero(T)
+    for i=1:Nx
+        if y[i] >= ylevel
+            radl = x[i]
+            break
+        end
+    end
+
+    radr = zero(T)
+    for i=Nx:-1:1
+        if y[i] >= ylevel
+            radr = x[i]
+            break
+        end
+    end
+
+    return (abs(radl) + abs(radr)) / 2
 end
 
 

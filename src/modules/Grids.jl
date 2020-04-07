@@ -1,6 +1,5 @@
 module Grids
 
-import CuArrays
 import HankelTransforms
 
 import Fourier
@@ -13,13 +12,11 @@ struct GridR{
     I<:Int,
     T<:AbstractFloat,
     U<:AbstractArray{T},
-    UG<:AbstractArray{T},
 } <: Grid
     rmax :: T
     Nr :: I
     r :: U
     dr :: U
-    rdr :: UG
     k :: U
 end
 
@@ -44,14 +41,12 @@ struct GridRT{
     I<:Int,
     T<:AbstractFloat,
     U<:AbstractArray{T},
-    UG<:AbstractArray{T},
     UT<:AbstractArray{T},
 } <: Grid
     rmax :: T
     Nr :: I
     r :: U
     dr :: U
-    rdr :: UG
     k :: U
 
     tmin :: T
@@ -105,9 +100,8 @@ end
 
 
 function GridR(rmax::T, Nr::Int) where T<:AbstractFloat
-    r, dr, rdr, k = _grid_spatial_axial(rmax, Nr)
-    rdr = CuArrays.CuArray{T}(rdr)
-    return GridR(rmax, Nr, r, dr, rdr, k)
+    r, dr, k = _grid_spatial_axial(rmax, Nr)
+    return GridR(rmax, Nr, r, dr, k)
 end
 
 
@@ -120,11 +114,10 @@ end
 function GridRT(
     rmax::T, Nr::I, tmin::T, tmax::T, Nt::I,
 ) where {I<:Int, T<:AbstractFloat}
-    r, dr, rdr, k = _grid_spatial_axial(rmax, Nr)
+    r, dr, k = _grid_spatial_axial(rmax, Nr)
     t, dt, w, Nw = _grid_temporal(tmin, tmax, Nt)
-    rdr = CuArrays.CuArray{T}(rdr)
     return GridRT(
-        rmax, Nr, r, dr, rdr, k, tmin, tmax, Nt, t, dt, w, Nw,
+        rmax, Nr, r, dr, k, tmin, tmax, Nt, t, dt, w, Nw,
     )
 end
 
@@ -161,9 +154,7 @@ function _grid_spatial_axial(rmax::T, Nr::Int) where T<:AbstractFloat
     for i=1:Nr
         dr[i] = _step(i, r)
     end
-    rdr = @. r * dr   # for calculation of spatial integrals
-
-    return r, dr, rdr, k
+    return r, dr, k
 end
 
 
@@ -187,32 +178,6 @@ function _step(i::Int, x::AbstractArray{T, 1}) where T
         dx = (x[i+1] - x[i-1]) / 2
     end
     return dx
-end
-
-
-function radius(
-    x::AbstractArray, y::AbstractArray, level::AbstractFloat=exp(-1),
-)
-    Nx = length(x)
-    ylevel = maximum(y) * level
-
-    radl = 0.
-    for i=1:Nx
-        if y[i] >= ylevel
-            radl = x[i]
-            break
-        end
-    end
-
-    radr = 0.
-    for i=Nx:-1:1
-        if y[i] >= ylevel
-            radr = x[i]
-            break
-        end
-    end
-
-    return 0.5 * (abs(radl) + abs(radr))
 end
 
 

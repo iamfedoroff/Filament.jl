@@ -47,7 +47,7 @@ function main()
     model = Models.Model(unit, grid, field, medium, guard, Input.p_model...)
     dzadaptive = AdaptiveSteps.AStep(unit, medium, field, Input.p_dzadaptive...)
 
-    analyzer = FieldAnalyzers.FieldAnalyzer(field, z)
+    analyzer = FieldAnalyzers.FieldAnalyzer(grid, field, z)
     FieldAnalyzers.analyze!(analyzer, grid, field, z)
 
     # **************************************************************************
