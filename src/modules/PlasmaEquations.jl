@@ -5,6 +5,7 @@ import CuArrays
 import StaticArrays
 
 import Equations
+import Units
 
 
 struct PlasmaEquation{I, FE, FK, P}
@@ -15,7 +16,7 @@ struct PlasmaEquation{I, FE, FK, P}
 end
 
 
-function PlasmaEquation(unit, n0::T, w0::T, params) where T
+function PlasmaEquation(unit::Units.Unit, n0, w0, params)
     init = params["init"]
     integ, extract, func_kdrho, p_kdrho = init(unit, n0, w0, params)
     return PlasmaEquation(integ, extract, func_kdrho, p_kdrho)

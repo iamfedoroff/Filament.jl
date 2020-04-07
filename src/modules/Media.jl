@@ -5,7 +5,7 @@ module Media
 import Constants: C0, EPS0
 
 
-struct Medium{FE, FM, T}
+struct Medium{T, FE, FM}
     permittivity :: FE
     permeability :: FM
     n2 :: T
