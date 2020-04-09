@@ -5,7 +5,7 @@ using TimerOutputs
 
 import Constants: FloatGPU
 import Fields
-import Fourier
+import FourierTransforms
 import Grids
 import Guards
 import LinearPropagators
@@ -219,22 +219,22 @@ function zstep(
 
     # Field -> temporal spectrum:
     @timeit "field -> spectr" begin
-        Fourier.rfft!(field.S, field.FT, field.E)
+        FourierTransforms.fft!(field.E, field.FT)
     end
 
     if model.keys.NONLINEARITY
         @timeit "nonlinearity" begin
-           NonlinearPropagators.propagate!(field.S, model.NP, z, dz)
+           NonlinearPropagators.propagate!(field.E, model.NP, z, dz)
        end
     end
 
     @timeit "linear" begin
-        LinearPropagators.propagate!(field.S, model.LP, dz)
+        LinearPropagators.propagate!(field.E, model.LP, dz)
     end
 
     # Temporal spectrum -> field:
     @timeit "spectr -> field" begin
-        Fourier.hilbert!(field.E, field.FT, field.S)   # spectrum real to signal analytic
+        FourierTransforms.ifft!(field.E, field.FT)
     end
 
     @timeit "field filter" begin
@@ -268,25 +268,25 @@ function zstep(
 
     # Field -> temporal spectrum:
     @timeit "field -> spectr" begin
-        Fourier.rfft!(field.S, field.FT, field.E)
+        FourierTransforms.fft!(field.E, field.FT)
         CUDAdrv.synchronize()
     end
 
     if model.keys.NONLINEARITY
         @timeit "nonlinearity" begin
-           NonlinearPropagators.propagate!(field.S, model.NP, z, dz)
+           NonlinearPropagators.propagate!(field.E, model.NP, z, dz)
            CUDAdrv.synchronize()
        end
     end
 
     @timeit "linear" begin
-        LinearPropagators.propagate!(field.S, model.LP, dz)
+        LinearPropagators.propagate!(field.E, model.LP, dz)
         CUDAdrv.synchronize()
     end
 
     # Temporal spectrum -> field:
     @timeit "spectr -> field" begin
-        Fourier.hilbert!(field.E, field.FT, field.S)   # spectrum real to signal analytic
+        FourierTransforms.ifft!(field.E, field.FT)
         CUDAdrv.synchronize()
     end
 

@@ -3,6 +3,7 @@ module FieldAnalyzers
 import CuArrays
 
 import Fields
+import FourierTransforms
 import Grids
 
 
@@ -150,15 +151,14 @@ function FieldAnalyzer(
     rdr = CuArrays.CuArray{T}(rdr)
 
     Nr, Nt = size(field.E)
-    Nr, Nw = size(field.S)
     Fr = zeros(T, (Nr, 1))
     Ft = zeros(T, (1, Nt))
     rho = zeros(T, Nr)
-    S = zeros(T, (1, Nw))
+    S = zeros(T, (1, Nt))
     Frgpu = CuArrays.zeros(T, (Nr, 1))
     Ftgpu = CuArrays.zeros(T, (1, Nt))
     rhogpu = CuArrays.zeros(T, Nr)
-    Sgpu = CuArrays.zeros(T, (1, Nw))
+    Sgpu = CuArrays.zeros(T, (1, Nt))
     Igpu = CuArrays.zeros(T, (Nr, Nt))
     return FieldAnalyzerRT(
         z, Fmax, Imax, rhomax, De, rfil, rpl, tau, W,
@@ -189,9 +189,11 @@ function analyze!(
     #     Ew = rfft(Et)
     #     Ew = 2 * Ew * dt
     #     S = 2 * pi * Int[|Ew|^2 * r * dr]
-    analyzer.Sgpu .= sum(convert(T, 8 * pi) .* abs2.(field.S) .* analyzer.rdr .*
-                         grid.dt^2, dims=1)
-    copyto!(analyzer.S, analyzer.Sgpu)
+    # FourierTransforms.fft!(field.E, field.FT)
+    # analyzer.Sgpu .= sum(convert(T, 8 * pi) .* abs2.(field.E) .* analyzer.rdr .*
+    #                      grid.dt^2, dims=1)
+    # FourierTransforms.ifft!(field.E, field.FT)
+    # copyto!(analyzer.S, analyzer.Sgpu)
 
     analyzer.Fmax = maximum(analyzer.Frgpu)
 

@@ -24,7 +24,7 @@ end
 
 
 function calc_lattice(
-    F::AbstractArray{T}, E::AbstractArray{Complex{T}}, p::Tuple, z::T,
+    F::AbstractArray{Complex{T}}, E::AbstractArray{Complex{T}}, p::Tuple, z::T,
 ) where T<:AbstractFloat
     dnr, dnz_func, zu = p
 

@@ -32,10 +32,8 @@ struct GuardRT{I<:Int, U<:AbstractArray, U2<:AbstractArray} <: Guard
     W :: U
     nthreadsNt :: I
     nthreadsNrNt :: I
-    nthreadsNrNw :: I
     nblocksNt :: I
     nblocksNrNt :: I
-    nblocksNrNw :: I
 end
 
 
@@ -114,8 +112,8 @@ function Guard(
     # Angular guard filter:
     k = Media.k_func.(Ref(medium), grid.w * unit.w)
     kmax = k * sind(kguard)
-    Kguard = zeros((grid.Nr, grid.Nw))
-    for j=2:grid.Nw   # from 2 because kmax[1]=0 since w[1]=0
+    Kguard = zeros((grid.Nr, grid.Nt))
+    for j=2:grid.Nt   # from 2 because kmax[1]=0 since w[1]=0
         for i=1:grid.Nr
             if kmax[j] != 0
                 Kguard[i, j] = exp(-((grid.k[i] * unit.k)^2 / kmax[j]^2)^20)
@@ -129,14 +127,13 @@ function Guard(
 
     nthreadsNt = min(grid.Nt, MAX_THREADS_PER_BLOCK)
     nthreadsNrNt = min(grid.Nr * grid.Nt, MAX_THREADS_PER_BLOCK)
-    nthreadsNrNw = min(grid.Nr * grid.Nw, MAX_THREADS_PER_BLOCK)
     nblocksNt = Int(ceil(grid.Nt / nthreadsNt))
     nblocksNrNt = Int(ceil(grid.Nr * grid.Nt / nthreadsNrNt))
-    nblocksNrNw = Int(ceil(grid.Nr * grid.Nw / nthreadsNrNw))
 
-    return GuardRT(Rguard, Kguard, Tguard, Wguard,
-                   nthreadsNt, nthreadsNrNt, nthreadsNrNw,
-                   nblocksNt, nblocksNrNt, nblocksNrNw)
+    return GuardRT(
+        Rguard, Kguard, Tguard, Wguard,
+        nthreadsNt, nthreadsNrNt, nblocksNt, nblocksNrNt,
+    )
 end
 
 
@@ -300,8 +297,8 @@ end
 function apply_spectral_filter!(
     S::CuArrays.CuArray{Complex{T}, 2}, guard::GuardRT,
 ) where T
-    nth = guard.nthreadsNrNw
-    nbl = guard.nblocksNrNw
+    nth = guard.nthreadsNrNt
+    nbl = guard.nblocksNrNt
     @CUDAnative.cuda blocks=nbl threads=nth kernel!(S, guard.K, guard.W)
 end
 

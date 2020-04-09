@@ -5,7 +5,7 @@ import HankelTransforms
 
 import Constants: FloatGPU
 import Fields
-import Fourier
+import FourierTransforms
 import Grids
 import Guards
 import Media
@@ -24,7 +24,7 @@ end
 
 struct LinearPropagatorT{T} <: LinearPropagator
     KZ :: AbstractArray{Complex{T}, 1}
-    FT :: Fourier.FourierTransform
+    FT :: FourierTransforms.FourierTransform
     guard :: Guards.Guard
 end
 
@@ -38,7 +38,7 @@ end
 
 struct LinearPropagatorXY{T} <: LinearPropagator
     KZ :: AbstractArray{Complex{T}, 2}
-    FT :: Fourier.FourierTransform
+    FT :: FourierTransforms.FourierTransform
     guard :: Guards.Guard
 end
 
@@ -102,9 +102,9 @@ function LinearPropagator(
 
     beta = Media.beta_func.(Ref(medium), grid.w * unit.w)
 
-    KZ = zeros(ComplexF64, (grid.Nr, grid.Nw))
+    KZ = zeros(ComplexF64, (grid.Nr, grid.Nt))
     if KPARAXIAL
-        for iw=1:grid.Nw
+        for iw=1:grid.Nt
             if beta[iw] != 0
                 for ir=1:grid.Nr
                     KZ[ir, iw] = beta[iw] -
@@ -113,7 +113,7 @@ function LinearPropagator(
             end
         end
     else
-        for iw=1:grid.Nw
+        for iw=1:grid.Nt
         for ir=1:grid.Nr
             KZ[ir, iw] = sqrt(beta[iw]^2 - (grid.k[ir] * unit.k)^2 + 0im)
         end
@@ -121,7 +121,7 @@ function LinearPropagator(
     end
 
     vf = Media.group_velocity(medium, field.w0)   # frame velocity
-    for iw=1:grid.Nw
+    for iw=1:grid.Nt
     for ir=1:grid.Nr
         KZ[ir, iw] = (KZ[ir, iw] - grid.w[iw] * unit.w / vf) * unit.z
     end
@@ -188,12 +188,12 @@ end
 
 
 function propagate!(
-    S::AbstractArray{Complex{T}, 1},
+    E::AbstractArray{Complex{T}, 1},
     LP::LinearPropagatorT,
     z::T
 ) where T
-    @. S = S * exp(-1im * LP.KZ * z)
-    Guards.apply_spectral_filter!(S, LP.guard)
+    @. E = E * exp(-1im * LP.KZ * z)
+    Guards.apply_spectral_filter!(E, LP.guard)
     return nothing
 end
 
@@ -216,10 +216,10 @@ function propagate!(
     LP::LinearPropagatorXY,
     z::T
 ) where T
-    Fourier.fft!(E, LP.FT)
+    FourierTransforms.fft!(E, LP.FT)
     @. E = E * exp(-1im * LP.KZ * z)
     Guards.apply_spectral_filter!(E, LP.guard)
-    Fourier.ifft!(E, LP.FT)
+    FourierTransforms.ifft!(E, LP.FT)
     return nothing
 end
 

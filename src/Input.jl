@@ -7,7 +7,7 @@ import FFTW
 import StaticArrays
 
 import Constants: FloatGPU, MAX_THREADS_PER_BLOCK, C0, EPS0, MU0, QE, ME, HBAR
-import Fourier
+import FourierTransforms
 import Grids
 import Units
 import Media

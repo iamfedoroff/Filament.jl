@@ -318,8 +318,8 @@ function _write_group_zdat(fp, grid::Grids.GridRT)
     d_create(group, "Ft", FloatGPU, ((grid.Nt, 1), (grid.Nt, -1)))
     # d_create(group, "Nezx", FloatGPU, ((1, grid.Nr), (-1, grid.Nr)))
     d_create(group, "Nezx", FloatGPU, ((grid.Nr, 1), (grid.Nr, -1)))
-    # d_create(group, "iSzf", FloatGPU, ((1, grid.Nw), (-1, grid.Nw)))
-    d_create(group, "iSzf", FloatGPU, ((grid.Nw, 1), (grid.Nw, -1)))
+    # d_create(group, "iSzf", FloatGPU, ((1, grid.Nt), (-1, grid.Nt)))
+    d_create(group, "iSzf", FloatGPU, ((grid.Nt, 1), (grid.Nt, -1)))
     return nothing
 end
 
@@ -378,7 +378,7 @@ function writeHDF_zdata(
     data[:, iz] = analyzer.rho
 
     data = group_zdat["iSzf"]
-    # HDF5.set_dims!(data, (iz, grid.Nw))
+    # HDF5.set_dims!(data, (iz, grid.Nt))
     # data[iz, :] = analyzer.S
     HDF5.set_dims!(data, (length(analyzer.S), iz))
     data[:, iz] = analyzer.S

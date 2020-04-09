@@ -10,9 +10,9 @@ function init_current_free(unit, grid, field, medium, p)
     Eu = Units.E(unit, real(n0))
     MR = mr * ME   # reduced mass of electron and hole (effective mass)
 
-    Rnl = zeros(ComplexF64, grid.Nw)
-    for i=1:grid.Nw
-        if grid.w[i] != 0.
+    Rnl = zeros(ComplexF64, grid.Nt)
+    for i=1:grid.Nt
+        if grid.w[i] != 0
             Rnl[i] = 1im / (grid.w[i] * unit.w) *
                      QE^2 / MR / (nuc - 1im * (grid.w[i] * unit.w)) *
                      unit.rho * Eu
@@ -30,7 +30,7 @@ end
 
 
 function calc_current_free(
-    F::AbstractArray{T}, E::AbstractArray{Complex{T}}, p::Tuple, z::T,
+    F::AbstractArray{Complex{T}}, E::AbstractArray{Complex{T}}, p::Tuple, z::T,
 ) where T<:AbstractFloat
     rho, = p
     @. F = rho * real(E)

@@ -12,10 +12,14 @@ function init_cubic(unit, grid, field, medium, p)
     Rnl = EPS0 * chi3 * Eu^3
     Rnl = convert(FloatGPU, Rnl)
 
-    if THG
-        calc = calc_cubic
+    if (typeof(grid) <: Grids.GridR) | (typeof(grid) <: Grids.GridXY)
+        clac = calc_cubic_nothg_spatial
     else
-        calc = calc_cubic_nothg
+        if THG
+            calc = calc_cubic
+        else
+            calc = calc_cubic_nothg
+        end
     end
 
     p = ()
@@ -24,7 +28,7 @@ end
 
 
 function calc_cubic(
-    F::AbstractArray{T}, E::AbstractArray{Complex{T}}, p::Tuple, z::T,
+    F::AbstractArray{Complex{T}}, E::AbstractArray{Complex{T}}, p::Tuple, z::T,
 ) where T<:AbstractFloat
     @. F = real(E)^3
     return nothing
@@ -32,14 +36,14 @@ end
 
 
 function calc_cubic_nothg(
-    F::AbstractArray{T}, E::AbstractArray{Complex{T}}, p::Tuple, z::T,
+    F::AbstractArray{Complex{T}}, E::AbstractArray{Complex{T}}, p::Tuple, z::T,
 ) where T<:AbstractFloat
     @. F = 3 / 4 * abs2(E) * real(E)
     return nothing
 end
 
 
-function calc_cubic_nothg(
+function calc_cubic_nothg_spatial(
     F::AbstractArray{Complex{T}}, E::AbstractArray{Complex{T}}, p::Tuple, z::T,
 ) where T<:AbstractFloat
     @. F = 3 / 4 * abs2(E) * E

@@ -2,7 +2,7 @@ module Grids
 
 import HankelTransforms
 
-import Fourier
+import FourierTransforms
 
 
 abstract type Grid end
@@ -63,13 +63,12 @@ struct GridT{
     t :: AR
     dt :: T
     w :: A
-    Nw :: I
 end
 
 
 function GridT(tmin::T, tmax::T, Nt::Int) where T<:AbstractFloat
-    t, dt, w, Nw = _grid_temporal(tmin, tmax, Nt)
-    return GridT(tmin, tmax, Nt, t, dt, w, Nw)
+    t, dt, w = _grid_temporal(tmin, tmax, Nt)
+    return GridT(tmin, tmax, Nt, t, dt, w)
 end
 
 
@@ -94,7 +93,6 @@ struct GridRT{
     t :: AR
     dt :: T
     w :: A
-    Nw :: I
 end
 
 
@@ -102,9 +100,9 @@ function GridRT(
     rmax::T, Nr::I, tmin::T, tmax::T, Nt::I,
 ) where {I<:Int, T<:AbstractFloat}
     r, dr, k = _grid_spatial_axial(rmax, Nr)
-    t, dt, w, Nw = _grid_temporal(tmin, tmax, Nt)
+    t, dt, w = _grid_temporal(tmin, tmax, Nt)
     return GridRT(
-        rmax, Nr, r, dr, k, tmin, tmax, Nt, t, dt, w, Nw,
+        rmax, Nr, r, dr, k, tmin, tmax, Nt, t, dt, w,
     )
 end
 
@@ -151,7 +149,7 @@ function _grid_spatial_rectangular(
 ) where T<:AbstractFloat
     x = range(xmin, xmax, length=Nx)   # grid coordinates
     dx = x[2] - x[1]   # step
-    kx = convert(T, 2 * pi) * Fourier.fftfreq(Nx, dx)   # angular frequency
+    kx = convert(T, 2 * pi) * FourierTransforms.fftfreq(Nx, dx)   # angular frequency
     return x, dx, kx
 end
 
@@ -174,9 +172,8 @@ end
 function _grid_temporal(tmin::T, tmax::T, Nt::Int) where T<:AbstractFloat
     t = range(tmin, tmax, length=Nt)   # grid coordinates
     dt = t[2] - t[1]   # step
-    w = convert(T, 2 * pi) * Fourier.rfftfreq(Nt, dt)   # angular frequency
-    Nw = length(w)   # length of angular frequency array
-    return t, dt, w, Nw
+    w = convert(T, 2 * pi) * FourierTransforms.fftfreq(Nt, dt)   # angular frequency
+    return t, dt, w
 end
 
 
