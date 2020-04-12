@@ -110,6 +110,37 @@ function aspec2rspec!(S::AbstractArray{Complex{T}, 1}) where T
 end
 
 
+function aspec2rspec!(Sr, Sa)
+    N = length(Sr)
+    nth = min(N, MAX_THREADS_PER_BLOCK)
+    nbl = Int(ceil(N / nth))
+    @CUDAnative.cuda blocks=nbl threads=nth _aspec2rspec_kernel!(Sr, Sa)
+    return nothing
+end
+
+
+function _aspec2rspec_kernel!(
+    Sr::CUDAnative.CuDeviceArray{Complex{T}, 2},
+    Sa::CUDAnative.CuDeviceArray{Complex{T}, 2},
+) where T
+    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x +
+         CUDAnative.threadIdx().x
+    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
+    Nr, Nw = size(Sr)
+    cartesian = CartesianIndices((Nr, Nw))
+    for k=id:stride:Nr*Nw
+        i = cartesian[k][1]
+        j = cartesian[k][2]
+        if j == 1
+            Sr[i, j] = Sa[i, j]
+        else
+            Sr[i, j] = Sa[i, j] / 2
+        end
+    end
+    return nothing
+end
+
+
 """
 Transforms a real signal to the corresponding analytic signal.
 """
@@ -148,7 +179,7 @@ end
 
 function half(N::Int)
     if iseven(N)
-        Nhalf = div(N, 2)
+        Nhalf = div(N, 2) + 1
     else
         Nhalf = div(N + 1, 2)
     end

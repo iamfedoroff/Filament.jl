@@ -2,6 +2,7 @@ module FieldAnalyzers
 
 import CuArrays
 
+import AnalyticSignals
 import Fields
 import FourierTransforms
 import Grids
@@ -117,6 +118,7 @@ mutable struct FieldAnalyzerRT{
     U2<:AbstractArray{T},
     UG1<:AbstractArray{T},
     UG2<:AbstractArray{T},
+    UCG2<:AbstractArray{Complex{T}},
 } <: FieldAnalyzer
     # Observed variables:
     z :: T
@@ -138,6 +140,7 @@ mutable struct FieldAnalyzerRT{
     Ftgpu :: UG2
     rhogpu :: UG1
     Sgpu :: UG2
+    Egpu :: UCG2
     Igpu :: UG2
 end
 
@@ -151,18 +154,20 @@ function FieldAnalyzer(
     rdr = CuArrays.CuArray{T}(rdr)
 
     Nr, Nt = size(field.E)
+    Nw = AnalyticSignals.half(Nt)
     Fr = zeros(T, (Nr, 1))
     Ft = zeros(T, (1, Nt))
     rho = zeros(T, Nr)
-    S = zeros(T, (1, Nt))
+    S = zeros(T, (1, Nw))
     Frgpu = CuArrays.zeros(T, (Nr, 1))
     Ftgpu = CuArrays.zeros(T, (1, Nt))
     rhogpu = CuArrays.zeros(T, Nr)
-    Sgpu = CuArrays.zeros(T, (1, Nt))
+    Sgpu = CuArrays.zeros(T, (1, Nw))
+    Egpu = CuArrays.zeros(Complex{T}, (Nr, Nw))
     Igpu = CuArrays.zeros(T, (Nr, Nt))
     return FieldAnalyzerRT(
         z, Fmax, Imax, rhomax, De, rfil, rpl, tau, W,
-        rdr, Fr, Ft, rho, S, Frgpu, Ftgpu, rhogpu, Sgpu, Igpu,
+        rdr, Fr, Ft, rho, S, Frgpu, Ftgpu, rhogpu, Sgpu, Egpu, Igpu,
     )
 end
 
@@ -189,11 +194,12 @@ function analyze!(
     #     Ew = rfft(Et)
     #     Ew = 2 * Ew * dt
     #     S = 2 * pi * Int[|Ew|^2 * r * dr]
-    # FourierTransforms.fft!(field.E, field.FT)
-    # analyzer.Sgpu .= sum(convert(T, 8 * pi) .* abs2.(field.E) .* analyzer.rdr .*
-    #                      grid.dt^2, dims=1)
-    # FourierTransforms.ifft!(field.E, field.FT)
-    # copyto!(analyzer.S, analyzer.Sgpu)
+    FourierTransforms.fft!(field.E, field.FT)
+    AnalyticSignals.aspec2rspec!(analyzer.Egpu, field.E)
+    analyzer.Sgpu .= sum(convert(T, 8 * pi) .* abs2.(analyzer.Egpu) .*
+                         analyzer.rdr .* grid.dt^2, dims=1)
+    copyto!(analyzer.S, analyzer.Sgpu)
+    FourierTransforms.ifft!(field.E, field.FT)
 
     analyzer.Fmax = maximum(analyzer.Frgpu)
 
