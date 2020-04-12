@@ -122,7 +122,9 @@ function Field(
     rho = CuArrays.zeros(T, (grid.Nr, grid.Nt))
     kdrho = CuArrays.zeros(T, (grid.Nr, grid.Nt))
 
-    HT = HankelTransforms.plan(grid.rmax, E)
+    Nthalf = AnalyticSignals.half(grid.Nt)
+    region = CartesianIndices((grid.Nr, Nthalf))
+    HT = HankelTransforms.plan(grid.rmax, E, region)
     return FieldRT(w0, E, rho, kdrho, HT, FT)
 end
 
