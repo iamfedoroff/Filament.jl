@@ -3,143 +3,81 @@ module FourierTransforms
 import FFTW
 import CUDAnative
 import CuArrays
-import CUDAdrv
 
-import Constants: FloatGPU, MAX_THREADS_PER_BLOCK
-
-
-abstract type FourierTransform end
+import Constants: MAX_THREADS_PER_BLOCK
 
 
-struct FourierTransformT <: FourierTransform
-    Nt :: Int
-    p_fft! :: FFTW.Plan
-    p_ifft! :: FFTW.Plan
+struct Plan{P<:FFTW.Plan, PI<:FFTW.Plan}
+    pfft :: P
+    pifft :: PI
 end
 
 
-struct FourierTransformRT <: FourierTransform
-    Nr :: Int
-    Nt :: Int
-    p_fft! :: FFTW.Plan
-    p_ifft! :: FFTW.Plan
+function Plan(F::AbstractArray{Complex{T}}, region=nothing) where T
+    if region == nothing
+        region = [i for i=1:ndims(F)]
+    end
+    pfft = FFTW.plan_fft!(F, region)
+    pifft = FFTW.plan_ifft!(F, region)
+    # in-place FFTs results in segfault after run completion
+    # https://github.com/JuliaGPU/CuArrays.jl/issues/662
+    # pfft = FFTW.plan_fft!(F, region)
+    # pifft = FFTW.plan_ifft!(F, region)
+    return Plan(pfft, pifft)
 end
 
 
-struct FourierTransformXY <: FourierTransform
-    Nx :: Int
-    Ny :: Int
-    p_fft! :: FFTW.Plan
-    p_ifft! :: FFTW.Plan
+function Plan(F::CuArrays.CuArray{Complex{T}}, region=nothing) where T
+    if region == nothing
+        region = [i for i=1:ndims(F)]
+    end
+    pfft = FFTW.plan_fft(F, region)
+    pifft = FFTW.plan_ifft(F, region)
+    # in-place FFTs results in segfault after run completion
+    # https://github.com/JuliaGPU/CuArrays.jl/issues/662
+    # pfft = FFTW.plan_fft!(F, region)
+    # pifft = FFTW.plan_ifft!(F, region)
+    return Plan(pfft, pifft)
 end
 
 
-struct FourierTransformXYT <: FourierTransform
-    Nx :: Int
-    Ny :: Int
-    Nt :: Int
-    p_fft! :: FFTW.Plan
-    p_ifft! :: FFTW.Plan
-    p_fft2! :: FFTW.Plan
-    p_ifft2! :: FFTW.Plan
-end
-
-
-function FourierTransformT(Nt::Int)
-    Ftmp = zeros(ComplexF64, Nt)
-    p_fft! = FFTW.plan_fft!(Ftmp)
-    p_ifft! = FFTW.plan_ifft!(Ftmp)
-    return FourierTransformT(Nt, p_fft!, p_ifft!)
-end
-
-
-function FourierTransformRT(Nr::T, Nt::T) where T<:Int
-    CuArrays.allowscalar(false)   # disable slow fallback methods
-    Ftmp = CuArrays.zeros(Complex{FloatGPU}, (Nr, Nt))
-    p_fft! = FFTW.plan_fft(Ftmp, [2])
-    p_ifft! = FFTW.plan_ifft(Ftmp, [2])
-    return FourierTransformRT(Nr, Nt, p_fft!, p_ifft!)
-end
-
-
-function FourierTransformXY(Nx::T, Ny::T) where T<:Int
-    CuArrays.allowscalar(false)   # disable slow fallback methods
-    p_fft! = FFTW.plan_fft(CuArrays.zeros(Complex{FloatGPU}, (Nx, Ny)))
-    p_ifft! = FFTW.plan_ifft(CuArrays.zeros(Complex{FloatGPU}, (Nx, Ny)))
-    return FourierTransformXY(Nx, Ny, p_fft!, p_ifft!)
-end
-
-
-function FourierTransformXYT(Nx::T, Ny::T, Nt::T) where T<:Int
-    CuArrays.allowscalar(false)   # disable slow fallback methods
-    Ftmp = CuArrays.zeros(Complex{FloatGPU}, (Nx, Ny, Nt))
-    p_fft! = FFTW.plan_fft(Ftmp, [3])
-    p_ifft! = FFTW.plan_ifft(Ftmp, [3])
-    p_fft2! = FFTW.plan_fft(Ftmp, [1, 2])
-    p_ifft2! = FFTW.plan_ifft(Ftmp, [1, 2])
-    return FourierTransformXYT(Nx, Ny, Nt, p_fft!, p_ifft!, p_fft2!, p_ifft2!)
-end
-
-
-function fft!(
-    E::AbstractArray{Complex{T}},
-    FT::FourierTransform,
-) where T
-    FFTW.mul!(E, FT.p_fft!, E)
+function fft!(E::AbstractArray{Complex{T}}, plan::Plan) where T
+    FFTW.mul!(E, plan.pfft, E)
+    # plan.pfft * E   # results in segfault after run completion
     return nothing
 end
 
 
-function fft2!(
-    E::AbstractArray{Complex{T}},
-    FT::FourierTransform,
-) where T
-    FFTW.mul!(E, FT.p_fft2!, E)
-    return nothing
-end
-
-
-function ifft!(
-    E::AbstractArray{Complex{T}},
-    FT::FourierTransform,
-) where T
-    FFTW.mul!(E, FT.p_ifft!, E)
-    return nothing
-end
-
-
-function ifft2!(
-    E::AbstractArray{Complex{T}},
-    FT::FourierTransform,
-) where T
-    FFTW.mul!(E, FT.p_ifft2!, E)
+function ifft!(E::AbstractArray{Complex{T}}, plan::Plan) where T
+    FFTW.mul!(E, plan.pifft, E)
+    # plan.pifft * E   # results in segfault after run completion
     return nothing
 end
 
 
 function convolution!(
     x::AbstractArray{Complex{T}, 1},
-    FT::FourierTransform,
+    plan::Plan,
     H::AbstractArray{Complex{T}, 1},
 ) where T
-    fft!(x, FT)
+    fft!(x, plan)
     @. x = H * x
-    ifft!(x, FT)
+    ifft!(x, plan)
     return nothing
 end
 
 
 function convolution!(
     x::CuArrays.CuArray{Complex{T}, 2},
-    FT::FourierTransform,
+    plan::Plan,
     H::CuArrays.CuArray{Complex{T}, 1},
 ) where T
-    fft!(x, FT)
+    fft!(x, plan)
     N = length(x)
     nth = min(N, MAX_THREADS_PER_BLOCK)
     nbl = Int(ceil(N / nth))
     @CUDAnative.cuda blocks=nbl threads=nth _convolution_kernel!(x, H)
-    ifft!(x, FT)
+    ifft!(x, plan)
     return nothing
 end
 

@@ -50,7 +50,7 @@ struct FieldT{
     T<:AbstractFloat,
     A<:AbstractArray{T},
     AC<:AbstractArray{Complex{T}},
-    PF <: FourierTransforms.FourierTransform,
+    PF <: FourierTransforms.Plan,
 } <: Field
     w0 :: T
     E :: AC
@@ -68,10 +68,10 @@ function Field(
 ) where T<:AbstractFloat
     w0 = convert(T, 2 * pi * C0 / lam0)
 
-    FT = FourierTransforms.FourierTransformT(grid.Nt)
-
     E = initial_condition(grid.t, unit.t, unit.I)
     E = Array{Complex{T}}(E)
+
+    FT = FourierTransforms.Plan(E)
     AnalyticSignals.rsig2asig!(E, FT)   # convert to analytic signal
 
     rho = zeros(T, grid.Nt)
@@ -94,7 +94,7 @@ struct FieldRT{
     A<:AbstractArray{T},
     AC<:AbstractArray{Complex{T}},
     PH<:HankelTransforms.Plan,
-    PF<:FourierTransforms.FourierTransform,
+    PF<:FourierTransforms.Plan,
 } <: Field
     w0 :: T
     E :: AC
@@ -113,18 +113,18 @@ function Field(
 ) where T<:AbstractFloat
     w0 = convert(T, 2 * pi * C0 / lam0)
 
-    FT = FourierTransforms.FourierTransformRT(grid.Nr, grid.Nt)
-
     E = initial_condition(grid.r, grid.t, unit.r, unit.t, unit.I)
     E = CuArrays.CuArray{Complex{T}}(E)
-    AnalyticSignals.rsig2asig!(E, FT)   # convert to analytic signal
 
-    rho = CuArrays.zeros(T, (grid.Nr, grid.Nt))
-    kdrho = CuArrays.zeros(T, (grid.Nr, grid.Nt))
+    FT = FourierTransforms.Plan(E, [2])
+    AnalyticSignals.rsig2asig!(E, FT)   # convert to analytic signal
 
     Nthalf = AnalyticSignals.half(grid.Nt)
     region = CartesianIndices((grid.Nr, Nthalf))
     HT = HankelTransforms.plan(grid.rmax, E, region)
+
+    rho = CuArrays.zeros(T, (grid.Nr, grid.Nt))
+    kdrho = CuArrays.zeros(T, (grid.Nr, grid.Nt))
     return FieldRT(w0, E, rho, kdrho, HT, FT)
 end
 
@@ -135,7 +135,7 @@ end
 struct FieldXY{
     T<:AbstractFloat,
     AC<:AbstractArray{Complex{T}},
-    PF<:FourierTransforms.FourierTransform
+    PF<:FourierTransforms.Plan
 } <: Field
     w0 :: T
     E :: AC
@@ -154,7 +154,7 @@ function Field(
     E = initial_condition(grid.x, grid.y, unit.x, unit.y, unit.I)
     E = CuArrays.CuArray{Complex{T}}(E)
 
-    FT = FourierTransforms.FourierTransformXY(grid.Nx, grid.Ny)
+    FT = FourierTransforms.Plan(E)
     return FieldXY(w0, E, FT)
 end
 

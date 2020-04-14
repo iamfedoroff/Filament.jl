@@ -24,7 +24,7 @@ end
 
 struct LinearPropagatorT{T} <: LinearPropagator
     KZ :: AbstractArray{Complex{T}, 1}
-    FT :: FourierTransforms.FourierTransform
+    FT :: FourierTransforms.Plan
     guard :: Guards.Guard
 end
 
@@ -38,7 +38,7 @@ end
 
 struct LinearPropagatorXY{T} <: LinearPropagator
     KZ :: AbstractArray{Complex{T}, 2}
-    FT :: FourierTransforms.FourierTransform
+    FT :: FourierTransforms.Plan
     guard :: Guards.Guard
 end
 

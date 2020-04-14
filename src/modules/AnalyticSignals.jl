@@ -161,7 +161,7 @@ Transforms a real signal to the corresponding analytic signal.
 """
 function rsig2asig!(
     E::AbstractArray{Complex{T}},
-    FT::FourierTransforms.FourierTransform,
+    FT::FourierTransforms.Plan,
 ) where T
     FourierTransforms.fft!(E, FT)
     rspec2aspec!(E)
@@ -184,7 +184,7 @@ Transforms a real signal to the spectrum of the corresponding analytic signal.
 """
 function rsig2aspec!(
     E::AbstractArray{Complex{T}},
-    FT::FourierTransforms.FourierTransform,
+    FT::FourierTransforms.Plan,
 ) where T
     FourierTransforms.fft!(E, FT)
     rspec2aspec!(E)
