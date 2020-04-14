@@ -188,6 +188,16 @@ function rfftfreq(n::Int, d::T) where T<:AbstractFloat
 end
 
 
+function rfft_length(Nt::Int)
+    if iseven(Nt)
+        Nw = div(Nt, 2) + 1
+    else
+        Nw = div(Nt + 1, 2)
+    end
+    return Nw
+end
+
+
 """
 Circular-shift along the given dimension of a periodic signal 'x' centered at
 index '1' so it becomes centered at index 'N / 2 + 1', where 'N' is the size of

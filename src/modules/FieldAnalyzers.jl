@@ -154,7 +154,7 @@ function FieldAnalyzer(
     rdr = CuArrays.CuArray{T}(rdr)
 
     Nr, Nt = size(field.E)
-    Nw = AnalyticSignals.half(Nt)
+    Nw = FourierTransforms.rfft_length(Nt)
     Fr = zeros(T, (Nr, 1))
     Ft = zeros(T, (1, Nt))
     rho = zeros(T, Nr)
