@@ -13,6 +13,7 @@ struct AStepKerr{T<:AbstractFloat} <: AStep
     phik :: T
 end
 
+
 struct AStepKerrPlasma{T<:AbstractFloat} <: AStep
     phimax :: T
     phik :: T
@@ -20,14 +21,15 @@ struct AStepKerrPlasma{T<:AbstractFloat} <: AStep
 end
 
 
-function AStep(unit, medium, field, phimax::T) where T<:AbstractFloat
+function AStep(unit, medium, field, phimax::AbstractFloat)
     phik = phi_kerr(unit, medium, field)
     return AStepKerr(phimax, phik)
 end
 
 
-function AStep(unit, medium, field, phimax::T,
-               mr::T, nuc::T) where T<:AbstractFloat
+function AStep(
+    unit, medium, field, phimax::T, mr::T, nuc::T,
+) where T<:AbstractFloat
     phik = phi_kerr(unit, medium, field)
     phip = phi_plasma(unit, medium, field, mr, nuc)
     return AStepKerrPlasma(phimax, phik, phip)
@@ -42,8 +44,8 @@ function phi_kerr(unit, medium, field)
     chi3 = Media.chi3_func(medium, w0)
     Eu = Units.E(unit, real(n0))
 
-    QZ0 = MU0 * mu * w0^2 / (2. * k0) * unit.z / Eu
-    Rnl0 = EPS0 * chi3 * 3. / 4. * Eu^3
+    QZ0 = MU0 * mu * w0^2 / (2 * k0) * unit.z / Eu
+    Rnl0 = EPS0 * chi3 * 3 / 4 * Eu^3
     return QZ0 * abs(Rnl0)
 end
 
@@ -57,7 +59,7 @@ function phi_plasma(unit, medium, field, mr::T, nuc::T) where T<:AbstractFloat
     Eu = Units.E(unit, real(n0))
 
     MR = mr * ME   # reduced mass of electron and hole (effective mass)
-    QZ0 = MU0 * mu * w0^2 / (2. * k0) * unit.z / Eu
+    QZ0 = MU0 * mu * w0^2 / (2 * k0) * unit.z / Eu
     Rnl0 = 1im / w0 * QE^2 / MR / (nuc - 1im * w0) * unit.rho * Eu
     return QZ0 * abs(real(Rnl0))
 end
