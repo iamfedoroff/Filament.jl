@@ -40,10 +40,13 @@ if geometry == "R"
     rmax = convert(FloatGPU, rmax)
     rguard = convert(FloatGPU, rguard)
     kguard = convert(FloatGPU, kguard)
+    dz_initial = convert(FloatGPU, dz_initial)
+    dz_plothdf = convert(FloatGPU, dz_plothdf)
     z = convert(FloatGPU, z)
     lam0 = convert(FloatGPU, lam0)
-    keys = (
+    model_keys = (
         NONLINEARITY=NONLINEARITY,
+        PLASMA=false,
         KPARAXIAL=KPARAXIAL,
         QPARAXIAL=QPARAXIAL,
         ALG=ALG,
@@ -51,13 +54,13 @@ if geometry == "R"
     p_unit = (ru, zu, Iu)
     p_grid = (rmax, Nr)
     p_guard = (rguard, kguard)
-    p_model = (responses, keys)
+    p_model = (responses, Dict(), model_keys)
     p_dzadaptive = (dzphimax, )
 elseif geometry == "T"
     if ! PLASMA
         plasma_equation = Dict()
     end
-    keys = (
+    model_keys = (
         NONLINEARITY=NONLINEARITY,
         PLASMA=PLASMA,
         ALG=ALG,
@@ -65,7 +68,7 @@ elseif geometry == "T"
     p_unit = (zu, tu, Iu, rhou)
     p_grid = (tmin, tmax, Nt)
     p_guard = (tguard, wguard)
-    p_model = (responses, plasma_equation, keys)
+    p_model = (responses, plasma_equation, model_keys)
     p_dzadaptive = (dzphimax, mr, nuc)
 elseif geometry == "RT"
     rmax = convert(FloatGPU, rmax)
@@ -75,12 +78,14 @@ elseif geometry == "RT"
     tguard = convert(FloatGPU, tguard)
     kguard = convert(FloatGPU, kguard)
     wguard = convert(FloatGPU, wguard)
+    dz_initial = convert(FloatGPU, dz_initial)
+    dz_plothdf = convert(FloatGPU, dz_plothdf)
     z = convert(FloatGPU, z)
     lam0 = convert(FloatGPU, lam0)
     if ! PLASMA
         plasma_equation = Dict()
     end
-    keys = (
+    model_keys = (
         NONLINEARITY=NONLINEARITY,
         PLASMA=PLASMA,
         KPARAXIAL=KPARAXIAL,
@@ -90,7 +95,7 @@ elseif geometry == "RT"
     p_unit = (ru, zu, tu, Iu, rhou)
     p_grid = (rmax, Nr, tmin, tmax, Nt)
     p_guard = (rguard, tguard, kguard, wguard)
-    p_model = (responses, plasma_equation, keys)
+    p_model = (responses, plasma_equation, model_keys)
     p_dzadaptive = (dzphimax, mr, nuc)
 elseif geometry == "XY"
     xmin = convert(FloatGPU, xmin)
@@ -101,10 +106,13 @@ elseif geometry == "XY"
     yguard = convert(FloatGPU, yguard)
     kxguard = convert(FloatGPU, kxguard)
     kyguard = convert(FloatGPU, kyguard)
+    dz_initial = convert(FloatGPU, dz_initial)
+    dz_plothdf = convert(FloatGPU, dz_plothdf)
     z = convert(FloatGPU, z)
     lam0 = convert(FloatGPU, lam0)
-    keys = (
+    model_keys = (
         NONLINEARITY=NONLINEARITY,
+        PLASMA=false,
         KPARAXIAL=KPARAXIAL,
         QPARAXIAL=QPARAXIAL,
         ALG=ALG,
@@ -112,7 +120,7 @@ elseif geometry == "XY"
     p_unit = (xu, yu, zu, Iu)
     p_grid = (xmin, xmax, Nx, ymin, ymax, Ny)
     p_guard = (xguard, yguard, kxguard, kyguard)
-    p_model = (responses, keys)
+    p_model = (responses, Dict(), model_keys)
     p_dzadaptive = (dzphimax, )
 elseif geometry == "XYT"
     error("XYT geometry is not implemented yet.")

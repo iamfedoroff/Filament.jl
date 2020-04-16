@@ -65,14 +65,17 @@ function phi_plasma(unit, medium, field, mr::T, nuc::T) where T<:AbstractFloat
 end
 
 
-function (dz::AStepKerr)(Imax::AbstractFloat)
-    return dz.phimax / (dz.phik * Imax)
+function (dz::AStepKerr)(Imax::T) where T<:AbstractFloat
+    dzk = dz.phimax / (dz.phik * Imax)
+    return convert(T, dzk)
 end
 
 
 function (dz::AStepKerrPlasma)(Imax::T, rhomax::T) where T<:AbstractFloat
     dzk = dz.phimax / (dz.phik * Imax)
     dzp = dz.phimax / (dz.phip * rhomax)
+    dzk = convert(T, dzk)
+    dzp = convert(T, dzp)
     return min(dzk, dzp)
 end
 

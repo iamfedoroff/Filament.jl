@@ -22,6 +22,9 @@ include("Input.jl")
 import .Input
 
 
+fmt(x) = Formatting.fmt("18.12e", Float64(x))   # output print format
+
+
 function main()
     # **************************************************************************
     # Prepare units and grid
@@ -108,17 +111,15 @@ function main()
             else
                 dz = Input.dz_initial
             end
-            println("z=$(Formatting.fmt("18.12e", z))[zu] " *
-                    "I=$(Formatting.fmt("18.12e", analyzer.Imax))[Iu] " *
-                    "rho=$(Formatting.fmt("18.12e", analyzer.rhomax))[rhou]")
+            println("z=$(fmt(z))[zu] I=$(fmt(analyzer.Imax))[Iu]" *
+                    " rho=$(fmt(analyzer.rhomax))[rhou]")
         else
             if Input.NONLINEARITY
                 dz = dzadaptive(analyzer.Imax)
             else
                 dz = Input.dz_initial
             end
-            println("z=$(Formatting.fmt("18.12e", z))[zu] " *
-                    "I=$(Formatting.fmt("18.12e", analyzer.Imax))[Iu] ")
+            println("z=$(fmt(z))[zu] I=$(fmt(analyzer.Imax))[Iu]")
         end
 
         dz = min(Input.dz_initial, Input.dz_plothdf, dz)

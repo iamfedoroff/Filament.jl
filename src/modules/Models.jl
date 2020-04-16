@@ -3,7 +3,6 @@ module Models
 import CUDAdrv
 using TimerOutputs
 
-import Constants: FloatGPU
 import Fields
 import FourierTransforms
 import Grids
@@ -15,79 +14,33 @@ import PlasmaEquations
 import Units
 
 
-abstract type Model end
-
-
-struct ModelR <: Model
-    LP :: LinearPropagators.LinearPropagator
-    NP :: Union{NonlinearPropagators.NonlinearPropagator, Nothing}
-    keys :: NamedTuple
-end
-
-
-struct ModelT <: Model
-    LP :: LinearPropagators.LinearPropagator
-    NP :: Union{NonlinearPropagators.NonlinearPropagator, Nothing}
-    PE :: Union{PlasmaEquations.PlasmaEquation, Nothing}
-    keys :: NamedTuple
-end
-
-
-struct ModelRT <: Model
-    LP :: LinearPropagators.LinearPropagator
-    NP :: Union{NonlinearPropagators.NonlinearPropagator, Nothing}
-    PE :: Union{PlasmaEquations.PlasmaEquation, Nothing}
-    keys :: NamedTuple
-end
-
-
-struct ModelXY <: Model
-    LP :: LinearPropagators.LinearPropagator
-    NP :: Union{NonlinearPropagators.NonlinearPropagator, Nothing}
-    keys :: NamedTuple
+struct Model{TLP, TNP, TPE, B<:Bool}
+    LP :: TLP
+    NP :: TNP
+    PE :: TPE
+    NONLINEARITY :: B
+    PLASMA :: B
 end
 
 
 function Model(
-    unit::Units.UnitR,
-    grid::Grids.GridR,
-    field::Fields.FieldR,
-    medium::Media.Medium,
-    guard::Guards.Guard,
-    responses_list::AbstractArray,
-    keys::NamedTuple,
-)
-    LP = LinearPropagators.LinearPropagator(
-        unit, grid, medium, field, guard, keys,
-    )
-
-    if keys.NONLINEARITY
-        NP = NonlinearPropagators.NonlinearPropagator(
-            unit, grid, medium, field, guard, responses_list, keys,
-        )
-    else
-        NP = nothing
-    end
-
-    return ModelR(LP, NP, keys)
-end
-
-
-function Model(
-    unit::Units.UnitT,
-    grid::Grids.GridT,
-    field::Fields.FieldT,
+    unit::Units.Unit,
+    grid::Grids.Grid,
+    field::Fields.Field,
     medium::Media.Medium,
     guard::Guards.Guard,
     responses_list::AbstractArray,
     plasma_equation::Dict,
     keys::NamedTuple,
 )
+    NONLINEARITY = keys.NONLINEARITY
+    PLASMA = keys.PLASMA
+
     LP = LinearPropagators.LinearPropagator(
         unit, grid, medium, field, guard, keys,
     )
 
-    if keys.NONLINEARITY
+    if NONLINEARITY
         NP = NonlinearPropagators.NonlinearPropagator(
             unit, grid, medium, field, guard, responses_list, keys,
         )
@@ -95,7 +48,7 @@ function Model(
         NP = nothing
     end
 
-    if keys.PLASMA
+    if PLASMA
         w0 = field.w0
         n0 = Media.refractive_index(medium, w0)
         PE = PlasmaEquations.PlasmaEquation(unit, n0, w0, plasma_equation)
@@ -104,160 +57,20 @@ function Model(
         PE = nothing
     end
 
-    return ModelT(LP, NP, PE, keys)
-end
-
-
-function Model(
-    unit::Units.UnitRT,
-    grid::Grids.GridRT,
-    field::Fields.FieldRT,
-    medium::Media.Medium,
-    guard::Guards.Guard,
-    responses_list::AbstractArray,
-    plasma_equation::Dict,
-    keys::NamedTuple,
-)
-    LP = LinearPropagators.LinearPropagator(
-        unit, grid, medium, field, guard, keys,
-    )
-
-    if keys.NONLINEARITY
-        NP = NonlinearPropagators.NonlinearPropagator(
-            unit, grid, medium, field, guard, responses_list, keys,
-        )
-    else
-        NP = nothing
-    end
-
-    if keys.PLASMA
-        w0 = field.w0
-        n0 = Media.refractive_index(medium, w0)
-        PE = PlasmaEquations.PlasmaEquation(unit, n0, w0, plasma_equation)
-        PlasmaEquations.solve!(PE, field.rho, field.kdrho, grid.t, field.E)
-    else
-        PE = nothing
-    end
-
-    return ModelRT(LP, NP, PE, keys)
-end
-
-
-function Model(
-    unit::Units.UnitXY,
-    grid::Grids.GridXY,
-    field::Fields.FieldXY,
-    medium::Media.Medium,
-    guard::Guards.Guard,
-    responses_list::AbstractArray,
-    keys::NamedTuple,
-)
-    LP = LinearPropagators.LinearPropagator(
-        unit, grid, medium, field, guard, keys,
-    )
-
-    if keys.NONLINEARITY
-        NP = NonlinearPropagators.NonlinearPropagator(
-            unit, grid, medium, field, guard, responses_list, keys,
-        )
-    else
-        NP = nothing
-    end
-
-    return ModelXY(LP, NP, keys)
+    return Model(LP, NP, PE, NONLINEARITY, PLASMA)
 end
 
 
 function zstep(
     z::T,
     dz::T,
-    grid::Union{Grids.GridR, Grids.GridXY},
-    field::Union{Fields.FieldR, Fields.FieldXY},
+    grid::Grids.Grid,
+    field::Fields.Field,
     guard::Guards.Guard,
     model::Model,
-) where T
-    z = convert(FloatGPU, z)
-    dz = convert(FloatGPU, dz)
-
-    if model.keys.NONLINEARITY
-        @timeit "nonlinearity" begin
-           NonlinearPropagators.propagate!(field.E, model.NP, z, dz)
-           CUDAdrv.synchronize()
-       end
-    end
-
-    @timeit "linear" begin
-        LinearPropagators.propagate!(field.E, model.LP, dz)
-        CUDAdrv.synchronize()
-    end
-
-    @timeit "field filter" begin
-        Guards.apply_field_filter!(field.E, guard)
-        CUDAdrv.synchronize()
-    end
-
-    return nothing
-end
-
-
-function zstep(
-    z::T,
-    dz::T,
-    grid::Grids.GridT,
-    field::Fields.FieldT,
-    guard::Guards.Guard,
-    model::ModelT,
-) where T
+) where T<:AbstractFloat
     # Calculate plasma density:
-    if model.keys.PLASMA
-        @timeit "plasma" begin
-            PlasmaEquations.solve!(
-                model.PE, field.rho, field.kdrho, grid.t, field.E,
-            )
-        end
-    end
-
-    # Field -> temporal spectrum:
-    @timeit "field -> spectr" begin
-        FourierTransforms.fft!(field.E, field.FT)
-    end
-
-    if model.keys.NONLINEARITY
-        @timeit "nonlinearity" begin
-           NonlinearPropagators.propagate!(field.E, model.NP, z, dz)
-       end
-    end
-
-    @timeit "linear" begin
-        LinearPropagators.propagate!(field.E, model.LP, dz)
-    end
-
-    # Temporal spectrum -> field:
-    @timeit "spectr -> field" begin
-        FourierTransforms.ifft!(field.E, field.FT)
-    end
-
-    @timeit "field filter" begin
-        Guards.apply_field_filter!(field.E, guard)
-    end
-
-    return nothing
-end
-
-
-function zstep(
-    z::T,
-    dz::T,
-    grid::Grids.GridRT,
-    field::Fields.FieldRT,
-    guard::Guards.Guard,
-    model::ModelRT,
-) where T
-    z = convert(FloatGPU, z)
-    dz = convert(FloatGPU, dz)
-
-    # Calculate plasma density:
-    if model.keys.PLASMA
+    if model.PLASMA
         @timeit "plasma" begin
             PlasmaEquations.solve!(
                 model.PE, field.rho, field.kdrho, grid.t, field.E,
@@ -266,13 +79,14 @@ function zstep(
         end
     end
 
-    # Field -> temporal spectrum:
-    @timeit "field -> spectr" begin
-        FourierTransforms.fft!(field.E, field.FT)
-        CUDAdrv.synchronize()
+    if (typeof(grid) <: Grids.GridT) | (typeof(grid) <: Grids.GridRT)
+        @timeit "field -> spectr" begin
+            FourierTransforms.fft!(field.E, field.FT)
+            CUDAdrv.synchronize()
+        end
     end
 
-    if model.keys.NONLINEARITY
+    if model.NONLINEARITY
         @timeit "nonlinearity" begin
            NonlinearPropagators.propagate!(field.E, model.NP, z, dz)
            CUDAdrv.synchronize()
@@ -284,17 +98,17 @@ function zstep(
         CUDAdrv.synchronize()
     end
 
-    # Temporal spectrum -> field:
-    @timeit "spectr -> field" begin
-        FourierTransforms.ifft!(field.E, field.FT)
-        CUDAdrv.synchronize()
+    if (typeof(grid) <: Grids.GridT) | (typeof(grid) <: Grids.GridRT)
+        @timeit "spectr -> field" begin
+            FourierTransforms.ifft!(field.E, field.FT)
+            CUDAdrv.synchronize()
+        end
     end
 
     @timeit "field filter" begin
         Guards.apply_field_filter!(field.E, guard)
         CUDAdrv.synchronize()
     end
-
     return nothing
 end
 
