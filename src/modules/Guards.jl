@@ -13,37 +13,12 @@ import Units
 abstract type Guard end
 
 
-struct GuardR{U<:AbstractArray} <: Guard
-    R :: U
-    K :: U
-end
-
-
-struct GuardT{T} <: Guard
-    T :: AbstractArray{T, 1}
-    W :: AbstractArray{T, 1}
-end
-
-
-struct GuardRT{I<:Int, U<:AbstractArray, U2<:AbstractArray} <: Guard
-    R :: U
-    K :: U2
-    T :: U
-    W :: U
-    nthreadsNt :: I
-    nthreadsNrNt :: I
-    nblocksNt :: I
-    nblocksNrNt :: I
-end
-
-
-struct GuardXY{T} <: Guard
-    X :: AbstractArray{T, 1}
-    Y :: AbstractArray{T, 1}
-    KX :: AbstractArray{T, 1}
-    KY :: AbstractArray{T, 1}
-    nthreads :: Int
-    nblocks :: Int
+# ******************************************************************************
+# R
+# ******************************************************************************
+struct GuardR{A<:AbstractArray} <: Guard
+    R :: A
+    K :: A
 end
 
 
@@ -69,6 +44,27 @@ function Guard(
 end
 
 
+function apply_field_filter!(E::AbstractArray{T, 1}, guard::GuardR) where T
+    @. E = E * guard.R
+    return nothing
+end
+
+
+function apply_spectral_filter!(E::AbstractArray{T, 1}, guard::GuardR) where T
+    @. E = E * guard.K
+    return nothing
+end
+
+
+# ******************************************************************************
+# T
+# ******************************************************************************
+struct GuardT{A<:AbstractArray} <: Guard
+    T :: A
+    W :: A
+end
+
+
 function Guard(
     unit::Units.UnitT,
     grid::Grids.GridT,
@@ -84,6 +80,29 @@ function Guard(
     Wguard = @. exp(-((grid.w * unit.w)^2 / wguard^2)^20)
 
     return GuardT(Tguard, Wguard)
+end
+
+
+function apply_field_filter!(E::AbstractArray{T, 1}, guard::GuardT) where T
+    @. E = E * guard.T
+    return nothing
+end
+
+
+function apply_spectral_filter!(E::AbstractArray{T, 1}, guard::GuardT) where T
+    @. E = E * guard.W
+    return nothing
+end
+
+
+# ******************************************************************************
+# RT
+# ******************************************************************************
+struct GuardRT{A<:AbstractArray} <: Guard
+    R :: A
+    K :: A
+    T :: A
+    W :: A
 end
 
 
@@ -110,30 +129,39 @@ function Guard(
     Wguard = CuArrays.CuArray{T}(Wguard)
 
     # Angular guard filter:
-    k = Media.k_func.(Ref(medium), grid.w * unit.w)
-    kmax = k * sind(kguard)
-    Kguard = zeros((grid.Nr, grid.Nt))
-    for j=2:grid.Nt   # from 2 because kmax[1]=0 since w[1]=0
-        for i=1:grid.Nr
-            if kmax[j] != 0
-                Kguard[i, j] = exp(-((grid.k[i] * unit.k)^2 / kmax[j]^2)^20)
-            end
-        end
-    end
+    k0 = Media.k_func(medium, field.w0)
+    kmax = k0 * sind(kguard)
+    Kguard = @. exp(-((grid.k * unit.k)^2 / kmax^2)^20)
     Kguard = CuArrays.CuArray{T}(Kguard)
 
-    # GPU:
-    CuArrays.allowscalar(false)   # disable slow fallback methods
+    return GuardRT(Rguard, Kguard, Tguard, Wguard)
+end
 
-    nthreadsNt = min(grid.Nt, MAX_THREADS_PER_BLOCK)
-    nthreadsNrNt = min(grid.Nr * grid.Nt, MAX_THREADS_PER_BLOCK)
-    nblocksNt = cld(grid.Nt, nthreadsNt)
-    nblocksNrNt = cld(grid.Nr * grid.Nt, nthreadsNrNt)
 
-    return GuardRT(
-        Rguard, Kguard, Tguard, Wguard,
-        nthreadsNt, nthreadsNrNt, nblocksNt, nblocksNrNt,
-    )
+function apply_field_filter!(E::AbstractArray{T, 2}, guard::GuardRT) where T
+    N = length(E)
+    nth = min(N, MAX_THREADS_PER_BLOCK)
+    nbl = cld(N, nth)
+    @CUDAnative.cuda blocks=nbl threads=nth kernel!(E, guard.R, guard.T)
+end
+
+
+function apply_spectral_filter!(E::AbstractArray{T, 2}, guard::GuardRT) where T
+    N = length(E)
+    nth = min(N, MAX_THREADS_PER_BLOCK)
+    nbl = cld(N, nth)
+    @CUDAnative.cuda blocks=nbl threads=nth kernel!(E, guard.K, guard.W)
+end
+
+
+# ******************************************************************************
+# XY
+# ******************************************************************************
+struct GuardXY{A<:AbstractArray} <: Guard
+    X :: A
+    Y :: A
+    KX :: A
+    KY :: A
 end
 
 
@@ -165,13 +193,29 @@ function Guard(
     KYguard = @. exp(-((grid.ky * unit.ky)^2 / kymax^2)^20)
     KYguard = CuArrays.CuArray{FloatGPU}(KYguard)
 
-    nthreads = min(grid.Nx * grid.Ny, MAX_THREADS_PER_BLOCK)
-    nblocks = cld(grid.Nx * grid.Ny, nthreads)
-
-    return GuardXY(Xguard, Yguard, KXguard, KYguard, nthreads, nblocks)
+    return GuardXY(Xguard, Yguard, KXguard, KYguard)
 end
 
 
+function apply_field_filter!(E::AbstractArray{T, 2}, guard::GuardXY) where T
+    N = length(E)
+    nth = min(N, MAX_THREADS_PER_BLOCK)
+    nbl = cld(N, nth)
+    @CUDAnative.cuda blocks=nbl threads=nth kernel!(E, guard.X, guard.Y)
+    return nothing
+end
+
+
+function apply_spectral_filter!(E::AbstractArray{T, 2}, guard::GuardXY) where T
+    N = length(E)
+    nth = min(N, MAX_THREADS_PER_BLOCK)
+    nbl = cld(N, nth)
+    @CUDAnative.cuda blocks=nbl threads=nth kernel!(E, guard.KX, guard.KY)
+    return nothing
+end
+
+
+# ******************************************************************************
 """
 Lossy guard window at the ends of grid coordinate.
 
@@ -243,107 +287,16 @@ function guard_window(
 end
 
 
-function apply_field_filter!(
-    E::AbstractArray{Complex{T}, 1}, guard::GuardR,
-) where T
-    @. E = E * guard.R
-    return nothing
-end
-
-
-function apply_field_filter!(
-    E::AbstractArray{T, 1}, guard::GuardT,
-) where T
-    @. E = E * guard.T
-    return nothing
-end
-
-
-function apply_field_filter!(
-    E::CuArrays.CuArray{T, 2}, guard::GuardRT,
-) where T
-    nth = guard.nthreadsNrNt
-    nbl = guard.nblocksNrNt
-    @CUDAnative.cuda blocks=nbl threads=nth kernel!(E, guard.R, guard.T)
-end
-
-
-function apply_field_filter!(
-    E::CuArrays.CuArray{Complex{T}, 2}, guard::GuardXY,
-) where T
-    nth = guard.nthreads
-    nbl = guard.nblocks
-    @CUDAnative.cuda blocks=nbl threads=nth kernel!(E, guard.X, guard.Y)
-    return nothing
-end
-
-
-function apply_spectral_filter!(
-    E::AbstractArray{Complex{T}, 1}, guard::GuardR,
-) where T
-    @. E = E * guard.K
-    return nothing
-end
-
-
-function apply_spectral_filter!(
-    S::AbstractArray{Complex{T}, 1}, guard::GuardT,
-) where T
-    @. S = S * guard.W
-    return nothing
-end
-
-
-function apply_spectral_filter!(
-    S::CuArrays.CuArray{Complex{T}, 2}, guard::GuardRT,
-) where T
-    nth = guard.nthreadsNrNt
-    nbl = guard.nblocksNrNt
-    @CUDAnative.cuda blocks=nbl threads=nth kernel!(S, guard.K, guard.W)
-end
-
-
-function apply_spectral_filter!(
-    E::CuArrays.CuArray{Complex{T}, 2}, guard::GuardXY,
-) where T
-    nth = guard.nthreads
-    nbl = guard.nblocks
-    @CUDAnative.cuda blocks=nbl threads=nth kernel!(E, guard.KX, guard.KY)
-    return nothing
-end
-
-
-function kernel!(
-    F::CUDAnative.CuDeviceArray,
-    A::CUDAnative.CuDeviceArray{T, 1},
-    B::CUDAnative.CuDeviceArray{T, 1},
-) where T
-    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
+function kernel!(F, A, B)
+    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x +
+         CUDAnative.threadIdx().x
     stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
     N1, N2 = size(F)
     cartesian = CartesianIndices((N1, N2))
     for k=id:stride:N1*N2
         i = cartesian[k][1]
         j = cartesian[k][2]
-        @inbounds F[i, j] = F[i, j] * A[i] * B[j]
-    end
-    return nothing
-end
-
-
-function kernel!(
-    F::CUDAnative.CuDeviceArray,
-    A::CUDAnative.CuDeviceArray{T, 2},
-    B::CUDAnative.CuDeviceArray{T, 1},
-) where T
-    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
-    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
-    N1, N2 = size(F)
-    cartesian = CartesianIndices((N1, N2))
-    for k=id:stride:N1*N2
-        i = cartesian[k][1]
-        j = cartesian[k][2]
-        @inbounds F[i, j] = F[i, j] * A[i, j] * B[j]
+        F[i, j] = F[i, j] * A[i] * B[j]
     end
     return nothing
 end
