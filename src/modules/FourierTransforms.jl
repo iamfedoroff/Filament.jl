@@ -75,7 +75,7 @@ function convolution!(
     fft!(x, plan)
     N = length(x)
     nth = min(N, MAX_THREADS_PER_BLOCK)
-    nbl = Int(ceil(N / nth))
+    nbl = cld(N, nth)
     @CUDAnative.cuda blocks=nbl threads=nth _convolution_kernel!(x, H)
     ifft!(x, plan)
     return nothing

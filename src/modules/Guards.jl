@@ -127,8 +127,8 @@ function Guard(
 
     nthreadsNt = min(grid.Nt, MAX_THREADS_PER_BLOCK)
     nthreadsNrNt = min(grid.Nr * grid.Nt, MAX_THREADS_PER_BLOCK)
-    nblocksNt = Int(ceil(grid.Nt / nthreadsNt))
-    nblocksNrNt = Int(ceil(grid.Nr * grid.Nt / nthreadsNrNt))
+    nblocksNt = cld(grid.Nt, nthreadsNt)
+    nblocksNrNt = cld(grid.Nr * grid.Nt, nthreadsNrNt)
 
     return GuardRT(
         Rguard, Kguard, Tguard, Wguard,
@@ -166,7 +166,7 @@ function Guard(
     KYguard = CuArrays.CuArray{FloatGPU}(KYguard)
 
     nthreads = min(grid.Nx * grid.Ny, MAX_THREADS_PER_BLOCK)
-    nblocks = Int(ceil(grid.Nx * grid.Ny / nthreads))
+    nblocks = cld(grid.Nx * grid.Ny, nthreads)
 
     return GuardXY(Xguard, Yguard, KXguard, KYguard, nthreads, nblocks)
 end

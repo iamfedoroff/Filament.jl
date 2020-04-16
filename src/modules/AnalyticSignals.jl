@@ -33,7 +33,7 @@ end
 function rspec2aspec!(S::CuArrays.CuArray{Complex{T}}) where T
     N = length(S)
     nth = min(N, MAX_THREADS_PER_BLOCK)
-    nbl = Int(ceil(N / nth))
+    nbl = cld(N, nth)
     @CUDAnative.cuda blocks=nbl threads=nth _rspec2aspec_kernel!(S)
     return nothing
 end
@@ -128,7 +128,7 @@ function aspec2rspec!(
 ) where T
     N = length(Sr)
     nth = min(N, MAX_THREADS_PER_BLOCK)
-    nbl = Int(ceil(N / nth))
+    nbl = cld(N, nth)
     @CUDAnative.cuda blocks=nbl threads=nth _aspec2rspec_kernel!(Sr, Sa)
     return nothing
 end

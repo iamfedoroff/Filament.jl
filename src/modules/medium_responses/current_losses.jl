@@ -59,7 +59,7 @@ end
 function inverse!(F::CuArrays.CuArray{Complex{T}}) where T<:AbstractFloat
     N = length(F)
     nth = min(N, MAX_THREADS_PER_BLOCK)
-    nbl = Int(ceil(N / nth))
+    nbl = cld(N, nth)
     @CUDAnative.cuda blocks=nbl threads=nth inverse_kernel(F)
     return nothing
 end

@@ -384,7 +384,7 @@ function _update_dE!(
 ) where T
     N1, N2 = size(E)
     nth = min(N1 * N2, MAX_THREADS_PER_BLOCK)
-    nbl = Int(ceil(N1 * N2 / nth))
+    nbl = cld(N1 * N2, nth)
     @CUDAnative.cuda blocks=nbl threads=nth _update_dE_kernel(dE, R, E)
     return nothing
 end

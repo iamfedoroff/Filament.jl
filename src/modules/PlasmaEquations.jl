@@ -88,7 +88,7 @@ function solve!(
 ) where T<:AbstractFloat
     Nr, Nt = size(rho)
     nth = min(256, Nr)
-    nbl = Int(ceil(Nr / nth))
+    nbl = cld(Nr, nth)
     @CUDAnative.cuda blocks=nbl threads=nth solve_kernel(PE, rho, kdrho, t, E)
     return nothing
 end
