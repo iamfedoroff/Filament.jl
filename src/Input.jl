@@ -115,9 +115,9 @@ elseif geometry == "XY"
     p_model = (responses, keys)
     p_dzadaptive = (dzphimax, )
 elseif geometry == "XYT"
-    throw(DomainError("XYT geometry is not implemented yet."))
+    error("XYT geometry is not implemented yet.")
 else
-    throw(DomainError("Wrong grid geometry."))
+    error("Wrong grid geometry.")
 end
 
 end
