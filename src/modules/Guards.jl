@@ -3,7 +3,7 @@ module Guards
 import CuArrays
 import CUDAnative
 
-import Constants: FloatGPU, MAX_THREADS_PER_BLOCK
+import Constants: MAX_THREADS_PER_BLOCK
 import Fields
 import Grids
 import Media
@@ -13,15 +13,23 @@ import Units
 abstract type Guard end
 
 
-# ******************************************************************************
-# R
-# ******************************************************************************
-struct GuardR{A<:AbstractArray} <: Guard
-    R :: A
-    K :: A
+struct Guard1D{A<:AbstractArray} <: Guard
+    F :: A   # field filter
+    S :: A   # spectrum filter
 end
 
 
+struct Guard2D{A<:AbstractArray} <: Guard
+    F1 :: A   # field filter along dimension 1
+    F2 :: A   # field filter along dimension 2
+    S1 :: A   # spectrum filter along dimension 1
+    S2 :: A   # spectrum filter along dimension 2
+end
+
+
+# ******************************************************************************
+# R
+# ******************************************************************************
 function Guard(
     unit::Units.UnitR,
     grid::Grids.GridR,
@@ -30,41 +38,21 @@ function Guard(
     rguard::T,
     kguard::T,
 ) where T<:AbstractFloat
-    # Spatial guard filter:
-    Rguard = guard_window(grid.r, rguard, mode="right")
-    Rguard = CuArrays.CuArray{T}(Rguard)
+    Rguard = guard_window_right(grid.r, rguard)
 
-    # Angular guard filter:
     k0 = Media.k_func(medium, field.w0)
     kmax = k0 * sind(kguard)
     Kguard = @. exp(-((grid.k * unit.k)^2 / kmax^2)^20)
+
+    Rguard = CuArrays.CuArray{T}(Rguard)
     Kguard = CuArrays.CuArray{T}(Kguard)
-
-    return GuardR(Rguard, Kguard)
-end
-
-
-function apply_field_filter!(E::AbstractArray{T, 1}, guard::GuardR) where T
-    @. E = E * guard.R
-    return nothing
-end
-
-
-function apply_spectral_filter!(E::AbstractArray{T, 1}, guard::GuardR) where T
-    @. E = E * guard.K
-    return nothing
+    return Guard1D(Rguard, Kguard)
 end
 
 
 # ******************************************************************************
 # T
 # ******************************************************************************
-struct GuardT{A<:AbstractArray} <: Guard
-    T :: A
-    W :: A
-end
-
-
 function Guard(
     unit::Units.UnitT,
     grid::Grids.GridT,
@@ -73,25 +61,9 @@ function Guard(
     tguard::T,
     wguard::T,
 ) where T<:AbstractFloat
-    # Temporal guard filter:
-    Tguard = guard_window(grid.t, tguard, mode="both")
-
-    # Frequency guard filter:
+    Tguard = guard_window_both(grid.t, tguard)
     Wguard = @. exp(-((grid.w * unit.w)^2 / wguard^2)^20)
-
-    return GuardT(Tguard, Wguard)
-end
-
-
-function apply_field_filter!(E::AbstractArray{T, 1}, guard::GuardT) where T
-    @. E = E * guard.T
-    return nothing
-end
-
-
-function apply_spectral_filter!(E::AbstractArray{T, 1}, guard::GuardT) where T
-    @. E = E * guard.W
-    return nothing
+    return Guard1D(Tguard, Wguard)
 end
 
 
@@ -100,8 +72,8 @@ end
 # ******************************************************************************
 struct GuardRT{A<:AbstractArray} <: Guard
     R :: A
-    K :: A
     T :: A
+    K :: A
     W :: A
 end
 
@@ -116,41 +88,20 @@ function Guard(
     kguard::T,
     wguard::T,
 ) where T<:AbstractFloat
-    # Spatial guard filter:
-    Rguard = guard_window(grid.r, rguard, mode="right")
-    Rguard = CuArrays.CuArray{T}(Rguard)
+    Rguard = guard_window_right(grid.r, rguard)
+    Tguard = guard_window_both(grid.t, tguard)
 
-    # Temporal guard filter:
-    Tguard = guard_window(grid.t, tguard, mode="both")
-    Tguard = CuArrays.CuArray{T}(Tguard)
-
-    # Frequency guard filter:
-    Wguard = @. exp(-((grid.w * unit.w)^2 / wguard^2)^20)
-    Wguard = CuArrays.CuArray{T}(Wguard)
-
-    # Angular guard filter:
     k0 = Media.k_func(medium, field.w0)
     kmax = k0 * sind(kguard)
     Kguard = @. exp(-((grid.k * unit.k)^2 / kmax^2)^20)
+
+    Wguard = @. exp(-((grid.w * unit.w)^2 / wguard^2)^20)
+
+    Rguard = CuArrays.CuArray{T}(Rguard)
+    Tguard = CuArrays.CuArray{T}(Tguard)
     Kguard = CuArrays.CuArray{T}(Kguard)
-
-    return GuardRT(Rguard, Kguard, Tguard, Wguard)
-end
-
-
-function apply_field_filter!(E::AbstractArray{T, 2}, guard::GuardRT) where T
-    N = length(E)
-    nth = min(N, MAX_THREADS_PER_BLOCK)
-    nbl = cld(N, nth)
-    @CUDAnative.cuda blocks=nbl threads=nth kernel!(E, guard.R, guard.T)
-end
-
-
-function apply_spectral_filter!(E::AbstractArray{T, 2}, guard::GuardRT) where T
-    N = length(E)
-    nth = min(N, MAX_THREADS_PER_BLOCK)
-    nbl = cld(N, nth)
-    @CUDAnative.cuda blocks=nbl threads=nth kernel!(E, guard.K, guard.W)
+    Wguard = CuArrays.CuArray{T}(Wguard)
+    return Guard2D(Rguard, Tguard, Kguard, Wguard)
 end
 
 
@@ -175,119 +126,61 @@ function Guard(
     kxguard::T,
     kyguard::T,
 ) where T<:AbstractFloat
-    # Spatial guard filters:
-    Xguard = guard_window(grid.x, xguard, mode="both")
-    Xguard = CuArrays.CuArray{FloatGPU}(Xguard)
+    Xguard = guard_window_both(grid.x, xguard)
+    Yguard = guard_window_both(grid.y, yguard)
 
-    Yguard = guard_window(grid.y, yguard, mode="both")
-    Yguard = CuArrays.CuArray{FloatGPU}(Yguard)
-
-    # Angular guard filters:
     k0 = Media.k_func(medium, field.w0)
     kxmax = k0 * sind(kxguard)
     kymax = k0 * sind(kyguard)
-
     KXguard = @. exp(-((grid.kx * unit.kx)^2 / kxmax^2)^20)
-    KXguard = CuArrays.CuArray{FloatGPU}(KXguard)
-
     KYguard = @. exp(-((grid.ky * unit.ky)^2 / kymax^2)^20)
-    KYguard = CuArrays.CuArray{FloatGPU}(KYguard)
 
-    return GuardXY(Xguard, Yguard, KXguard, KYguard)
-end
-
-
-function apply_field_filter!(E::AbstractArray{T, 2}, guard::GuardXY) where T
-    N = length(E)
-    nth = min(N, MAX_THREADS_PER_BLOCK)
-    nbl = cld(N, nth)
-    @CUDAnative.cuda blocks=nbl threads=nth kernel!(E, guard.X, guard.Y)
-    return nothing
-end
-
-
-function apply_spectral_filter!(E::AbstractArray{T, 2}, guard::GuardXY) where T
-    N = length(E)
-    nth = min(N, MAX_THREADS_PER_BLOCK)
-    nbl = cld(N, nth)
-    @CUDAnative.cuda blocks=nbl threads=nth kernel!(E, guard.KX, guard.KY)
-    return nothing
+    Xguard = CuArrays.CuArray{T}(Xguard)
+    Yguard = CuArrays.CuArray{T}(Yguard)
+    KXguard = CuArrays.CuArray{T}(KXguard)
+    KYguard = CuArrays.CuArray{T}(KYguard)
+    return Guard2D(Xguard, Yguard, KXguard, KYguard)
 end
 
 
 # ******************************************************************************
-"""
-Lossy guard window at the ends of grid coordinate.
-
-    x: grid coordinate
-    guard_width: the width of the lossy guard window
-    mode: "left" - lossy guard only on the left end of the grid
-          "right" - lossy guard only on the right end of the grid
-          "both" - lossy guard on both ends of the grid
-"""
-function guard_window(
-    x::AbstractArray{T, 1}, guard_width::T; mode="both",
-) where T
-    @assert guard_width >= 0
-    @assert mode in ["left", "right", "both"]
-
-    if mode in ["left", "right"]
-        @assert guard_width <= x[end] - x[1]
-    else
-        @assert guard_width <= 0.5 * (x[end] - x[1])
-    end
-
-    Nx = length(x)
-
-    if guard_width == 0
-        guard = ones(Nx)
-    else
-        width = 0.5 * guard_width
-
-        # Left guard
-        guard_xmin = x[1]
-        guard_xmax = x[2] + guard_width
-        gauss1 = zeros(Nx)
-        gauss2 = ones(Nx)
-        for i=1:Nx
-            if x[i] >= guard_xmin
-                gauss1[i] = 1 - exp(-((x[i] - guard_xmin) / width)^6)
-            end
-            if x[i] <= guard_xmax
-                gauss2[i] = exp(-((x[i] - guard_xmax) / width)^6)
-            end
-        end
-        guard_left = 0.5 * (gauss1 + gauss2)
-
-        # Right guard
-        guard_xmin = x[end] - guard_width
-        guard_xmax = x[end]
-        gauss1 = ones(Nx)
-        gauss2 = zeros(Nx)
-        for i=1:Nx
-            if x[i] >= guard_xmin
-                gauss1[i] = exp(-((x[i] - guard_xmin) / width)^6)
-            end
-            if x[i] <= guard_xmax
-                gauss2[i] = 1 - exp(-((x[i] - guard_xmax) / width)^6)
-            end
-        end
-        guard_right = 0.5 * (gauss1 + gauss2)
-
-        # Result guard:
-        if mode == "left"
-            guard = guard_left
-        elseif mode == "right"
-            guard = guard_right
-        elseif mode == "both"
-            guard = @. guard_left + guard_right - 1
-        end
-    end
-    return guard
+function apply_field_filter!(E::AbstractArray{T, 1}, guard::Guard1D) where T
+    @. E = E * guard.F
 end
 
 
-function kernel!(F, A, B)
+function apply_field_filter!(
+    E::CuArrays.CuArray{T, 2},
+    guard::Guard2D,
+) where T
+    N = length(E)
+    nth = min(N, MAX_THREADS_PER_BLOCK)
+    nbl = cld(N, nth)
+    @CUDAnative.cuda blocks=nbl threads=nth kernel!(E, guard.F1, guard.F2)
+end
+
+
+function apply_spectral_filter!(E::AbstractArray{T, 1}, guard::Guard1D) where T
+    @. E = E * guard.S
+end
+
+
+function apply_spectral_filter!(
+    E::CuArrays.CuArray{T, 2},
+    guard::Guard2D,
+) where T
+    N = length(E)
+    nth = min(N, MAX_THREADS_PER_BLOCK)
+    nbl = cld(N, nth)
+    @CUDAnative.cuda blocks=nbl threads=nth kernel!(E, guard.S1, guard.S2)
+end
+
+
+function kernel!(
+    F::CUDAnative.CuDeviceArray{Complex{T}, 2},
+    A::CUDAnative.CuDeviceArray{T, 1},
+    B::CUDAnative.CuDeviceArray{T, 1},
+) where T<:AbstractFloat
     id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x +
          CUDAnative.threadIdx().x
     stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
@@ -299,6 +192,75 @@ function kernel!(F, A, B)
         F[i, j] = F[i, j] * A[i] * B[j]
     end
     return nothing
+end
+
+
+# ******************************************************************************
+function guard_window_left(
+    x::AbstractArray{T, 1}, width::T; p::Int=6,
+) where T<:AbstractFloat
+    if width >= (x[end] - x[1])
+        error("Guard width is larger or equal than the grid size.")
+    end
+    N = length(x)
+    if width == 0
+        guard = ones(T, N)
+    else
+        xloc1 = x[1]
+        xloc2 = x[1] + width
+        gauss1 = zeros(T, N)
+        gauss2 = ones(T, N)
+        for i=1:N
+            if x[i] >= xloc1
+                gauss1[i] = 1 - exp(-((x[i] - xloc1) / (width / 2))^p)
+            end
+            if x[i] <= xloc2
+                gauss2[i] = exp(-((x[i] - xloc2) / (width / 2))^p)
+            end
+        end
+        guard = @. (gauss1 + gauss2) / 2
+    end
+    return guard
+end
+
+
+function guard_window_right(
+    x::AbstractArray{T, 1}, width::T; p::Int=6,
+) where T<:AbstractFloat
+    if width >= (x[end] - x[1])
+        error("Guard width is larger or equal than the grid size.")
+    end
+    N = length(x)
+    if width == 0
+        guard = ones(T, N)
+    else
+        xloc1 = x[end] - width
+        xloc2 = x[end]
+        gauss1 = ones(T, N)
+        gauss2 = zeros(T, N)
+        for i=1:N
+            if x[i] >= xloc1
+                gauss1[i] = exp(-((x[i] - xloc1) / (width / 2))^p)
+            end
+            if x[i] <= xloc2
+                gauss2[i] = 1 - exp(-((x[i] - xloc2) / (width / 2))^p)
+            end
+        end
+        guard = @. (gauss1 + gauss2) / 2
+    end
+    return guard
+end
+
+
+function guard_window_both(
+    x::AbstractArray{T, 1}, width::T; p::Int=6,
+) where T<:AbstractFloat
+    if width >= (x[end] - x[1]) / 2
+        error("Guard width is larger or equal than the grid size.")
+    end
+    lguard = guard_window_left(x, width; p=p)
+    rguard = guard_window_right(x, width; p=p)
+    return @. lguard + rguard - 1
 end
 
 

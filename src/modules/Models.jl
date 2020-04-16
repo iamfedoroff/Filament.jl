@@ -53,7 +53,7 @@ function Model(
     grid::Grids.GridR,
     field::Fields.FieldR,
     medium::Media.Medium,
-    guard::Guards.GuardR,
+    guard::Guards.Guard,
     responses_list::AbstractArray,
     keys::NamedTuple,
 )
@@ -78,7 +78,7 @@ function Model(
     grid::Grids.GridT,
     field::Fields.FieldT,
     medium::Media.Medium,
-    guard::Guards.GuardT,
+    guard::Guards.Guard,
     responses_list::AbstractArray,
     plasma_equation::Dict,
     keys::NamedTuple,
@@ -113,7 +113,7 @@ function Model(
     grid::Grids.GridRT,
     field::Fields.FieldRT,
     medium::Media.Medium,
-    guard::Guards.GuardRT,
+    guard::Guards.Guard,
     responses_list::AbstractArray,
     plasma_equation::Dict,
     keys::NamedTuple,
@@ -148,7 +148,7 @@ function Model(
     grid::Grids.GridXY,
     field::Fields.FieldXY,
     medium::Media.Medium,
-    guard::Guards.GuardXY,
+    guard::Guards.Guard,
     responses_list::AbstractArray,
     keys::NamedTuple,
 )
@@ -205,7 +205,7 @@ function zstep(
     dz::T,
     grid::Grids.GridT,
     field::Fields.FieldT,
-    guard::Guards.GuardT,
+    guard::Guards.Guard,
     model::ModelT,
 ) where T
     # Calculate plasma density:
@@ -250,7 +250,7 @@ function zstep(
     dz::T,
     grid::Grids.GridRT,
     field::Fields.FieldRT,
-    guard::Guards.GuardRT,
+    guard::Guards.Guard,
     model::ModelRT,
 ) where T
     z = convert(FloatGPU, z)
