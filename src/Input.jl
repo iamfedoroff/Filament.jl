@@ -64,6 +64,7 @@ elseif geometry == "T"
         NONLINEARITY=NONLINEARITY,
         PLASMA=PLASMA,
         KPARAXIAL=false,
+        QPARAXIAL=false,
         ALG=ALG,
     )
     p_unit = (zu, tu, Iu, rhou)

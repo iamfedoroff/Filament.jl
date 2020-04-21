@@ -15,8 +15,8 @@ import Media
 import Units
 
 
-struct NonlinearPropagator
-    integ :: Equations.Integrator
+struct NonlinearPropagator{P<:Equations.Integrator}
+    integ :: P
 end
 
 
@@ -27,31 +27,20 @@ function NonlinearPropagator(
     field::Fields.Field,
     guard::Guards.Guard,
     responses_list,
-    keys::NamedTuple,
+    PARAXIAL,
+    ALG,
 )
-    QPARAXIAL = keys.QPARAXIAL
-    ALG = keys.ALG
-
     # Prefactor:
-    beta = Media.beta_func(medium, field.w0)
-    n0 = Media.refractive_index(medium, field.w0)
+    w0 = field.w0
+    n0 = Media.refractive_index(medium, w0)
     Eu = Units.E(unit, real(n0))
-    mu = medium.permeability(field.w0)
-
-    Qfactor = 0.5 * MU0 * mu * field.w0^2 * unit.z / Eu
 
     QZ = zeros(ComplexF64, grid.Nr)
-    if QPARAXIAL
-        @. QZ = Qfactor / beta
-    else
-        for ir=1:grid.Nr
-            kzi = sqrt(beta^2 - (grid.k[ir] * unit.k)^2 + 0im)
-            if kzi != 0
-                QZ[ir] = Qfactor / kzi
-            end
-        end
+    for i=1:grid.Nr
+        kt = grid.k[i] * unit.k
+        QZ[i] = Qfunc(PARAXIAL, medium, w0, kt) * unit.z / Eu
+        QZ[i] = conj(QZ[i])   # in order to make fft instead of ifft
     end
-    @. QZ = conj(QZ)
     QZ = CuArrays.CuArray{Complex{FloatGPU}}(QZ)
 
     # Responses:
@@ -63,11 +52,9 @@ function NonlinearPropagator(
     end
     responses = tuple(responses...)
 
-    # Temporary arrays:
-    Ftmp = CuArrays.zeros(Complex{FloatGPU}, grid.Nr)
-
     # Problem:
-    p = (responses, Ftmp, guard, QPARAXIAL, QZ, field.HT)
+    Ftmp = zero(field.E)
+    p = (responses, Ftmp, guard, PARAXIAL, QZ, field.HT)
     prob = Equations.Problem(_func_r!, Ftmp, p)
     integ = Equations.Integrator(prob, ALG)
 
@@ -82,25 +69,20 @@ function NonlinearPropagator(
     field::Fields.Field,
     guard::Guards.Guard,
     responses_list,
-    keys::NamedTuple,
+    PARAXIAL,
+    ALG,
 )
-    ALG = keys.ALG
-
     # Prefactor:
-    beta = Media.beta_func.(Ref(medium), grid.w * unit.w)
-    n0 = Media.refractive_index(medium, field.w0)
+    w0 = field.w0
+    n0 = Media.refractive_index(medium, w0)
     Eu = Units.E(unit, real(n0))
-    mu = medium.permeability(grid.w * unit.w)
-
-    Qfactor = @. 0.5 * MU0 * mu * (grid.w * unit.w)^2 * unit.z / Eu
 
     QZ = zeros(ComplexF64, grid.Nt)
-    for iw=1:grid.Nt
-        if beta[iw] != 0
-            QZ[iw] = Qfactor[iw] / beta[iw]
-        end
+    for i=1:grid.Nt
+        w = grid.w[i] * unit.w
+        QZ[i] = Qfunc(PARAXIAL, medium, w, 0.0) * unit.z / Eu
+        QZ[i] = conj(QZ[i])   # in order to make fft instead of ifft
     end
-    @. QZ = conj(QZ)
 
     # Responses:
     responses = []
@@ -111,9 +93,8 @@ function NonlinearPropagator(
     end
     responses = tuple(responses...)
 
-    Ftmp = zeros(ComplexF64, grid.Nt)   # temporary array
-
     # Problem:
+    Ftmp = zero(field.E)
     p = (responses, field.FT, Ftmp, guard, QZ)
     prob = Equations.Problem(_func_t!, Ftmp, p)
     integ = Equations.Integrator(prob, ALG)
@@ -129,39 +110,23 @@ function NonlinearPropagator(
     field::Fields.Field,
     guard::Guards.Guard,
     responses_list,
-    keys::NamedTuple,
+    PARAXIAL,
+    ALG,
 )
-    QPARAXIAL = keys.QPARAXIAL
-    ALG = keys.ALG
-
     # Prefactor:
-    beta = Media.beta_func.(Ref(medium), grid.w * unit.w)
-    n0 = Media.refractive_index(medium, field.w0)
+    w0 = field.w0
+    n0 = Media.refractive_index(medium, w0)
     Eu = Units.E(unit, real(n0))
-    mu = medium.permeability(grid.w * unit.w)
-
-    Qfactor = @. 0.5 * MU0 * mu * (grid.w * unit.w)^2 * unit.z / Eu
 
     QZ = zeros(ComplexF64, (grid.Nr, grid.Nt))
-    if QPARAXIAL
-        for iw=1:grid.Nt
-            if beta[iw] != 0
-                for ir=1:grid.Nr
-                    QZ[ir, iw] = Qfactor[iw] / beta[iw]
-                end
-            end
-        end
-    else
-        for iw=1:grid.Nt
-        for ir=1:grid.Nr
-            kzij = sqrt(beta[iw]^2 - (grid.k[ir] * unit.k)^2 + 0im)
-            if kzij != 0
-                QZ[ir, iw] = Qfactor[iw] / kzij
-            end
-        end
-        end
+    for j=1:grid.Nt
+    for i=1:grid.Nr
+        kt = grid.k[i] * unit.k
+        w = grid.w[j] * unit.w
+        QZ[i, j] = Qfunc(PARAXIAL, medium, w, kt) * unit.z / Eu
+        QZ[i, j] = conj(QZ[i, j])   # in order to make fft instead of ifft
     end
-    @. QZ = conj(QZ)
+    end
     QZ = CuArrays.CuArray{Complex{FloatGPU}}(QZ)
 
     # Responses:
@@ -173,10 +138,9 @@ function NonlinearPropagator(
     end
     responses = tuple(responses...)
 
-    Ftmp = CuArrays.zeros(Complex{FloatGPU}, (grid.Nr, grid.Nt))   # temporary array
-
     # Problem:
-    p = (responses, field.FT, Ftmp, guard, QPARAXIAL, QZ, field.HT)
+    Ftmp = zero(field.E)
+    p = (responses, field.FT, Ftmp, guard, PARAXIAL, QZ, field.HT)
     prob = Equations.Problem(_func_rt!, Ftmp, p)
     integ = Equations.Integrator(prob, ALG)
 
@@ -191,34 +155,22 @@ function NonlinearPropagator(
     field::Fields.Field,
     guard::Guards.Guard,
     responses_list,
-    keys::NamedTuple,
+    PARAXIAL,
+    ALG,
 )
-    QPARAXIAL = keys.QPARAXIAL
-    ALG = keys.ALG
-
     # Prefactor:
-    beta = Media.beta_func(medium, field.w0)
-    n0 = Media.refractive_index(medium, field.w0)
+    w0 = field.w0
+    n0 = Media.refractive_index(medium, w0)
     Eu = Units.E(unit, real(n0))
-    mu = medium.permeability(field.w0)
-
-    Qfactor = 0.5 * MU0 * mu * field.w0^2 * unit.z / Eu
 
     QZ = zeros(ComplexF64, (grid.Nx, grid.Ny))
-    if QPARAXIAL
-        @. QZ = Qfactor / beta
-    else
-        for iy=1:grid.Ny
-        for ix=1:grid.Nx
-            kzij = sqrt(beta^2 - ((grid.kx[ix] * unit.kx)^2 +
-                                  (grid.ky[iy] * unit.ky)^2) + 0im)
-            if kzij != 0
-                QZ[ix, iy] = Qfactor / kzij
-            end
-        end
-        end
+    for j=1:grid.Ny
+    for i=1:grid.Nx
+        kt = sqrt((grid.kx[i] * unit.kx)^2 + (grid.ky[j] * unit.ky)^2)
+        QZ[i, j] = Qfunc(PARAXIAL, medium, w0, kt) * unit.z / Eu
+        QZ[i, j] = conj(QZ[i, j])   # in order to make fft instead of ifft
     end
-    @. QZ = conj(QZ)
+    end
     QZ = CuArrays.CuArray{Complex{FloatGPU}}(QZ)
 
     # Responses:
@@ -230,11 +182,9 @@ function NonlinearPropagator(
     end
     responses = tuple(responses...)
 
-    # Temporary arrays:
-    Ftmp = CuArrays.zeros(Complex{FloatGPU}, (grid.Nx, grid.Ny))
-
     # Problem:
-    p = (responses, Ftmp, guard, QPARAXIAL, QZ, field.FT)
+    Ftmp = zero(field.E)
+    p = (responses, Ftmp, guard, PARAXIAL, QZ, field.FT)
     prob = Equations.Problem(_func_xy!, Ftmp, p)
     integ = Equations.Integrator(prob, ALG)
 
@@ -255,7 +205,7 @@ function _func_r!(
     p::Tuple,
     z::T,
 ) where T<:AbstractFloat
-    responses, Ftmp, guard, QPARAXIAL, QZ, HT = p
+    responses, Ftmp, guard, PARAXIAL, QZ, HT = p
 
     fill!(dE, 0)
 
@@ -266,7 +216,7 @@ function _func_r!(
     end
 
     # Nonparaxiality:
-    if QPARAXIAL
+    if PARAXIAL
         @. dE = -1im * QZ * dE
     else
         HankelTransforms.dht!(dE, HT)
@@ -309,7 +259,7 @@ function _func_rt!(
     p::Tuple,
     z::T,
 ) where T<:AbstractFloat
-    responses, FT, Ftmp, guard, QPARAXIAL, QZ, HT = p
+    responses, FT, Ftmp, guard, PARAXIAL, QZ, HT = p
 
     FourierTransforms.ifft!(E, FT)
 
@@ -323,7 +273,7 @@ function _func_rt!(
     end
 
     # Nonparaxiality:
-    if QPARAXIAL
+    if PARAXIAL
         @. dE = -1im * QZ * dE
     else
         HankelTransforms.dht!(dE, HT)
@@ -343,7 +293,7 @@ function _func_xy!(
     p::Tuple,
     z::T,
 ) where T<:AbstractFloat
-    responses, Ftmp, guard, QPARAXIAL, QZ, FT = p
+    responses, Ftmp, guard, PARAXIAL, QZ, FT = p
 
     fill!(dE, 0)
 
@@ -354,7 +304,7 @@ function _func_xy!(
     end
 
     # Nonparaxiality:
-    if QPARAXIAL
+    if PARAXIAL
         @. dE = -1im * QZ * dE
     else
         FourierTransforms.fft!(dE, FT)
@@ -401,6 +351,42 @@ function _update_dE_kernel(dE, R, E)
         dE[i, j] = dE[i, j] + R[j] * E[i, j]
     end
     return nothing
+end
+
+
+# ******************************************************************************
+function Qfunc(PARAXIAL, medium, w, kt)
+    if PARAXIAL
+        Q = Qfunc_paraxial(medium, w, kt)
+    else
+        Q = Qfunc_nonparaxial(medium, w, kt)
+    end
+    return Q
+end
+
+
+function Qfunc_paraxial(medium, w, kt)
+    mu = medium.permeability(w)
+    beta = Media.beta_func(medium, w)
+    if beta == 0
+        Q = zero(kt)
+    else
+        Q = MU0 * mu * w^2 / (2 * beta)
+    end
+    return Q
+end
+
+
+function Qfunc_nonparaxial(medium, w, kt)
+    mu = medium.permeability(w)
+    beta = Media.beta_func(medium, w)
+    kz = sqrt(beta^2 - kt^2 + 0im)
+    if kz == 0
+        Q = zero(kt)
+    else
+        Q = MU0 * mu * w^2 / (2 * kz)
+    end
+    return Q
 end
 
 

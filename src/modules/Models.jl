@@ -42,7 +42,8 @@ function Model(
 
     if NONLINEARITY
         NP = NonlinearPropagators.NonlinearPropagator(
-            unit, grid, medium, field, guard, responses_list, keys,
+            unit, grid, medium, field, guard, responses_list, keys.QPARAXIAL,
+            keys.ALG,
         )
     else
         NP = nothing
