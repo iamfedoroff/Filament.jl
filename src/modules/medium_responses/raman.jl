@@ -21,7 +21,7 @@ function init_raman(unit, grid, field, medium, p)
     Hraman = FourierTransforms.ifftshift(Hraman)
     Hraman = @. Hraman + 0im   # real -> complex
     FFTW.fft!(Hraman)   # time -> frequency
-    if !(typeof(grid) <: Grids.GridT)   # FIXME: should be removed in a generic code.
+    if !isa(grid, Grids.GridT)   # FIXME: should be removed in a generic code.
         Hraman = CuArrays.CuArray{Complex{FloatGPU}}(Hraman)
     end
 

@@ -205,7 +205,7 @@ function PlotHDF(fname::String, unit::Units.Unit, grid::Grids.Grid)
     _write_group_unit(fp, unit)
     _write_group_grid(fp, grid)
     HDF5.g_create(fp, GROUP_FDAT)
-    if typeof(grid) <: Grids.GridRT
+    if isa(grid, Grids.GridRT)
         _write_group_zdat(fp, grid)
     end
     HDF5.close(fp)

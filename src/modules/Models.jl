@@ -79,7 +79,7 @@ function zstep(
         end
     end
 
-    if (typeof(grid) <: Grids.GridT) | (typeof(grid) <: Grids.GridRT)
+    if isa(grid, Grids.GridT) | isa(grid, Grids.GridRT)
         @timeit "field -> spectr" begin
             FourierTransforms.fft!(field.E, field.FT)
             CUDAdrv.synchronize()
@@ -98,7 +98,7 @@ function zstep(
         CUDAdrv.synchronize()
     end
 
-    if (typeof(grid) <: Grids.GridT) | (typeof(grid) <: Grids.GridRT)
+    if isa(grid, Grids.GridT) | isa(grid, Grids.GridRT)
         @timeit "spectr -> field" begin
             FourierTransforms.ifft!(field.E, field.FT)
             CUDAdrv.synchronize()

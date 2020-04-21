@@ -17,7 +17,7 @@ function init_current_losses(unit, grid, field, medium, p)
     end
 
     @. Rnl = conj(Rnl)
-    if !(typeof(grid) <: Grids.GridT)   # FIXME: should be removed in a generic code.
+    if !isa(grid, Grids.GridT)   # FIXME: should be removed in a generic code.
         Rnl = CuArrays.CuArray{Complex{FloatGPU}}(Rnl)
     end
 

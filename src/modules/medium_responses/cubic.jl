@@ -12,7 +12,7 @@ function init_cubic(unit, grid, field, medium, p)
     Rnl = EPS0 * chi3 * Eu^3
     Rnl = convert(FloatGPU, Rnl)
 
-    if (typeof(grid) <: Grids.GridR) | (typeof(grid) <: Grids.GridXY)
+    if isa(grid, Grids.GridR) | isa(grid, Grids.GridXY)
         calc = calc_cubic_nothg_spatial
     else
         if THG
