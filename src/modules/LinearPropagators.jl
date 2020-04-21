@@ -59,16 +59,15 @@ function LinearPropagator(
     PARAXIAL::Bool,
 )
     w0 = field.w0
-    beta = Media.beta_func(medium, w0)
     vf = Media.group_velocity(medium, w0)   # frame velocity
 
     KZ = zeros(ComplexF64, grid.Nr)
     for i=1:grid.Nr
         kt = grid.k[i] * unit.k
-        KZ[i] = Kfunc(PARAXIAL, beta, kt)
+        KZ[i] = Kfunc(PARAXIAL, medium, w0, kt) * unit.z
         # Here the moving frame is added to reduce the truncation error, which
         # appears due to use of Float32 precision:
-        KZ[i] = (KZ[i] - w0 / vf) * unit.z
+        KZ[i] = KZ[i] - w0 / vf * unit.z
         KZ[i] = conj(KZ[i])   # in order to make fft instead of ifft
     end
     KZ = CuArrays.CuArray{Complex{FloatGPU}}(KZ)
@@ -85,14 +84,14 @@ function LinearPropagator(
     guard::Guards.Guard,
     PARAXIAL::Bool,
 )
-    beta = Media.beta_func.(Ref(medium), grid.w * unit.w)
-    vf = Media.group_velocity(medium, field.w0)   # frame velocity
+    w0 = field.w0
+    vf = Media.group_velocity(medium, w0)   # frame velocity
 
     KZ = zeros(ComplexF64, grid.Nt)
     for i=1:grid.Nt
-        kt = 0.0
-        KZ[i] = Kfunc(PARAXIAL, beta[i], kt)
-        KZ[i] = (KZ[i] - grid.w[i] * unit.w / vf) * unit.z
+        w = grid.w[i] * unit.w
+        KZ[i] = Kfunc(PARAXIAL, medium, w, 0.0) * unit.z
+        KZ[i] = KZ[i] - w / vf * unit.z
         KZ[i] = conj(KZ[i])   # in order to make fft instead of ifft
     end
 
@@ -108,16 +107,17 @@ function LinearPropagator(
     guard::Guards.Guard,
     PARAXIAL::Bool,
 )
-    beta = Media.beta_func.(Ref(medium), grid.w * unit.w)
-    vf = Media.group_velocity(medium, field.w0)   # frame velocity
+    w0 = field.w0
+    vf = Media.group_velocity(medium, w0)   # frame velocity
 
     KZ = zeros(ComplexF64, (grid.Nr, grid.Nt))
-    for iw=1:grid.Nt
-    for ir=1:grid.Nr
-        kt = grid.k[ir] * unit.k
-        KZ[ir, iw] = Kfunc(PARAXIAL, beta[iw], kt)
-        KZ[ir, iw] = (KZ[ir, iw] - grid.w[iw] * unit.w / vf) * unit.z
-        KZ[ir, iw] = conj(KZ[ir, iw])   # in order to make fft instead of ifft
+    for j=1:grid.Nt
+    for i=1:grid.Nr
+        kt = grid.k[i] * unit.k
+        w = grid.w[j] * unit.w
+        KZ[i, j] = Kfunc(PARAXIAL, medium, w, kt) * unit.z
+        KZ[i, j] = KZ[i, j] - w / vf * unit.z
+        KZ[i, j] = conj(KZ[i, j])   # in order to make fft instead of ifft
     end
     end
     KZ = CuArrays.CuArray{Complex{FloatGPU}}(KZ)
@@ -134,18 +134,18 @@ function LinearPropagator(
     guard::Guards.Guard,
     PARAXIAL::Bool,
 )
-    beta = Media.beta_func(medium, field.w0)
-    vf = Media.group_velocity(medium, field.w0)   # frame velocity
+    w0 = field.w0
+    vf = Media.group_velocity(medium, w0)   # frame velocity
 
     KZ = zeros(ComplexF64, (grid.Nx, grid.Ny))
-    for iy=1:grid.Ny
-    for ix=1:grid.Nx
-        kt = sqrt((grid.kx[ix] * unit.kx)^2 + (grid.ky[iy] * unit.ky)^2)
-        KZ[ix, iy] = Kfunc(PARAXIAL, beta, kt)
+    for j=1:grid.Ny
+    for i=1:grid.Nx
+        kt = sqrt((grid.kx[i] * unit.kx)^2 + (grid.ky[j] * unit.ky)^2)
+        KZ[i, j] = Kfunc(PARAXIAL, medium, w0, kt) * unit.z
         # Here the moving frame is added to reduce the truncation error, which
         # appears due to use of Float32 precision:
-        KZ[ix, iy] = (KZ[ix, iy] - field.w0 / vf) * unit.z
-        KZ[ix, iy] = conj(KZ[ix, iy])
+        KZ[i, j] = KZ[i, j] - w0 / vf * unit.z
+        KZ[i, j] = conj(KZ[i, j])   # in order to make fft instead of ifft
     end
     end
     KZ = CuArrays.CuArray{Complex{FloatGPU}}(KZ)
@@ -193,27 +193,29 @@ end
 
 
 # ******************************************************************************
-function Kfunc(PARAXIAL, beta, kt)
+function Kfunc(PARAXIAL, medium, w, kt)
     if PARAXIAL
-        K = Kfunc_paraxial(beta, kt)
+        K = Kfunc_paraxial(medium, w, kt)
     else
-        K = Kfunc_nonparaxial(beta, kt)
+        K = Kfunc_nonparaxial(medium, w, kt)
     end
     return K
 end
 
 
-function Kfunc_paraxial(beta, kt)
+function Kfunc_paraxial(medium, w, kt)
+    beta = Media.beta_func(medium, w)
     if beta != 0
         K = beta - kt^2 / (2 * beta)
     else
-        K = zero(k)
+        K = zero(kt)
     end
     return K
 end
 
 
-function Kfunc_nonparaxial(beta, kt)
+function Kfunc_nonparaxial(medium, w, kt)
+    beta = Media.beta_func(medium, w)
     return sqrt(beta^2 - kt^2 + 0im)
 end
 
