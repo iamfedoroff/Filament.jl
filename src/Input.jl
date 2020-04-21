@@ -63,6 +63,7 @@ elseif geometry == "T"
     model_keys = (
         NONLINEARITY=NONLINEARITY,
         PLASMA=PLASMA,
+        KPARAXIAL=false,
         ALG=ALG,
     )
     p_unit = (zu, tu, Iu, rhou)

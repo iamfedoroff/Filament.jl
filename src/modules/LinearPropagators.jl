@@ -15,61 +15,65 @@ import Units
 abstract type LinearPropagator end
 
 
-struct LinearPropagatorR{T} <: LinearPropagator
-    KZ :: AbstractArray{Complex{T}, 1}
-    HT :: HankelTransforms.Plan
-    guard :: Guards.Guard
+struct LinearPropagatorNone{
+    T<:AbstractFloat,
+    A<:AbstractArray{Complex{T}},
+    G<:Guards.Guard,
+} <: LinearPropagator
+    KZ :: A
+    guard :: G
 end
 
 
-struct LinearPropagatorT{T} <: LinearPropagator
-    KZ :: AbstractArray{Complex{T}, 1}
-    FT :: FourierTransforms.Plan
-    guard :: Guards.Guard
+struct LinearPropagatorHankel{
+    T<:AbstractFloat,
+    A<:AbstractArray{Complex{T}},
+    G<:Guards.Guard,
+    P<:HankelTransforms.Plan
+} <: LinearPropagator
+    KZ :: A
+    guard :: G
+    HT :: P
 end
 
 
-struct LinearPropagatorRT{T} <: LinearPropagator
-    KZ :: AbstractArray{Complex{T}, 2}
-    HT :: HankelTransforms.Plan
-    guard :: Guards.Guard
+struct LinearPropagatorFourier{
+    T<:AbstractFloat,
+    A<:AbstractArray{Complex{T}},
+    G<:Guards.Guard,
+    P<:FourierTransforms.Plan
+} <: LinearPropagator
+    KZ :: A
+    guard :: G
+    FT :: P
 end
 
 
-struct LinearPropagatorXY{T} <: LinearPropagator
-    KZ :: AbstractArray{Complex{T}, 2}
-    FT :: FourierTransforms.Plan
-    guard :: Guards.Guard
-end
-
-
+# ******************************************************************************
 function LinearPropagator(
     unit::Units.UnitR,
     grid::Grids.GridR,
     medium::Media.Medium,
-    field::Fields.Field,
+    field::Fields.FieldR,
     guard::Guards.Guard,
-    keys::NamedTuple,
+    PARAXIAL::Bool,
 )
-    KPARAXIAL = keys.KPARAXIAL
+    w0 = field.w0
+    beta = Media.beta_func(medium, w0)
+    vf = Media.group_velocity(medium, w0)   # frame velocity
 
-    beta = Media.beta_func(medium, field.w0)
-
-    if KPARAXIAL
-        KZ = @. beta - (grid.k * unit.k)^2 / (2 * beta)
-    else
-        KZ = @. sqrt(beta^2 - (grid.k * unit.k)^2 + 0im)
+    KZ = zeros(ComplexF64, grid.Nr)
+    for i=1:grid.Nr
+        kt = grid.k[i] * unit.k
+        KZ[i] = Kfunc(PARAXIAL, beta, kt)
+        # Here the moving frame is added to reduce the truncation error, which
+        # appears due to use of Float32 precision:
+        KZ[i] = (KZ[i] - w0 / vf) * unit.z
+        KZ[i] = conj(KZ[i])   # in order to make fft instead of ifft
     end
-
-    # In order to reduce the truncation error, which appears due to use of
-    # Float32 precision, perform the calculations in a moving frame:
-    vf = Media.group_velocity(medium, field.w0)   # frame velocity
-    @. KZ = (KZ - field.w0 / vf) * unit.z
-
-    @. KZ = conj(KZ)
     KZ = CuArrays.CuArray{Complex{FloatGPU}}(KZ)
 
-    return LinearPropagatorR(KZ, field.HT, guard)
+    return LinearPropagatorHankel(KZ, guard, field.HT)
 end
 
 
@@ -77,16 +81,22 @@ function LinearPropagator(
     unit::Units.UnitT,
     grid::Grids.GridT,
     medium::Media.Medium,
-    field::Fields.Field,
+    field::Fields.FieldT,
     guard::Guards.Guard,
-    keys::NamedTuple,
+    PARAXIAL::Bool,
 )
     beta = Media.beta_func.(Ref(medium), grid.w * unit.w)
     vf = Media.group_velocity(medium, field.w0)   # frame velocity
-    KZ = @. beta + 0im
-    @. KZ = (KZ - grid.w * unit.w / vf) * unit.z
-    @. KZ = conj(KZ)
-    return LinearPropagatorT(KZ, field.FT, guard)
+
+    KZ = zeros(ComplexF64, grid.Nt)
+    for i=1:grid.Nt
+        kt = 0.0
+        KZ[i] = Kfunc(PARAXIAL, beta[i], kt)
+        KZ[i] = (KZ[i] - grid.w[i] * unit.w / vf) * unit.z
+        KZ[i] = conj(KZ[i])   # in order to make fft instead of ifft
+    end
+
+    return LinearPropagatorNone(KZ, guard)
 end
 
 
@@ -94,42 +104,25 @@ function LinearPropagator(
     unit::Units.UnitRT,
     grid::Grids.GridRT,
     medium::Media.Medium,
-    field::Fields.Field,
+    field::Fields.FieldRT,
     guard::Guards.Guard,
-    keys::NamedTuple,
+    PARAXIAL::Bool,
 )
-    KPARAXIAL = keys.KPARAXIAL
-
     beta = Media.beta_func.(Ref(medium), grid.w * unit.w)
+    vf = Media.group_velocity(medium, field.w0)   # frame velocity
 
     KZ = zeros(ComplexF64, (grid.Nr, grid.Nt))
-    if KPARAXIAL
-        for iw=1:grid.Nt
-            if beta[iw] != 0
-                for ir=1:grid.Nr
-                    KZ[ir, iw] = beta[iw] -
-                                 (grid.k[ir] * unit.k)^2 / (2 * beta[iw])
-                end
-            end
-        end
-    else
-        for iw=1:grid.Nt
-        for ir=1:grid.Nr
-            KZ[ir, iw] = sqrt(beta[iw]^2 - (grid.k[ir] * unit.k)^2 + 0im)
-        end
-        end
-    end
-
-    vf = Media.group_velocity(medium, field.w0)   # frame velocity
     for iw=1:grid.Nt
     for ir=1:grid.Nr
+        kt = grid.k[ir] * unit.k
+        KZ[ir, iw] = Kfunc(PARAXIAL, beta[iw], kt)
         KZ[ir, iw] = (KZ[ir, iw] - grid.w[iw] * unit.w / vf) * unit.z
+        KZ[ir, iw] = conj(KZ[ir, iw])   # in order to make fft instead of ifft
     end
     end
-    @. KZ = conj(KZ)
     KZ = CuArrays.CuArray{Complex{FloatGPU}}(KZ)
 
-    return LinearPropagatorRT(KZ, field.HT, guard)
+    return LinearPropagatorHankel(KZ, guard, field.HT)
 end
 
 
@@ -137,46 +130,45 @@ function LinearPropagator(
     unit::Units.UnitXY,
     grid::Grids.GridXY,
     medium::Media.Medium,
-    field::Fields.Field,
+    field::Fields.FieldXY,
     guard::Guards.Guard,
-    keys::NamedTuple,
+    PARAXIAL::Bool,
 )
-    KPARAXIAL = keys.KPARAXIAL
-
     beta = Media.beta_func(medium, field.w0)
+    vf = Media.group_velocity(medium, field.w0)   # frame velocity
 
     KZ = zeros(ComplexF64, (grid.Nx, grid.Ny))
-    if KPARAXIAL
-        for iy=1:grid.Ny
-        for ix=1:grid.Nx
-            KZ[ix, iy] = beta - ((grid.kx[ix] * unit.kx)^2 +
-                                 (grid.ky[iy] * unit.ky)^2) / (2 * beta)
-        end
-        end
-    else
-        for iy=1:grid.Ny
-        for ix=1:grid.Nx
-            KZ[ix, iy] = sqrt(beta^2 - ((grid.kx[ix] * unit.kx)^2 +
-                                        (grid.ky[iy] * unit.ky)^2) + 0im)
-        end
-        end
+    for iy=1:grid.Ny
+    for ix=1:grid.Nx
+        kt = sqrt((grid.kx[ix] * unit.kx)^2 + (grid.ky[iy] * unit.ky)^2)
+        KZ[ix, iy] = Kfunc(PARAXIAL, beta, kt)
+        # Here the moving frame is added to reduce the truncation error, which
+        # appears due to use of Float32 precision:
+        KZ[ix, iy] = (KZ[ix, iy] - field.w0 / vf) * unit.z
+        KZ[ix, iy] = conj(KZ[ix, iy])
     end
-
-    # In order to reduce the truncation error, which appears due to use of
-    # Float32 precision, perform the calculations in a moving frame:
-    vf = Media.group_velocity(medium, field.w0)   # frame velocity
-    @. KZ = (KZ - field.w0 / vf) * unit.z
-
-    @. KZ = conj(KZ)
+    end
     KZ = CuArrays.CuArray{Complex{FloatGPU}}(KZ)
 
-    return LinearPropagatorXY(KZ, field.FT, guard)
+    return LinearPropagatorFourier(KZ, guard, field.FT)
+end
+
+
+# ******************************************************************************
+function propagate!(
+    E::AbstractArray{Complex{T}, 1},
+    LP::LinearPropagatorNone,
+    z::T
+) where T
+    @. E = E * exp(-1im * LP.KZ * z)
+    Guards.apply_spectral_filter!(E, LP.guard)
+    return nothing
 end
 
 
 function propagate!(
-    E::AbstractArray{Complex{T}, 1},
-    LP::LinearPropagatorR,
+    E::AbstractArray{Complex{T}},
+    LP::LinearPropagatorHankel,
     z::T
 ) where T
     HankelTransforms.dht!(E, LP.HT)
@@ -188,32 +180,8 @@ end
 
 
 function propagate!(
-    E::AbstractArray{Complex{T}, 1},
-    LP::LinearPropagatorT,
-    z::T
-) where T
-    @. E = E * exp(-1im * LP.KZ * z)
-    Guards.apply_spectral_filter!(E, LP.guard)
-    return nothing
-end
-
-
-function propagate!(
-    E::AbstractArray{Complex{T}, 2},
-    LP::LinearPropagatorRT,
-    z::T
-) where T
-    HankelTransforms.dht!(E, LP.HT)
-    @. E = E * exp(-1im * LP.KZ * z)
-    Guards.apply_spectral_filter!(E, LP.guard)
-    HankelTransforms.idht!(E, LP.HT)
-    return nothing
-end
-
-
-function propagate!(
-    E::AbstractArray{Complex{T}, 2},
-    LP::LinearPropagatorXY,
+    E::AbstractArray{Complex{T}},
+    LP::LinearPropagatorFourier,
     z::T
 ) where T
     FourierTransforms.fft!(E, LP.FT)
@@ -221,6 +189,32 @@ function propagate!(
     Guards.apply_spectral_filter!(E, LP.guard)
     FourierTransforms.ifft!(E, LP.FT)
     return nothing
+end
+
+
+# ******************************************************************************
+function Kfunc(PARAXIAL, beta, kt)
+    if PARAXIAL
+        K = Kfunc_paraxial(beta, kt)
+    else
+        K = Kfunc_nonparaxial(beta, kt)
+    end
+    return K
+end
+
+
+function Kfunc_paraxial(beta, kt)
+    if beta != 0
+        K = beta - kt^2 / (2 * beta)
+    else
+        K = zero(k)
+    end
+    return K
+end
+
+
+function Kfunc_nonparaxial(beta, kt)
+    return sqrt(beta^2 - kt^2 + 0im)
 end
 
 

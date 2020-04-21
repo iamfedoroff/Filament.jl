@@ -37,7 +37,7 @@ function Model(
     PLASMA = keys.PLASMA
 
     LP = LinearPropagators.LinearPropagator(
-        unit, grid, medium, field, guard, keys,
+        unit, grid, medium, field, guard, keys.KPARAXIAL,
     )
 
     if NONLINEARITY
