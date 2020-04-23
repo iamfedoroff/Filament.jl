@@ -70,14 +70,6 @@ end
 # ******************************************************************************
 # RT
 # ******************************************************************************
-struct GuardRT{A<:AbstractArray} <: Guard
-    R :: A
-    T :: A
-    K :: A
-    W :: A
-end
-
-
 function Guard(
     unit::Units.UnitRT,
     grid::Grids.GridRT,
@@ -108,14 +100,6 @@ end
 # ******************************************************************************
 # XY
 # ******************************************************************************
-struct GuardXY{A<:AbstractArray} <: Guard
-    X :: A
-    Y :: A
-    KX :: A
-    KY :: A
-end
-
-
 function Guard(
     unit::Units.UnitXY,
     grid::Grids.GridXY,
