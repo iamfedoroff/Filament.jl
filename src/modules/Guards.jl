@@ -19,10 +19,10 @@ struct Guard1D{A<:AbstractArray} <: Guard
 end
 
 
-struct Guard2D{A<:AbstractArray} <: Guard
+struct Guard2D{A<:AbstractArray, A2<:AbstractArray} <: Guard
     F1 :: A   # field filter along dimension 1
     F2 :: A   # field filter along dimension 2
-    S1 :: A   # spectrum filter along dimension 1
+    S1 :: A2   # spectrum filter along dimension 1 or (1, 2)
     S2 :: A   # spectrum filter along dimension 2
 end
 
@@ -83,9 +83,16 @@ function Guard(
     Rguard = guard_window_right(grid.r, rguard)
     Tguard = guard_window_both(grid.t, tguard)
 
-    k0 = Media.k_func(medium, field.w0)
-    kmax = k0 * sind(kguard)
-    Kguard = @. exp(-((grid.k * unit.k)^2 / kmax^2)^20)
+    Kguard = zeros((grid.Nr, grid.Nt))
+    for j=1:grid.Nt
+        k = Media.k_func(medium, grid.w[j] * unit.w)
+        kmax = k * sind(kguard)
+        if kmax != 0
+            for i=1:grid.Nr
+                Kguard[i, j] = exp(-((grid.k[i] * unit.k)^2 / kmax^2)^20)
+            end
+        end
+    end
 
     Wguard = @. exp(-((grid.w * unit.w)^2 / wguard^2)^20)
 
@@ -174,6 +181,25 @@ function kernel!(
         i = cartesian[k][1]
         j = cartesian[k][2]
         F[i, j] = F[i, j] * A[i] * B[j]
+    end
+    return nothing
+end
+
+
+function kernel!(
+    F::CUDAnative.CuDeviceArray{Complex{T}, 2},
+    A::CUDAnative.CuDeviceArray{T, 2},
+    B::CUDAnative.CuDeviceArray{T, 1},
+) where T<:AbstractFloat
+    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x +
+         CUDAnative.threadIdx().x
+    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
+    N1, N2 = size(F)
+    cartesian = CartesianIndices((N1, N2))
+    for k=id:stride:N1*N2
+        i = cartesian[k][1]
+        j = cartesian[k][2]
+        F[i, j] = F[i, j] * A[i, j] * B[j]
     end
     return nothing
 end
