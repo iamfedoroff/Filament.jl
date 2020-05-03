@@ -27,18 +27,20 @@ struct FieldR{
 end
 
 
-function Field(
-    unit::Units.UnitR,
-    grid::Grids.GridR,
-    lam0::T,
-    initial_condition::Function,
-) where T<:AbstractFloat
+function Field(unit::Units.UnitR, grid::Grids.GridR, p::Tuple)
+    lam0, initial_condition, HTLOAD, file_ht = p
+    T = typeof(lam0)
+
     w0 = convert(T, 2 * pi * C0 / lam0)
 
     E = initial_condition(grid.r, unit.r, unit.I)
     E = CuArrays.CuArray{Complex{T}}(E)
 
-    HT = HankelTransforms.plan(grid.rmax, E)
+    if HTLOAD
+        HT = HankelTransforms.plan(file_ht)
+    else
+        HT = HankelTransforms.plan(grid.rmax, E, save=true, fname="ht.jld2")
+    end
     return FieldR(w0, E, HT)
 end
 
@@ -60,12 +62,10 @@ struct FieldT{
 end
 
 
-function Field(
-    unit::Units.UnitT,
-    grid::Grids.GridT,
-    lam0::T,
-    initial_condition::Function,
-) where T<:AbstractFloat
+function Field(unit::Units.UnitT, grid::Grids.GridT, p::Tuple)
+    lam0, initial_condition = p
+    T = typeof(lam0)
+
     w0 = convert(T, 2 * pi * C0 / lam0)
 
     E = initial_condition(grid.t, unit.t, unit.I)
@@ -105,12 +105,10 @@ struct FieldRT{
 end
 
 
-function Field(
-    unit::Units.UnitRT,
-    grid::Grids.GridRT,
-    lam0::T,
-    initial_condition::Function,
-) where T<:AbstractFloat
+function Field(unit::Units.UnitRT, grid::Grids.GridRT, p::Tuple)
+    lam0, initial_condition, HTLOAD, file_ht = p
+    T = typeof(lam0)
+
     w0 = convert(T, 2 * pi * C0 / lam0)
 
     E = initial_condition(grid.r, grid.t, unit.r, unit.t, unit.I)
@@ -119,9 +117,15 @@ function Field(
     FT = FourierTransforms.Plan(E, [2])
     AnalyticSignals.rsig2asig!(E, FT)   # convert to analytic signal
 
-    Nthalf = AnalyticSignals.half(grid.Nt)
-    region = CartesianIndices((grid.Nr, Nthalf))
-    HT = HankelTransforms.plan(grid.rmax, E, region)
+    if HTLOAD
+        HT = HankelTransforms.plan(file_ht)
+    else
+        Nthalf = AnalyticSignals.half(grid.Nt)
+        region = CartesianIndices((grid.Nr, Nthalf))
+        HT = HankelTransforms.plan(
+            grid.rmax, E, region, save=true, fname="ht.jld2",
+        )
+    end
 
     rho = CuArrays.zeros(T, (grid.Nr, grid.Nt))
     kdrho = CuArrays.zeros(T, (grid.Nr, grid.Nt))
@@ -143,12 +147,10 @@ struct FieldXY{
 end
 
 
-function Field(
-    unit::Units.UnitXY,
-    grid::Grids.GridXY,
-    lam0::T,
-    initial_condition::Function,
-) where T<:AbstractFloat
+function Field(unit::Units.UnitXY, grid::Grids.GridXY, p::Tuple)
+    lam0, initial_condition = p
+    T = typeof(lam0)
+
     w0 = convert(T, 2 * pi * C0 / lam0)
 
     E = initial_condition(grid.x, grid.y, unit.x, unit.y, unit.I)

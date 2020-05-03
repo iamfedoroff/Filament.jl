@@ -32,6 +32,9 @@ kguard = 90.   # [degrees] the cut-off angle for wave vectors
 dzphimax = pi / 100.   # maximum nonlinear phase for adaptive z step
 Istop = 1e3   # [Iu] maixmum intensity in the problem (stop if exceeded)
 
+HTLOAD = false   # load Hankel transform plan from file
+file_ht = "ht.jld2"   # file with Hankel transfrom plan
+
 ALG = "RK4"   # Solver algorithm for nonlinear part ("RK2", "RK3", "RK4", "Tsit5", or "ATsit5")
 
 # Plots ------------------------------------------------------------------------

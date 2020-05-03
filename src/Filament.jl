@@ -36,7 +36,7 @@ function main()
     # Prepare field
     # **************************************************************************
     z = Input.z
-    field = Fields.Field(unit, grid, Input.lam0, Input.initial_condition)
+    field = Fields.Field(unit, grid, Input.p_field)
 
     # **************************************************************************
     # Prepare medium
