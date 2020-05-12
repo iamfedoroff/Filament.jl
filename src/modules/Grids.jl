@@ -2,7 +2,7 @@ module Grids
 
 import HankelTransforms
 
-import FourierTransforms
+import ..FourierTransforms
 
 
 abstract type Grid end

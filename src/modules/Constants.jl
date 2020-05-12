@@ -15,10 +15,8 @@ const QE = ElementaryCharge.val
 const ME = ElectronMass.val
 const HBAR = ReducedPlanckConstant.val
 
-const MAX_THREADS_PER_BLOCK =
-        CUDAdrv.attribute(
-            CUDAnative.CuDevice(0),
-            CUDAdrv.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
-        )
+const MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(
+    CUDAnative.CuDevice(0), CUDAdrv.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
+)
 
 end

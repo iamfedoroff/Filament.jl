@@ -4,8 +4,9 @@ import CUDAnative
 import CuArrays
 import StaticArrays
 
-import Equations
-import Units
+import ..Equations
+
+import ..Units
 
 
 struct PlasmaEquation{I, FE, FK, P}

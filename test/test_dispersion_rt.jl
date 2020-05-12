@@ -1,7 +1,9 @@
+here = pwd()
+
 # Run simulations:
-cd(joinpath(PROJECT, "test", "dispersion", "RT"))
-proc = run(`julia -O3 --check-bounds=no $PROJECT/src/Filament.jl input.jl '>/dev/null'`)
-@test proc.exitcode == 0
+fname = joinpath("dispersion", "RT", "input.jl")
+input = Filament.prepare(fname)
+Filament.run(input)
 
 # Compare to theory:
 fname = joinpath(pwd(), "results", "plot.dat")
@@ -18,5 +20,8 @@ Ith = @. tau0 / tauth   # [I0] theoretical intensity
 
 @test maximum(abs.(I .- Ith)) <= 1e-3   # difference is less than 0.1%
 
-# Delete the directory with the results of simulation:
-rm(joinpath(pwd(), "results"), recursive=true)
+# Delete output files:
+rm("results", recursive=true)
+rm("ht.jld2")
+
+cd(here)

@@ -1,137 +1,181 @@
 module Input
 
-# Modules and variables available in input files:
-import CUDAnative
+# Global packages:
 import CuArrays
+import CUDAnative
 import FFTW
 import StaticArrays
 
-import Constants: FloatGPU, MAX_THREADS_PER_BLOCK, C0, EPS0, MU0, QE, ME, HBAR
-import FourierTransforms
-import Grids
-import Units
-import Media
-import Equations
-import TabulatedFunctions
+# Local package-like modules:
+import ..Equations
+import ..FourierTransforms
+import ..TabulatedFunctions
+
+# Local modules:
+import ..Constants: FloatGPU, MAX_THREADS_PER_BLOCK, C0, EPS0, MU0, QE, ME, HBAR
+import ..Grids
+import ..Media
+import ..Units
 
 const DEFPATHNR = joinpath(@__DIR__, "modules", "medium_responses")
 const DEFPATHPE = joinpath(@__DIR__, "modules", "plasma_equations")
 
-# Read input file and change current working directory:
-file_input = abspath(ARGS[1])
-include(file_input)
-cd(dirname(file_input))
 
-# Read initial condition file:
-file_initial_condition = abspath(file_initial_condition)
-include(file_initial_condition)
+function prepare(fname)
+    file_input = abspath(fname)
+    include(file_input)
+    cd(dirname(file_input))
 
-# Read medium file:
-file_medium = abspath(file_medium)
-include(file_medium)
+    include(abspath(file_initial_condition))
+    include(abspath(file_medium))
 
-z = z / zu   # convert initial z to dimensionless units
+    z_local = z / zu   # convert initial z to dimensionless units
 
-if ! NONLINEARITY
-    responses = []
+    p_medium = (permittivity, permeability, n2)
+    p_info = (file_input, abspath(file_initial_condition), abspath(file_medium))
+
+    if NONLINEARITY
+        responses_local = responses
+    else
+        responses_local = []
+    end
+
+    if geometry == "R"
+        p_unit = (ru, zu, Iu)
+        p_grid = (FloatGPU(rmax), Nr)
+        p_field = (FloatGPU(lam0), initial_condition, HTLOAD, file_ht)
+        p_guard = (FloatGPU(rguard), FloatGPU(kguard))
+        p_dzadaptive = (dzphimax, )
+
+        model_keys = (
+            NONLINEARITY=NONLINEARITY,
+            PLASMA=false,
+            KPARAXIAL=KPARAXIAL,
+            QPARAXIAL=QPARAXIAL,
+            ALG=ALG,
+        )
+        p_model = (responses_local, Dict(), model_keys)
+
+        p_loop = (
+            FloatGPU(lam0),
+            FloatGPU(dz_initial),
+            FloatGPU(dz_plothdf),
+            Istop,
+            NONLINEARITY,
+        )
+
+        z_local = FloatGPU(z_local)
+        zmax_local = FloatGPU(zmax)
+    elseif geometry == "T"
+        p_unit = (zu, tu, Iu, rhou)
+        p_grid = (tmin, tmax, Nt)
+        p_field = (lam0, initial_condition)
+        p_guard = (tguard, wguard)
+        p_dzadaptive = (dzphimax, mr, nuc)
+
+        if PLASMA
+            plasma_equation_local = plasma_equation
+        else
+            plasma_equation_local = Dict()
+        end
+        model_keys = (
+            NONLINEARITY=NONLINEARITY,
+            PLASMA=PLASMA,
+            KPARAXIAL=false,
+            QPARAXIAL=false,
+            ALG=ALG,
+        )
+        p_model = (responses_local, plasma_equation_local, model_keys)
+
+        p_loop = (
+            lam0,
+            dz_initial,
+            dz_plothdf,
+            Istop,
+            NONLINEARITY,
+        )
+
+        z_local = z_local
+        zmax_local = zmax
+    elseif geometry == "RT"
+        p_unit = (ru, zu, tu, Iu, rhou)
+        p_grid = (FloatGPU(rmax), Nr, FloatGPU(tmin), FloatGPU(tmax), Nt)
+        p_field = (FloatGPU(lam0), initial_condition, HTLOAD, file_ht)
+        p_guard = (FloatGPU(rguard), FloatGPU(tguard), FloatGPU(kguard), FloatGPU(wguard))
+        p_dzadaptive = (dzphimax, mr, nuc)
+
+        if PLASMA
+            plasma_equation_local = plasma_equation
+        else
+            plasma_equation_local = Dict()
+        end
+        model_keys = (
+            NONLINEARITY=NONLINEARITY,
+            PLASMA=PLASMA,
+            KPARAXIAL=KPARAXIAL,
+            QPARAXIAL=QPARAXIAL,
+            ALG=ALG,
+        )
+        p_model = (responses_local, plasma_equation_local, model_keys)
+
+        p_loop = (
+            FloatGPU(lam0),
+            FloatGPU(dz_initial),
+            FloatGPU(dz_plothdf),
+            Istop,
+            NONLINEARITY,
+        )
+
+        z_local = FloatGPU(z_local)
+        zmax_local = FloatGPU(zmax)
+    elseif geometry == "XY"
+        p_unit = (xu, yu, zu, Iu)
+        p_grid = (FloatGPU(xmin), FloatGPU(xmax), Nx, FloatGPU(ymin), FloatGPU(ymax), Ny)
+        p_field = (FloatGPU(lam0), initial_condition)
+        p_guard = (FloatGPU(xguard), FloatGPU(yguard), FloatGPU(kxguard), FloatGPU(kyguard))
+        p_dzadaptive = (dzphimax, )
+
+        model_keys = (
+            NONLINEARITY=NONLINEARITY,
+            PLASMA=false,
+            KPARAXIAL=KPARAXIAL,
+            QPARAXIAL=QPARAXIAL,
+            ALG=ALG,
+        )
+        p_model = (responses_local, Dict(), model_keys)
+
+        p_loop = (
+            FloatGPU(lam0),
+            FloatGPU(dz_initial),
+            FloatGPU(dz_plothdf),
+            Istop,
+            NONLINEARITY,
+        )
+
+        z_local = FloatGPU(z_local)
+        zmax_local = FloatGPU(zmax)
+    elseif geometry == "XYT"
+        error("XYT geometry is not implemented yet.")
+    else
+        error("Wrong grid geometry.")
+    end
+
+    input = Dict(
+        "prefix" => prefix,
+        "z" => z_local,
+        "zmax" => zmax_local,
+        "geometry" => geometry,
+        "p_unit" => p_unit,
+        "p_grid" => p_grid,
+        "p_field" => p_field,
+        "p_medium" => p_medium,
+        "p_guard" => p_guard,
+        "p_model" => p_model,
+        "p_dzadaptive" => p_dzadaptive,
+        "p_info" => p_info,
+        "p_loop" => p_loop,
+    )
 end
 
-if geometry == "R"
-    rmax = convert(FloatGPU, rmax)
-    rguard = convert(FloatGPU, rguard)
-    kguard = convert(FloatGPU, kguard)
-    dz_initial = convert(FloatGPU, dz_initial)
-    dz_plothdf = convert(FloatGPU, dz_plothdf)
-    z = convert(FloatGPU, z)
-    lam0 = convert(FloatGPU, lam0)
-    model_keys = (
-        NONLINEARITY=NONLINEARITY,
-        PLASMA=false,
-        KPARAXIAL=KPARAXIAL,
-        QPARAXIAL=QPARAXIAL,
-        ALG=ALG,
-    )
-    p_unit = (ru, zu, Iu)
-    p_grid = (rmax, Nr)
-    p_field = (lam0, initial_condition, HTLOAD, file_ht)
-    p_guard = (rguard, kguard)
-    p_model = (responses, Dict(), model_keys)
-    p_dzadaptive = (dzphimax, )
-elseif geometry == "T"
-    if ! PLASMA
-        plasma_equation = Dict()
-    end
-    model_keys = (
-        NONLINEARITY=NONLINEARITY,
-        PLASMA=PLASMA,
-        KPARAXIAL=false,
-        QPARAXIAL=false,
-        ALG=ALG,
-    )
-    p_unit = (zu, tu, Iu, rhou)
-    p_grid = (tmin, tmax, Nt)
-    p_field = (lam0, initial_condition)
-    p_guard = (tguard, wguard)
-    p_model = (responses, plasma_equation, model_keys)
-    p_dzadaptive = (dzphimax, mr, nuc)
-elseif geometry == "RT"
-    rmax = convert(FloatGPU, rmax)
-    tmin = convert(FloatGPU, tmin)
-    tmax = convert(FloatGPU, tmax)
-    rguard = convert(FloatGPU, rguard)
-    tguard = convert(FloatGPU, tguard)
-    kguard = convert(FloatGPU, kguard)
-    wguard = convert(FloatGPU, wguard)
-    dz_initial = convert(FloatGPU, dz_initial)
-    dz_plothdf = convert(FloatGPU, dz_plothdf)
-    z = convert(FloatGPU, z)
-    lam0 = convert(FloatGPU, lam0)
-    if ! PLASMA
-        plasma_equation = Dict()
-    end
-    model_keys = (
-        NONLINEARITY=NONLINEARITY,
-        PLASMA=PLASMA,
-        KPARAXIAL=KPARAXIAL,
-        QPARAXIAL=QPARAXIAL,
-        ALG=ALG,
-    )
-    p_unit = (ru, zu, tu, Iu, rhou)
-    p_grid = (rmax, Nr, tmin, tmax, Nt)
-    p_field = (lam0, initial_condition, HTLOAD, file_ht)
-    p_guard = (rguard, tguard, kguard, wguard)
-    p_model = (responses, plasma_equation, model_keys)
-    p_dzadaptive = (dzphimax, mr, nuc)
-elseif geometry == "XY"
-    xmin = convert(FloatGPU, xmin)
-    xmax = convert(FloatGPU, xmax)
-    ymin = convert(FloatGPU, ymin)
-    ymax = convert(FloatGPU, ymax)
-    xguard = convert(FloatGPU, xguard)
-    yguard = convert(FloatGPU, yguard)
-    kxguard = convert(FloatGPU, kxguard)
-    kyguard = convert(FloatGPU, kyguard)
-    dz_initial = convert(FloatGPU, dz_initial)
-    dz_plothdf = convert(FloatGPU, dz_plothdf)
-    z = convert(FloatGPU, z)
-    lam0 = convert(FloatGPU, lam0)
-    model_keys = (
-        NONLINEARITY=NONLINEARITY,
-        PLASMA=false,
-        KPARAXIAL=KPARAXIAL,
-        QPARAXIAL=QPARAXIAL,
-        ALG=ALG,
-    )
-    p_unit = (xu, yu, zu, Iu)
-    p_grid = (xmin, xmax, Nx, ymin, ymax, Ny)
-    p_field = (lam0, initial_condition)
-    p_guard = (xguard, yguard, kxguard, kyguard)
-    p_model = (responses, Dict(), model_keys)
-    p_dzadaptive = (dzphimax, )
-elseif geometry == "XYT"
-    error("XYT geometry is not implemented yet.")
-else
-    error("Wrong grid geometry.")
-end
 
 end

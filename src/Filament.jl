@@ -1,80 +1,112 @@
-import Pkg
-Pkg.activate(dirname(@__DIR__))
+module Filament
 
-using TimerOutputs
-import Formatting
-import Dates
+# Global packages --------------------------------------------------------------
 import CUDAdrv
+import Dates
+import Formatting
+using TimerOutputs
 
-push!(LOAD_PATH, joinpath(@__DIR__, "modules"))
-import Units
-import Grids
-import FieldAnalyzers
-import Fields
-import Media
-import Guards
-import Models
-import AdaptiveSteps
-import Infos
-import WritePlots
+# Local package-like modules ---------------------------------------------------
+include(joinpath("modules", "FourierTransforms.jl"));
+import .FourierTransforms
 
+include(joinpath("modules", "AnalyticSignals.jl"))
+import .AnalyticSignals
+
+include(joinpath("modules", "Equations.jl"))
+import .Equations
+
+include(joinpath("modules", "TabulatedFunctions.jl"))
+import .TabulatedFunctions
+
+# Local modules ----------------------------------------------------------------
+include(joinpath("modules", "Constants.jl"))
+import .Constants
+
+include(joinpath("modules", "Units.jl"))
+import .Units
+
+include(joinpath("modules", "Grids.jl"))
+import .Grids
+
+include(joinpath("modules", "Fields.jl"))
+import .Fields
+
+include(joinpath("modules", "Media.jl"))
+import .Media
+
+include(joinpath("modules", "Guards.jl"))
+import .Guards
+
+include(joinpath("modules", "LinearPropagators.jl"))
+import .LinearPropagators
+include(joinpath("modules", "NonlinearPropagators.jl"))
+import .NonlinearPropagators
+include(joinpath("modules", "PlasmaEquations.jl"))
+import .PlasmaEquations
+include(joinpath("modules", "Models.jl"))
+import .Models
+
+include(joinpath("modules", "AdaptiveSteps.jl"))
+import .AdaptiveSteps
+
+include(joinpath("modules", "FieldAnalyzers.jl"))
+import .FieldAnalyzers
+
+include(joinpath("modules", "Infos.jl"))
+import .Infos
+
+include(joinpath("modules", "WritePlots.jl"))
+import .WritePlots
+
+# Input ------------------------------------------------------------------------
 include("Input.jl")
 import .Input
+
+
+prepare = Input.prepare
 
 
 fmt(x) = Formatting.fmt("18.12e", Float64(x))   # output print format
 
 
-function main()
-    # **************************************************************************
-    # Prepare units and grid
-    # **************************************************************************
-    unit = Units.Unit(Input.geometry, Input.p_unit)
-    grid = Grids.Grid(Input.geometry, Input.p_grid)
+function run(input)
+    prefix = input["prefix"]
+    z = input["z"]
+    zmax = input["zmax"]
+    geometry = input["geometry"]
+    p_unit = input["p_unit"]
+    p_grid = input["p_grid"]
+    p_field = input["p_field"]
+    p_medium = input["p_medium"]
+    p_guard = input["p_guard"]
+    p_model = input["p_model"]
+    p_dzadaptive = input["p_dzadaptive"]
+    p_info = input["p_info"]
+    p_loop = input["p_loop"]
 
-    # **************************************************************************
-    # Prepare field
-    # **************************************************************************
-    z = Input.z
-    field = Fields.Field(unit, grid, Input.p_field)
-
-    # **************************************************************************
-    # Prepare medium
-    # **************************************************************************
-    medium = Media.Medium(Input.permittivity, Input.permeability, Input.n2)
-
-    # **************************************************************************
-    # Prepare guards, model, and adaptive z step
-    # **************************************************************************
-    guard = Guards.Guard(unit, grid, field, medium, Input.p_guard...)
-    model = Models.Model(unit, grid, field, medium, guard, Input.p_model...)
-    dzadaptive = AdaptiveSteps.AStep(unit, medium, field, Input.p_dzadaptive...)
-
+    # Prepare data structures --------------------------------------------------
+    unit = Units.Unit(geometry, p_unit)
+    grid = Grids.Grid(geometry, p_grid)
+    field = Fields.Field(unit, grid, p_field)
+    medium = Media.Medium(p_medium...)
+    guard = Guards.Guard(unit, grid, field, medium, p_guard...)
+    model = Models.Model(unit, grid, field, medium, guard, p_model...)
+    dzadaptive = AdaptiveSteps.AStep(unit, medium, field, p_dzadaptive...)
     analyzer = FieldAnalyzers.FieldAnalyzer(grid, field, z)
+
     FieldAnalyzers.analyze!(analyzer, grid, field, z)
 
-    # **************************************************************************
-    # Prepare output files
-    # **************************************************************************
-    prefix_dir = dirname(Input.prefix)
-    prefix_name = basename(Input.prefix)
+    # Prepare output files -----------------------------------------------------
+    prefix_dir = dirname(prefix)
+    prefix_name = basename(prefix)
 
     if prefix_dir != ""
         mkpath(prefix_dir)
     end
 
-    file_infos = joinpath(prefix_dir, string(prefix_name, "info.txt"))
-    info = Infos.Info(
-        file_infos,
-        Input.file_input,
-        Input.file_initial_condition,
-        Input.file_medium,
-        unit,
-        grid,
-        field,
-        medium,
-        analyzer,
-    )
+    file_info = joinpath(prefix_dir, string(prefix_name, "info.txt"))
+    info = Infos.Info(file_info, unit, grid, field, medium, analyzer, p_info...)
 
     file_plotdat = joinpath(prefix_dir, string(prefix_name, "plot.dat"))
     plotdat = WritePlots.PlotDAT(file_plotdat, unit)
@@ -87,15 +119,27 @@ function main()
         WritePlots.writeHDF_zdata(plothdf, analyzer)
     end
 
-    # **************************************************************************
-    # Main loop
-    # **************************************************************************
+    # Main loop ----------------------------------------------------------------
+    main_loop(
+        z, zmax, unit, grid, field, guard, model, dzadaptive, analyzer, info,
+        plotdat, plothdf, p_loop,
+    )
+    return nothing
+end
+
+
+function main_loop(
+    z, zmax, unit, grid, field, guard, model, dzadaptive, analyzer, info,
+    plotdat, plothdf, p_loop,
+)
+    lam0, dz_initial, dz_plothdf, Istop, NONLINEARITY = p_loop
+
     stime = Dates.now()
 
-    znext_plothdf = z + Input.dz_plothdf
+    znext_plothdf = z + dz_plothdf
 
     if isa(grid, Grids.GridRT)
-        dz_zdata = 0.5 * Input.lam0 / unit.z
+        dz_zdata = lam0 / 2 / unit.z
         znext_zdata = z + dz_zdata
     end
 
@@ -103,26 +147,26 @@ function main()
 
     CUDAdrv.synchronize()
 
-    while z < Input.zmax
+    while z < zmax
 
         if isa(grid, Grids.GridT) | isa(grid, Grids.GridRT)
-            if Input.NONLINEARITY
+            if NONLINEARITY
                 dz = dzadaptive(analyzer.Imax, analyzer.rhomax)
             else
-                dz = Input.dz_initial
+                dz = dz_initial
             end
             println("z=$(fmt(z))[zu] I=$(fmt(analyzer.Imax))[Iu]" *
                     " rho=$(fmt(analyzer.rhomax))[rhou]")
         else
-            if Input.NONLINEARITY
+            if NONLINEARITY
                 dz = dzadaptive(analyzer.Imax)
             else
-                dz = Input.dz_initial
+                dz = dz_initial
             end
             println("z=$(fmt(z))[zu] I=$(fmt(analyzer.Imax))[Iu]")
         end
 
-        dz = min(Input.dz_initial, Input.dz_plothdf, dz)
+        dz = min(dz_initial, dz_plothdf, dz)
         z = z + dz
 
         @timeit "zstep" begin
@@ -147,7 +191,7 @@ function main()
             if z >= znext_plothdf
                 @timeit "writeHDF" begin
                     WritePlots.writeHDF(plothdf, field, z)
-                    znext_plothdf = znext_plothdf + Input.dz_plothdf
+                    znext_plothdf = znext_plothdf + dz_plothdf
                     CUDAdrv.synchronize()
                 end
             end
@@ -164,8 +208,7 @@ function main()
             end
         end
 
-        # Exit conditions
-        if analyzer.Imax > Input.Istop
+        if analyzer.Imax > Istop
             message = "Stop (Imax >= Istop): z=$(z)[zu], z=$(z * unit.z)[m]"
             Infos.write_message(info, message)
             break
@@ -187,7 +230,9 @@ function main()
               "End time:   $(etime)\n" *
               "Run time:   $(ttime)"
     Infos.write_message(info, message)
+
+    return nothing
 end
 
 
-main()
+end

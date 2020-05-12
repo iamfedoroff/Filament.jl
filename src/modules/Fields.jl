@@ -3,11 +3,12 @@ module Fields
 import CuArrays
 import HankelTransforms
 
-import AnalyticSignals
-import Constants: FloatGPU, C0, HBAR
-import FourierTransforms
-import Grids
-import Units
+import ..AnalyticSignals
+import ..FourierTransforms
+
+import ..Constants: FloatGPU, C0, HBAR
+import ..Grids
+import ..Units
 
 
 abstract type Field end

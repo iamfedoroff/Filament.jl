@@ -4,12 +4,13 @@ import CuArrays
 import Formatting
 import HDF5
 
-import Constants: FloatGPU
-import FieldAnalyzers
-import Fields
-import FourierTransforms
-import Grids
-import Units
+import ..FourierTransforms
+
+import ..Constants: FloatGPU
+import ..FieldAnalyzers
+import ..Fields
+import ..Grids
+import ..Units
 
 
 # ******************************************************************************

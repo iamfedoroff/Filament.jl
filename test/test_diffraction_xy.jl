@@ -1,10 +1,12 @@
+here = pwd()
+
 # Run simulations:
-cd(joinpath(PROJECT, "test", "diffraction", "XY"))
-proc = run(`julia -O3 --check-bounds=no $PROJECT/src/Filament.jl input.jl`)
-@test proc.exitcode == 0
+fname = joinpath("diffraction", "XY", "input.jl")
+input = Filament.prepare(fname)
+Filament.run(input)
 
 # Compare to theory:
-fname = joinpath(pwd(), "results", "plot.dat")
+fname = joinpath("results", "plot.dat")
 data = DelimitedFiles.readdlm(fname, comments=true)
 data = transpose(data)
 z = data[1, :]   # [zu] propagation distance
@@ -22,5 +24,7 @@ Ith = @. (a0 / ath)^2   # [I0] theoretical intensity
 @test maximum(abs.(ay .- ath)) <= 0.01e-3   # difference is less than the step size
 @test maximum(abs.(I .- Ith)) <= 1e-3   # difference is less than 0.1%
 
-# Delete the directory with the results of simulation:
-rm(joinpath(pwd(), "results"), recursive=true)
+# Delete output files:
+rm("results", recursive=true)
+
+cd(here)

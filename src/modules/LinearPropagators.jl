@@ -3,13 +3,14 @@ module LinearPropagators
 import CuArrays
 import HankelTransforms
 
-import Constants: FloatGPU
-import Fields
-import FourierTransforms
-import Grids
-import Guards
-import Media
-import Units
+import ..FourierTransforms
+
+import ..Constants: FloatGPU
+import ..Fields
+import ..Grids
+import ..Guards
+import ..Media
+import ..Units
 
 
 abstract type LinearPropagator end

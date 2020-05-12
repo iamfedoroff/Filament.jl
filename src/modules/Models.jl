@@ -3,15 +3,17 @@ module Models
 import CUDAdrv
 using TimerOutputs
 
-import Fields
-import FourierTransforms
-import Grids
-import Guards
-import LinearPropagators
-import Media
-import NonlinearPropagators
-import PlasmaEquations
-import Units
+import ..FourierTransforms
+
+import ..Fields
+import ..Grids
+import ..Guards
+import ..Media
+import ..Units
+
+import ..LinearPropagators
+import ..NonlinearPropagators
+import ..PlasmaEquations
 
 
 struct Model{TLP, TNP, TPE, B<:Bool}

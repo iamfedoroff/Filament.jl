@@ -5,8 +5,11 @@ import CUDAdrv
 import CUDAnative
 import FFTW
 
-import Constants: MAX_THREADS_PER_BLOCK
-import FourierTransforms
+import ..FourierTransforms
+
+const MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(
+    CUDAnative.CuDevice(0), CUDAdrv.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
+)
 
 
 """

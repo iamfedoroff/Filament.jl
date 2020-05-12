@@ -1,10 +1,13 @@
 module FourierTransforms
 
 import FFTW
+import CUDAdrv
 import CUDAnative
 import CuArrays
 
-import Constants: MAX_THREADS_PER_BLOCK
+const MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(
+    CUDAnative.CuDevice(0), CUDAdrv.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
+)
 
 
 struct Plan{P<:FFTW.Plan, PI<:FFTW.Plan}

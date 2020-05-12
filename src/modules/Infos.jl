@@ -3,12 +3,12 @@ module Infos
 import Dates
 import Formatting
 
-import Constants: C0, HBAR
-import FieldAnalyzers
-import Fields
-import Grids
-import Media
-import Units
+import ..Constants: C0, HBAR
+import ..FieldAnalyzers
+import ..Fields
+import ..Grids
+import ..Media
+import ..Units
 
 
 fmt(x) = Formatting.fmt("18.12e", x)
@@ -21,14 +21,14 @@ end
 
 function Info(
     fname::String,
-    file_input::String,
-    file_initial_condition::String,
-    file_medium::String,
     unit::Units.Unit,
     grid::Grids.Grid,
     field::Fields.Field,
     medium::Media.Medium,
     analyzer::FieldAnalyzers.FieldAnalyzer,
+    file_input::String,
+    file_initial_condition::String,
+    file_medium::String,
 )
     revision = vcs_revision()
 

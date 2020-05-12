@@ -4,15 +4,16 @@ import CuArrays
 import CUDAnative
 import HankelTransforms
 
-import AnalyticSignals
-import Constants: FloatGPU, MAX_THREADS_PER_BLOCK, MU0
-import Equations
-import Fields
-import FourierTransforms
-import Grids
-import Guards
-import Media
-import Units
+import ..AnalyticSignals
+import ..FourierTransforms
+import ..Equations
+
+import ..Constants: FloatGPU, MAX_THREADS_PER_BLOCK, MU0
+import ..Fields
+import ..Grids
+import ..Guards
+import ..Media
+import ..Units
 
 
 struct NonlinearPropagator{P<:Equations.Integrator}

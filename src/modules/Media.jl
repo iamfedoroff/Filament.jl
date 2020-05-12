@@ -2,7 +2,7 @@ module Media
 
 # import ForwardDiff
 
-import Constants: C0, EPS0
+import ..Constants: C0, EPS0
 
 
 struct Medium{T, FE, FM}

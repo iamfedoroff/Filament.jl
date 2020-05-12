@@ -3,11 +3,11 @@ module Guards
 import CuArrays
 import CUDAnative
 
-import Constants: MAX_THREADS_PER_BLOCK
-import Fields
-import Grids
-import Media
-import Units
+import ..Constants: MAX_THREADS_PER_BLOCK
+import ..Fields
+import ..Grids
+import ..Media
+import ..Units
 
 
 abstract type Guard end

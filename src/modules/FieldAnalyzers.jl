@@ -2,10 +2,11 @@ module FieldAnalyzers
 
 import CuArrays
 
-import AnalyticSignals
-import Fields
-import FourierTransforms
-import Grids
+import ..AnalyticSignals
+import ..FourierTransforms
+
+import ..Fields
+import ..Grids
 
 
 abstract type FieldAnalyzer end
