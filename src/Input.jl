@@ -30,8 +30,6 @@ function prepare(fname)
     include(abspath(file_initial_condition))
     include(abspath(file_medium))
 
-    z_local = z / zu   # convert initial z to dimensionless units
-
     p_medium = (permittivity, permeability, n2)
     p_info = (file_input, abspath(file_initial_condition), abspath(file_medium))
 
@@ -42,11 +40,17 @@ function prepare(fname)
     end
 
     if geometry == "R"
+        z_local = FloatGPU(z / zu)
+        zmax_local = FloatGPU(zmax)
+        lam0_local = FloatGPU(lam0)
+        dz_plothdf_local = FloatGPU(dz_plothdf)
+
         p_unit = (ru, zu, Iu)
         p_grid = (FloatGPU(rmax), Nr)
         p_field = (FloatGPU(lam0), initial_condition, HTLOAD, file_ht)
         p_guard = (FloatGPU(rguard), FloatGPU(kguard))
         p_dzadaptive = (dzphimax, )
+        p_loop = (FloatGPU(dz_initial), Istop, NONLINEARITY)
 
         model_keys = (
             NONLINEARITY=NONLINEARITY,
@@ -56,23 +60,18 @@ function prepare(fname)
             ALG=ALG,
         )
         p_model = (responses_local, Dict(), model_keys)
-
-        p_loop = (
-            FloatGPU(lam0),
-            FloatGPU(dz_initial),
-            FloatGPU(dz_plothdf),
-            Istop,
-            NONLINEARITY,
-        )
-
-        z_local = FloatGPU(z_local)
-        zmax_local = FloatGPU(zmax)
     elseif geometry == "T"
+        z_local = z / zu
+        zmax_local = zmax
+        lam0_local = lam0
+        dz_plothdf_local = dz_plothdf
+
         p_unit = (zu, tu, Iu, rhou)
         p_grid = (tmin, tmax, Nt)
         p_field = (lam0, initial_condition)
         p_guard = (tguard, wguard)
         p_dzadaptive = (dzphimax, mr, nuc)
+        p_loop = (dz_initial, Istop, NONLINEARITY)
 
         if PLASMA
             plasma_equation_local = plasma_equation
@@ -87,23 +86,18 @@ function prepare(fname)
             ALG=ALG,
         )
         p_model = (responses_local, plasma_equation_local, model_keys)
-
-        p_loop = (
-            lam0,
-            dz_initial,
-            dz_plothdf,
-            Istop,
-            NONLINEARITY,
-        )
-
-        z_local = z_local
-        zmax_local = zmax
     elseif geometry == "RT"
+        z_local = FloatGPU(z / zu)
+        zmax_local = FloatGPU(zmax)
+        lam0_local = FloatGPU(lam0)
+        dz_plothdf_local = FloatGPU(dz_plothdf)
+
         p_unit = (ru, zu, tu, Iu, rhou)
         p_grid = (FloatGPU(rmax), Nr, FloatGPU(tmin), FloatGPU(tmax), Nt)
         p_field = (FloatGPU(lam0), initial_condition, HTLOAD, file_ht)
         p_guard = (FloatGPU(rguard), FloatGPU(tguard), FloatGPU(kguard), FloatGPU(wguard))
         p_dzadaptive = (dzphimax, mr, nuc)
+        p_loop = (FloatGPU(dz_initial), Istop, NONLINEARITY)
 
         if PLASMA
             plasma_equation_local = plasma_equation
@@ -118,23 +112,18 @@ function prepare(fname)
             ALG=ALG,
         )
         p_model = (responses_local, plasma_equation_local, model_keys)
-
-        p_loop = (
-            FloatGPU(lam0),
-            FloatGPU(dz_initial),
-            FloatGPU(dz_plothdf),
-            Istop,
-            NONLINEARITY,
-        )
-
-        z_local = FloatGPU(z_local)
-        zmax_local = FloatGPU(zmax)
     elseif geometry == "XY"
+        z_local = FloatGPU(z / zu)
+        zmax_local = FloatGPU(zmax)
+        lam0_local = FloatGPU(lam0)
+        dz_plothdf_local = FloatGPU(dz_plothdf)
+
         p_unit = (xu, yu, zu, Iu)
         p_grid = (FloatGPU(xmin), FloatGPU(xmax), Nx, FloatGPU(ymin), FloatGPU(ymax), Ny)
         p_field = (FloatGPU(lam0), initial_condition)
         p_guard = (FloatGPU(xguard), FloatGPU(yguard), FloatGPU(kxguard), FloatGPU(kyguard))
         p_dzadaptive = (dzphimax, )
+        p_loop = (FloatGPU(dz_initial), Istop, NONLINEARITY)
 
         model_keys = (
             NONLINEARITY=NONLINEARITY,
@@ -144,17 +133,6 @@ function prepare(fname)
             ALG=ALG,
         )
         p_model = (responses_local, Dict(), model_keys)
-
-        p_loop = (
-            FloatGPU(lam0),
-            FloatGPU(dz_initial),
-            FloatGPU(dz_plothdf),
-            Istop,
-            NONLINEARITY,
-        )
-
-        z_local = FloatGPU(z_local)
-        zmax_local = FloatGPU(zmax)
     elseif geometry == "XYT"
         error("XYT geometry is not implemented yet.")
     else
@@ -163,9 +141,11 @@ function prepare(fname)
 
     input = Dict(
         "prefix" => prefix,
+        "geometry" => geometry,
         "z" => z_local,
         "zmax" => zmax_local,
-        "geometry" => geometry,
+        "lam0" => lam0_local,
+        "dz_plothdf" => dz_plothdf_local,
         "p_unit" => p_unit,
         "p_grid" => p_grid,
         "p_field" => p_field,

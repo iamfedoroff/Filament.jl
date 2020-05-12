@@ -192,30 +192,58 @@ const GROUP_FDAT = "field"
 const GROUP_ZDAT = "zdata"
 
 
-mutable struct PlotHDF{T<:AbstractFloat, I<:Int}
+mutable struct PlotHDF{T<:AbstractFloat, I<:Int, B<:Bool}
     fname :: String
-    numplot :: I
-    previous_z :: T
-    iz :: I
+    ifield :: I
+    dz_field :: T
+    zprev_field :: T
+    znext_field :: T
+    izdata :: I
+    dz_zdata :: T
+    znext_zdata :: T
+    ZDATA :: B
 end
 
 
-function PlotHDF(fname::String, unit::Units.Unit, grid::Grids.Grid)
+function PlotHDF(
+    fname::String,
+    unit::Units.Unit,
+    grid::Grids.Grid,
+    z::T,
+    dz_field::T,
+    dz_zdata::T,
+) where T<:AbstractFloat
+    if isa(grid, Grids.GridRT)
+        ZDATA = true
+    else
+        ZDATA = false
+    end
+
     fp = HDF5.h5open(fname, "w")
     fp["version"] = PFVERSION
     _write_group_unit(fp, unit)
     _write_group_grid(fp, grid)
     HDF5.g_create(fp, GROUP_FDAT)
-    if isa(grid, Grids.GridRT)
+    if ZDATA
         _write_group_zdat(fp, grid)
     end
     HDF5.close(fp)
 
-    numplot = 0
-    previous_z = -Inf
-    iz = 0
+    ifield = 0
+    zprev_field = convert(typeof(z), -Inf)
+    znext_field = z
 
-    return PlotHDF(fname, numplot, previous_z, iz)
+    izdata = 1
+    if ZDATA
+        znext_zdata = z
+    else
+        znext_zdata = convert(typeof(z), Inf)
+    end
+
+    return PlotHDF(
+        fname, ifield, dz_field, zprev_field, znext_field,
+               izdata, dz_zdata, znext_zdata, ZDATA,
+    )
 end
 
 
@@ -332,31 +360,39 @@ end
 function writeHDF(
     plothdf::PlotHDF,
     field::Fields.Field,
+    analyzer::FieldAnalyzers.FieldAnalyzer,
     z::T,
 ) where T<:AbstractFloat
-    if z == plothdf.previous_z
-        return
+    if (z != plothdf.zprev_field) & (z >= plothdf.znext_field)
+        dset = "$(Formatting.fmt("03d", plothdf.ifield))"
+        println(" Writing dataset $(dset)...")
+
+        fp = HDF5.h5open(plothdf.fname, "r+")
+        group_fdat = fp[GROUP_FDAT]
+        write_field(group_fdat, dset, field)
+        HDF5.attrs(group_fdat[dset])["z"] = z
+        HDF5.close(fp)
+
+        plothdf.ifield = plothdf.ifield + 1
+        plothdf.znext_field = plothdf.znext_field + plothdf.dz_field
     end
 
-    dset = "$(Formatting.fmt("03d", plothdf.numplot))"
-    print(" Writing dataset $(dset)...\n")
-
-    plothdf.numplot = plothdf.numplot + 1
-    plothdf.previous_z = z
-
-    fp = HDF5.h5open(plothdf.fname, "r+")
-    group_fdat = fp[GROUP_FDAT]
-    write_field(group_fdat, dset, field)
-    HDF5.attrs(group_fdat[dset])["z"] = z
-    HDF5.close(fp)
+    if plothdf.ZDATA
+        if z >= plothdf.znext_zdata
+            writeHDF_zdata(plothdf, analyzer)
+            plothdf.izdata = plothdf.izdata + 1
+            plothdf.zprev_field = z
+            plothdf.znext_zdata = z + plothdf.dz_zdata
+        end
+    end
+    return nothing
 end
 
 
 function writeHDF_zdata(
     plothdf::PlotHDF, analyzer::FieldAnalyzers.FieldAnalyzerRT,
 )
-    plothdf.iz = plothdf.iz + 1
-    iz = plothdf.iz
+    iz = plothdf.izdata
 
     fp = HDF5.h5open(plothdf.fname, "r+")
 

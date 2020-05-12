@@ -72,9 +72,11 @@ fmt(x) = Formatting.fmt("18.12e", Float64(x))   # output print format
 
 function run(input)
     prefix = input["prefix"]
+    geometry = input["geometry"]
     z = input["z"]
     zmax = input["zmax"]
-    geometry = input["geometry"]
+    lam0 = input["lam0"]
+    dz_plothdf = input["dz_plothdf"]
     p_unit = input["p_unit"]
     p_grid = input["p_grid"]
     p_field = input["p_field"]
@@ -112,12 +114,12 @@ function run(input)
     plotdat = WritePlots.PlotDAT(file_plotdat, unit)
     WritePlots.writeDAT(plotdat, analyzer)
 
+    dz_zdata = convert(typeof(lam0), lam0 / 2 / unit.z)
     file_plothdf = joinpath(prefix_dir, string(prefix_name, "plot.h5"))
-    plothdf = WritePlots.PlotHDF(file_plothdf, unit, grid)
-    WritePlots.writeHDF(plothdf, field, z)
-    if isa(grid, Grids.GridRT)
-        WritePlots.writeHDF_zdata(plothdf, analyzer)
-    end
+    plothdf = WritePlots.PlotHDF(
+        file_plothdf, unit, grid, z, dz_plothdf, dz_zdata,
+    )
+    WritePlots.writeHDF(plothdf, field, analyzer, z)
 
     # Main loop ----------------------------------------------------------------
     main_loop(
@@ -132,16 +134,9 @@ function main_loop(
     z, zmax, unit, grid, field, guard, model, dzadaptive, analyzer, info,
     plotdat, plothdf, p_loop,
 )
-    lam0, dz_initial, dz_plothdf, Istop, NONLINEARITY = p_loop
+    dz_initial, Istop, NONLINEARITY = p_loop
 
     stime = Dates.now()
-
-    znext_plothdf = z + dz_plothdf
-
-    if isa(grid, Grids.GridRT)
-        dz_zdata = lam0 / 2 / unit.z
-        znext_zdata = z + dz_zdata
-    end
 
     zfirst = true
 
@@ -166,7 +161,7 @@ function main_loop(
             println("z=$(fmt(z))[zu] I=$(fmt(analyzer.Imax))[Iu]")
         end
 
-        dz = min(dz_initial, dz_plothdf, dz)
+        dz = min(dz_initial, dz)
         z = z + dz
 
         @timeit "zstep" begin
@@ -188,23 +183,9 @@ function main_loop(
             end
 
             # Write field to hdf file
-            if z >= znext_plothdf
-                @timeit "writeHDF" begin
-                    WritePlots.writeHDF(plothdf, field, z)
-                    znext_plothdf = znext_plothdf + dz_plothdf
-                    CUDAdrv.synchronize()
-                end
-            end
-
-            # Write 1d field data to hdf file
-            if isa(grid, Grids.GridRT)
-                if z >= znext_zdata
-                    @timeit "writeHDF_zdata" begin
-                        WritePlots.writeHDF_zdata(plothdf, analyzer)
-                        znext_zdata = z + dz_zdata
-                        CUDAdrv.synchronize()
-                    end
-                end
+            @timeit "writeHDF" begin
+                WritePlots.writeHDF(plothdf, field, analyzer, z)
+                CUDAdrv.synchronize()
             end
         end
 
