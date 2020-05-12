@@ -1,7 +1,8 @@
 module PlasmaEquations
 
-import CUDAnative
 import CuArrays
+import CUDAdrv
+import CUDAnative
 import StaticArrays
 
 import ..Equations
@@ -88,9 +89,15 @@ function solve!(
     E::CuArrays.CuArray{Complex{T},2},
 ) where T<:AbstractFloat
     Nr, Nt = size(rho)
-    nth = min(256, Nr)
-    nbl = cld(Nr, nth)
-    @CUDAnative.cuda blocks=nbl threads=nth solve_kernel(PE, rho, kdrho, t, E)
+
+    function get_config(kernel)
+        fun = kernel.fun
+        config = CUDAdrv.launch_configuration(fun)
+        blocks = cld(Nr, config.threads)
+        return (threads=config.threads, blocks=blocks)
+    end
+
+    CUDAnative.@cuda config=get_config solve_kernel(PE, rho, kdrho, t, E)
     return nothing
 end
 

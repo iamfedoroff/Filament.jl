@@ -2,6 +2,7 @@ module Input
 
 # Global packages:
 import CuArrays
+import CUDAdrv
 import CUDAnative
 import FFTW
 import StaticArrays
@@ -12,7 +13,7 @@ import ..FourierTransforms
 import ..TabulatedFunctions
 
 # Local modules:
-import ..Constants: FloatGPU, MAX_THREADS_PER_BLOCK, C0, EPS0, MU0, QE, ME, HBAR
+import ..Constants: FloatGPU, C0, EPS0, MU0, QE, ME, HBAR
 import ..Grids
 import ..Media
 import ..Units

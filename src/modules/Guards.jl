@@ -1,9 +1,9 @@
 module Guards
 
 import CuArrays
+import CUDAdrv
 import CUDAnative
 
-import ..Constants: MAX_THREADS_PER_BLOCK
 import ..Fields
 import ..Grids
 import ..Media
@@ -145,9 +145,15 @@ function apply_field_filter!(
     guard::Guard2D,
 ) where T
     N = length(E)
-    nth = min(N, MAX_THREADS_PER_BLOCK)
-    nbl = cld(N, nth)
-    @CUDAnative.cuda blocks=nbl threads=nth kernel!(E, guard.F1, guard.F2)
+
+    function get_config(kernel)
+        fun = kernel.fun
+        config = CUDAdrv.launch_configuration(fun)
+        blocks = cld(N, config.threads)
+        return (threads=config.threads, blocks=blocks)
+    end
+
+    CUDAnative.@cuda config=get_config kernel!(E, guard.F1, guard.F2)
 end
 
 
@@ -161,9 +167,15 @@ function apply_spectral_filter!(
     guard::Guard2D,
 ) where T
     N = length(E)
-    nth = min(N, MAX_THREADS_PER_BLOCK)
-    nbl = cld(N, nth)
-    @CUDAnative.cuda blocks=nbl threads=nth kernel!(E, guard.S1, guard.S2)
+
+    function get_config(kernel)
+        fun = kernel.fun
+        config = CUDAdrv.launch_configuration(fun)
+        blocks = cld(N, config.threads)
+        return (threads=config.threads, blocks=blocks)
+    end
+
+    CUDAnative.@cuda config=get_config kernel!(E, guard.S1, guard.S2)
 end
 
 

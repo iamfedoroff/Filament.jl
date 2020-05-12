@@ -8,20 +8,20 @@ import Filament
         @testset "r" begin
             include("test_diffraction_r.jl")
         end
-        # @testset "rt" begin
-        #     include("test_diffraction_rt.jl")
-        # end
-        # @testset "xy" begin
-        #     include("test_diffraction_xy.jl")
-        # end
+        @testset "rt" begin
+            include("test_diffraction_rt.jl")
+        end
+        @testset "xy" begin
+            include("test_diffraction_xy.jl")
+        end
     end
 
     @testset "dispersion" begin
         @testset "t" begin
             include("test_dispersion_t.jl")
         end
-        # @testset "rt" begin
-        #     include("test_dispersion_rt.jl")
-        # end
+        @testset "rt" begin
+            include("test_dispersion_rt.jl")
+        end
     end
 end

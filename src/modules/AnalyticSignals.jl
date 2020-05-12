@@ -7,10 +7,6 @@ import FFTW
 
 import ..FourierTransforms
 
-const MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(
-    CUDAnative.CuDevice(0), CUDAdrv.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
-)
-
 
 """
 Transforms the spectrum of a real signal to the spectrum of the corresponding
@@ -35,9 +31,15 @@ end
 
 function rspec2aspec!(S::CuArrays.CuArray{Complex{T}}) where T
     N = length(S)
-    nth = min(N, MAX_THREADS_PER_BLOCK)
-    nbl = cld(N, nth)
-    @CUDAnative.cuda blocks=nbl threads=nth _rspec2aspec_kernel!(S)
+
+    function get_config(kernel)
+        fun = kernel.fun
+        config = CUDAdrv.launch_configuration(fun)
+        blocks = cld(N, config.threads)
+        return (threads=config.threads, blocks=blocks)
+    end
+
+    CUDAnative.@cuda config=get_config _rspec2aspec_kernel!(S)
     return nothing
 end
 
@@ -130,9 +132,15 @@ function aspec2rspec!(
     Sa::CuArrays.CuArray{Complex{T}},
 ) where T
     N = length(Sr)
-    nth = min(N, MAX_THREADS_PER_BLOCK)
-    nbl = cld(N, nth)
-    @CUDAnative.cuda blocks=nbl threads=nth _aspec2rspec_kernel!(Sr, Sa)
+
+    function get_config(kernel)
+        fun = kernel.fun
+        config = CUDAdrv.launch_configuration(fun)
+        blocks = cld(N, config.threads)
+        return (threads=config.threads, blocks=blocks)
+    end
+
+    CUDAnative.@cuda config=get_config _aspec2rspec_kernel!(Sr, Sa)
     return nothing
 end
 

@@ -5,10 +5,6 @@ import CUDAdrv
 import CUDAnative
 import CuArrays
 
-const MAX_THREADS_PER_BLOCK = CUDAdrv.attribute(
-    CUDAnative.CuDevice(0), CUDAdrv.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
-)
-
 
 struct Plan{P<:FFTW.Plan, PI<:FFTW.Plan}
     pfft :: P
@@ -76,10 +72,18 @@ function convolution!(
     H::CuArrays.CuArray{Complex{T}, 1},
 ) where T
     fft!(x, plan)
+
     N = length(x)
-    nth = min(N, MAX_THREADS_PER_BLOCK)
-    nbl = cld(N, nth)
-    @CUDAnative.cuda blocks=nbl threads=nth _convolution_kernel!(x, H)
+
+    function get_config(kernel)
+        fun = kernel.fun
+        config = CUDAdrv.launch_configuration(fun)
+        blocks = cld(N, config.threads)
+        return (threads=config.threads, blocks=blocks)
+    end
+
+    CUDAnative.@cuda config=get_config _convolution_kernel!(x, H)
+
     ifft!(x, plan)
     return nothing
 end

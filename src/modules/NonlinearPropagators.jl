@@ -1,6 +1,7 @@
 module NonlinearPropagators
 
 import CuArrays
+import CUDAdrv
 import CUDAnative
 import HankelTransforms
 
@@ -8,7 +9,7 @@ import ..AnalyticSignals
 import ..FourierTransforms
 import ..Equations
 
-import ..Constants: FloatGPU, MAX_THREADS_PER_BLOCK, MU0
+import ..Constants: FloatGPU, MU0
 import ..Fields
 import ..Grids
 import ..Guards
@@ -333,10 +334,16 @@ function _update_dE!(
     R::CuArrays.CuArray{Complex{T}, 1},
     E::CuArrays.CuArray{Complex{T}, 2},
 ) where T
-    N1, N2 = size(E)
-    nth = min(N1 * N2, MAX_THREADS_PER_BLOCK)
-    nbl = cld(N1 * N2, nth)
-    @CUDAnative.cuda blocks=nbl threads=nth _update_dE_kernel(dE, R, E)
+    N = length(E)
+
+    function get_config(kernel)
+        fun = kernel.fun
+        config = CUDAdrv.launch_configuration(fun)
+        blocks = cld(N, config.threads)
+        return (threads=config.threads, blocks=blocks)
+    end
+
+    CUDAnative.@cuda config=get_config _update_dE_kernel(dE, R, E)
     return nothing
 end
 
