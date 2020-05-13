@@ -1,38 +1,45 @@
 module AdaptiveSteps
 
 import ..Constants: EPS0, MU0, QE, ME
-import ..Units
+import ..FieldAnalyzers
 import ..Media
+import ..Units
 
 
 abstract type AStep end
 
 
-struct AStepKerr{T<:AbstractFloat} <: AStep
+struct AStepKerr{T<:AbstractFloat, B<:Bool} <: AStep
+    dz0 :: T
     phimax :: T
     phik :: T
+    NONLINEARITY :: B
 end
 
 
-struct AStepKerrPlasma{T<:AbstractFloat} <: AStep
+struct AStepKerrPlasma{T<:AbstractFloat, B<:Bool} <: AStep
+    dz0 :: T
     phimax :: T
     phik :: T
     phip :: T
-end
-
-
-function AStep(unit, medium, field, phimax::AbstractFloat)
-    phik = phi_kerr(unit, medium, field)
-    return AStepKerr(phimax, phik)
+    NONLINEARITY :: B
 end
 
 
 function AStep(
-    unit, medium, field, phimax::T, mr::T, nuc::T,
+    unit, medium, field, dz0::T, phimax::T, NONLINEARITY::Bool,
+) where T<:AbstractFloat
+    phik = phi_kerr(unit, medium, field)
+    return AStepKerr(dz0, phimax, phik, NONLINEARITY)
+end
+
+
+function AStep(
+    unit, medium, field, dz0::T, phimax::T, mr::T, nuc::T, NONLINEARITY::Bool,
 ) where T<:AbstractFloat
     phik = phi_kerr(unit, medium, field)
     phip = phi_plasma(unit, medium, field, mr, nuc)
-    return AStepKerrPlasma(phimax, phik, phip)
+    return AStepKerrPlasma(dz0, phimax, phik, phip, NONLINEARITY)
 end
 
 
@@ -65,19 +72,41 @@ function phi_plasma(unit, medium, field, mr::T, nuc::T) where T<:AbstractFloat
 end
 
 
-function (dz::AStepKerr)(Imax::T) where T<:AbstractFloat
-    dzk = dz.phimax / (dz.phik * Imax)
-    return convert(T, dzk)
+function (dzadaptive::AStepKerr)(analyzer::FieldAnalyzers.FieldAnalyzer)
+    return dzadaptive(analyzer.Imax)
 end
 
 
-function (dz::AStepKerrPlasma)(Imax::T, rhomax::T) where T<:AbstractFloat
-    dzk = dz.phimax / (dz.phik * Imax)
-    dzp = dz.phimax / (dz.phip * rhomax)
-    dzk = convert(T, dzk)
-    dzp = convert(T, dzp)
-    return min(dzk, dzp)
+function (dzadaptive::AStepKerr)(Imax::T) where T<:AbstractFloat
+    if dzadaptive.NONLINEARITY
+        dzk = dzadaptive.phimax / (dzadaptive.phik * Imax)
+        dz = min(dzadaptive.dz0, dzk)
+    else
+        dz = dzadaptive.dz0
+    end
+    return convert(T, dz)
 end
+
+
+function (dzadaptive::AStepKerrPlasma)(analyzer::FieldAnalyzers.FieldAnalyzer)
+    return dzadaptive(analyzer.Imax, analyzer.rhomax)
+end
+
+
+function (dzadaptive::AStepKerrPlasma)(
+    Imax::T, rhomax::T,
+) where T<:AbstractFloat
+    if dzadaptive.NONLINEARITY
+        dzk = dzadaptive.phimax / (dzadaptive.phik * Imax)
+        dzp = dzadaptive.phimax / (dzadaptive.phip * rhomax)
+        dz = min(dzadaptive.dz0, dzk, dzp)
+    else
+        dz = dzadaptive.dz0
+    end
+    return convert(T, dz)
+end
+
+
 
 
 end

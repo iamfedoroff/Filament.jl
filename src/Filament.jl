@@ -47,11 +47,11 @@ import .PlasmaEquations
 include(joinpath("modules", "Models.jl"))
 import .Models
 
-include(joinpath("modules", "AdaptiveSteps.jl"))
-import .AdaptiveSteps
-
 include(joinpath("modules", "FieldAnalyzers.jl"))
 import .FieldAnalyzers
+
+include(joinpath("modules", "AdaptiveSteps.jl"))
+import .AdaptiveSteps
 
 include(joinpath("modules", "Infos.jl"))
 import .Infos
@@ -67,9 +67,6 @@ import .Input
 prepare = Input.prepare
 
 
-fmt(x) = Formatting.fmt("18.12e", Float64(x))   # output print format
-
-
 function run(input)
     prefix = input["prefix"]
     geometry = input["geometry"]
@@ -77,6 +74,7 @@ function run(input)
     zmax = input["zmax"]
     lam0 = input["lam0"]
     dz_plothdf = input["dz_plothdf"]
+    Istop = input["Istop"]
     p_unit = input["p_unit"]
     p_grid = input["p_grid"]
     p_field = input["p_field"]
@@ -85,7 +83,6 @@ function run(input)
     p_model = input["p_model"]
     p_dzadaptive = input["p_dzadaptive"]
     p_info = input["p_info"]
-    p_loop = input["p_loop"]
 
     # Prepare data structures --------------------------------------------------
     unit = Units.Unit(geometry, p_unit)
@@ -124,7 +121,7 @@ function run(input)
     # Main loop ----------------------------------------------------------------
     main_loop(
         z, zmax, unit, grid, field, guard, model, dzadaptive, analyzer, info,
-        plotdat, plothdf, p_loop,
+        plotdat, plothdf, Istop,
     )
     return nothing
 end
@@ -132,10 +129,10 @@ end
 
 function main_loop(
     z, zmax, unit, grid, field, guard, model, dzadaptive, analyzer, info,
-    plotdat, plothdf, p_loop,
+    plotdat, plothdf, Istop,
 )
-    dz_initial, Istop, NONLINEARITY = p_loop
-
+    fmt(x) = Formatting.fmt("18.12e", Float64(x))   # output print format
+    
     stime = Dates.now()
 
     zfirst = true
@@ -145,23 +142,13 @@ function main_loop(
     while z < zmax
 
         if isa(grid, Grids.GridT) | isa(grid, Grids.GridRT)
-            if NONLINEARITY
-                dz = dzadaptive(analyzer.Imax, analyzer.rhomax)
-            else
-                dz = dz_initial
-            end
             println("z=$(fmt(z))[zu] I=$(fmt(analyzer.Imax))[Iu]" *
                     " rho=$(fmt(analyzer.rhomax))[rhou]")
         else
-            if NONLINEARITY
-                dz = dzadaptive(analyzer.Imax)
-            else
-                dz = dz_initial
-            end
             println("z=$(fmt(z))[zu] I=$(fmt(analyzer.Imax))[Iu]")
         end
 
-        dz = min(dz_initial, dz)
+        dz = dzadaptive(analyzer)
         z = z + dz
 
         @timeit "zstep" begin

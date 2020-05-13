@@ -49,8 +49,7 @@ function prepare(fname)
         p_grid = (FloatGPU(rmax), Nr)
         p_field = (FloatGPU(lam0), initial_condition, HTLOAD, file_ht)
         p_guard = (FloatGPU(rguard), FloatGPU(kguard))
-        p_dzadaptive = (dzphimax, )
-        p_loop = (FloatGPU(dz_initial), Istop, NONLINEARITY)
+        p_dzadaptive = (dz_initial, dzphimax, NONLINEARITY)
 
         model_keys = (
             NONLINEARITY=NONLINEARITY,
@@ -70,8 +69,7 @@ function prepare(fname)
         p_grid = (tmin, tmax, Nt)
         p_field = (lam0, initial_condition)
         p_guard = (tguard, wguard)
-        p_dzadaptive = (dzphimax, mr, nuc)
-        p_loop = (dz_initial, Istop, NONLINEARITY)
+        p_dzadaptive = (dz_initial, dzphimax, mr, nuc, NONLINEARITY)
 
         if PLASMA
             plasma_equation_local = plasma_equation
@@ -96,8 +94,7 @@ function prepare(fname)
         p_grid = (FloatGPU(rmax), Nr, FloatGPU(tmin), FloatGPU(tmax), Nt)
         p_field = (FloatGPU(lam0), initial_condition, HTLOAD, file_ht)
         p_guard = (FloatGPU(rguard), FloatGPU(tguard), FloatGPU(kguard), FloatGPU(wguard))
-        p_dzadaptive = (dzphimax, mr, nuc)
-        p_loop = (FloatGPU(dz_initial), Istop, NONLINEARITY)
+        p_dzadaptive = (dz_initial, dzphimax, mr, nuc, NONLINEARITY)
 
         if PLASMA
             plasma_equation_local = plasma_equation
@@ -122,8 +119,7 @@ function prepare(fname)
         p_grid = (FloatGPU(xmin), FloatGPU(xmax), Nx, FloatGPU(ymin), FloatGPU(ymax), Ny)
         p_field = (FloatGPU(lam0), initial_condition)
         p_guard = (FloatGPU(xguard), FloatGPU(yguard), FloatGPU(kxguard), FloatGPU(kyguard))
-        p_dzadaptive = (dzphimax, )
-        p_loop = (FloatGPU(dz_initial), Istop, NONLINEARITY)
+        p_dzadaptive = (dz_initial, dzphimax, NONLINEARITY)
 
         model_keys = (
             NONLINEARITY=NONLINEARITY,
@@ -145,6 +141,7 @@ function prepare(fname)
         "z" => z_local,
         "zmax" => zmax_local,
         "lam0" => lam0_local,
+        "Istop" => Istop,
         "dz_plothdf" => dz_plothdf_local,
         "p_unit" => p_unit,
         "p_grid" => p_grid,
@@ -154,7 +151,6 @@ function prepare(fname)
         "p_model" => p_model,
         "p_dzadaptive" => p_dzadaptive,
         "p_info" => p_info,
-        "p_loop" => p_loop,
     )
 end
 
