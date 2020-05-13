@@ -142,7 +142,6 @@ mutable struct FieldAnalyzerRT{
     rhogpu :: UG1
     Sgpu :: UG2
     Egpu :: UCG2
-    Igpu :: UG2
 end
 
 
@@ -165,10 +164,9 @@ function FieldAnalyzer(
     rhogpu = CuArrays.zeros(T, Nr)
     Sgpu = CuArrays.zeros(T, (1, Nw))
     Egpu = CuArrays.zeros(Complex{T}, (Nr, Nw))
-    Igpu = CuArrays.zeros(T, (Nr, Nt))
     return FieldAnalyzerRT(
         z, Fmax, Imax, rhomax, De, rfil, rpl, tau, W,
-        rdr, Fr, Ft, rho, S, Frgpu, Ftgpu, rhogpu, Sgpu, Egpu, Igpu,
+        rdr, Fr, Ft, rho, S, Frgpu, Ftgpu, rhogpu, Sgpu, Egpu,
     )
 end
 
@@ -178,13 +176,11 @@ function analyze!(
 ) where T<:AbstractFloat
     analyzer.z = z
 
-    @. analyzer.Igpu = abs2(field.E)
-
-    analyzer.Frgpu .= sum(analyzer.Igpu .* grid.dt, dims=2)
+    analyzer.Frgpu .= sum(abs2.(field.E) .* grid.dt, dims=2)
     copyto!(analyzer.Fr, analyzer.Frgpu)
 
     analyzer.Ftgpu .= sum(
-        convert(T, 2 * pi) .* analyzer.Igpu .* analyzer.rdr, dims=1,
+        convert(T, 2 * pi) .* abs2.(field.E) .* analyzer.rdr, dims=1,
     )
     copyto!(analyzer.Ft, analyzer.Ftgpu)
 
@@ -204,7 +200,7 @@ function analyze!(
 
     analyzer.Fmax = maximum(analyzer.Frgpu)
 
-    analyzer.Imax = maximum(analyzer.Igpu)
+    analyzer.Imax = maximum(abs2.(field.E))
 
     analyzer.rhomax = maximum(analyzer.rhogpu)
 
