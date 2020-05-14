@@ -1,22 +1,3 @@
-module NonlinearPropagators
-
-import CuArrays
-import CUDAdrv
-import CUDAnative
-import HankelTransforms
-
-import ..AnalyticSignals
-import ..FourierTransforms
-import ..Equations
-
-import ..Constants: FloatGPU, MU0
-import ..Fields
-import ..Grids
-import ..Guards
-import ..Media
-import ..Units
-
-
 struct NonlinearPropagator{P<:Equations.Integrator}
     integ :: P
 end
@@ -352,7 +333,7 @@ function update_dE_kernel(dE, R, F)
     id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x +
          CUDAnative.threadIdx().x
     stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
-    Nr, Nt = size(E)
+    Nr, Nt = size(F)
     cartesian = CartesianIndices((Nr, Nt))
     for k=id:stride:Nr*Nt
         i = cartesian[k][1]
@@ -396,7 +377,4 @@ function Qfunc_nonparaxial(medium, w, kt)
         Q = MU0 * mu * w^2 / (2 * kz)
     end
     return Q
-end
-
-
 end

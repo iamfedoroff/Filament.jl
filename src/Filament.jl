@@ -38,12 +38,6 @@ import .Media
 include(joinpath("modules", "Guards.jl"))
 import .Guards
 
-include(joinpath("modules", "LinearPropagators.jl"))
-import .LinearPropagators
-include(joinpath("modules", "NonlinearPropagators.jl"))
-import .NonlinearPropagators
-include(joinpath("modules", "PlasmaEquations.jl"))
-import .PlasmaEquations
 include(joinpath("modules", "Models.jl"))
 import .Models
 
@@ -132,7 +126,7 @@ function main_loop(
     plotdat, plothdf, Istop,
 )
     fmt(x) = Formatting.fmt("18.12e", Float64(x))   # output print format
-    
+
     stime = Dates.now()
 
     zfirst = true

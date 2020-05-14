@@ -1,19 +1,29 @@
 module Models
 
+# Global packages:
+import CuArrays
 import CUDAdrv
+import CUDAnative
+import HankelTransforms
+import StaticArrays
 using TimerOutputs
 
+# Local package-like modules:
+import ..AnalyticSignals
 import ..FourierTransforms
+import ..Equations
 
+# Local modules:
+import ..Constants: FloatGPU, MU0
 import ..Fields
 import ..Grids
 import ..Guards
 import ..Media
 import ..Units
 
-import ..LinearPropagators
-import ..NonlinearPropagators
-import ..PlasmaEquations
+include("linear_propagators.jl")
+include("nonlinear_propagators.jl")
+include("plasma_equations.jl")
 
 
 struct Model{TLP, TNP, TPE, B<:Bool}
@@ -31,20 +41,18 @@ function Model(
     field::Fields.Field,
     medium::Media.Medium,
     guard::Guards.Guard,
-    responses_list::AbstractArray,
+    responses::AbstractArray,
     plasma_equation::Dict,
     keys::NamedTuple,
 )
     NONLINEARITY = keys.NONLINEARITY
     PLASMA = keys.PLASMA
 
-    LP = LinearPropagators.LinearPropagator(
-        unit, grid, medium, field, guard, keys.KPARAXIAL,
-    )
+    LP = LinearPropagator(unit, grid, medium, field, guard, keys.KPARAXIAL)
 
     if NONLINEARITY
-        NP = NonlinearPropagators.NonlinearPropagator(
-            unit, grid, medium, field, guard, responses_list, keys.QPARAXIAL,
+        NP = NonlinearPropagator(
+            unit, grid, medium, field, guard, responses, keys.QPARAXIAL,
             keys.ALG,
         )
     else
@@ -54,8 +62,8 @@ function Model(
     if PLASMA
         w0 = field.w0
         n0 = Media.refractive_index(medium, w0)
-        PE = PlasmaEquations.PlasmaEquation(unit, n0, w0, plasma_equation)
-        PlasmaEquations.solve!(PE, field.rho, field.kdrho, grid.t, field.E)
+        PE = PlasmaEquation(unit, n0, w0, plasma_equation)
+        solve!(PE, field.rho, field.kdrho, grid.t, field.E)
     else
         PE = nothing
     end
@@ -72,12 +80,9 @@ function zstep(
     guard::Guards.Guard,
     model::Model,
 ) where T<:AbstractFloat
-    # Calculate plasma density:
     if model.PLASMA
         @timeit "plasma" begin
-            PlasmaEquations.solve!(
-                model.PE, field.rho, field.kdrho, grid.t, field.E,
-            )
+            solve!(model.PE, field.rho, field.kdrho, grid.t, field.E)
             CUDAdrv.synchronize()
         end
     end
@@ -91,13 +96,13 @@ function zstep(
 
     if model.NONLINEARITY
         @timeit "nonlinearity" begin
-           NonlinearPropagators.propagate!(field.E, model.NP, z, dz)
+           propagate!(field.E, model.NP, z, dz)
            CUDAdrv.synchronize()
        end
     end
 
     @timeit "linear" begin
-        LinearPropagators.propagate!(field.E, model.LP, dz)
+        propagate!(field.E, model.LP, dz)
         CUDAdrv.synchronize()
     end
 
@@ -112,6 +117,41 @@ function zstep(
         Guards.apply_field_filter!(field.E, guard)
         CUDAdrv.synchronize()
     end
+    return nothing
+end
+
+
+# ******************************************************************************
+function forward_transform_space!(E::AbstractArray, TS::Nothing)
+    return nothing
+end
+
+
+function inverse_transform_space!(E::AbstractArray, TS::Nothing)
+    return nothing
+end
+
+
+function forward_transform_space!(E::AbstractArray, TS::HankelTransforms.Plan)
+    HankelTransforms.dht!(E, TS)
+    return nothing
+end
+
+
+function inverse_transform_space!(E::AbstractArray, TS::HankelTransforms.Plan)
+    HankelTransforms.idht!(E, TS)
+    return nothing
+end
+
+
+function forward_transform_space!(E::AbstractArray, TS::FourierTransforms.Plan)
+    FourierTransforms.fft!(E, TS)
+    return nothing
+end
+
+
+function inverse_transform_space!(E::AbstractArray, TS::FourierTransforms.Plan)
+    FourierTransforms.ifft!(E, TS)
     return nothing
 end
 

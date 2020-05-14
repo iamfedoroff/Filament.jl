@@ -1,15 +1,3 @@
-module PlasmaEquations
-
-import CuArrays
-import CUDAdrv
-import CUDAnative
-import StaticArrays
-
-import ..Equations
-
-import ..Units
-
-
 struct PlasmaEquation{I, FE, FK, P}
     integ :: I
     extract :: FE
@@ -124,7 +112,4 @@ function solve_kernel(PE, rho, kdrho, t, E)
         end
     end
     return nothing
-end
-
-
 end

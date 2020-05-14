@@ -1,17 +1,3 @@
-module LinearPropagators
-
-import CuArrays
-import HankelTransforms
-
-import ..FourierTransforms
-
-import ..Constants: FloatGPU
-import ..Fields
-import ..Grids
-import ..Guards
-import ..Media
-import ..Units
-
 const TSPlan = Union{HankelTransforms.Plan, FourierTransforms.Plan, Nothing}
 
 
@@ -36,40 +22,6 @@ function propagate!(
     @. E = E * exp(-1im * LP.KZ * z)
     Guards.apply_spectral_filter!(E, LP.guard)
     inverse_transform_space!(E, LP.TS)
-    return nothing
-end
-
-
-function forward_transform_space!(E::AbstractArray, TS::Nothing)
-    return nothing
-end
-
-
-function inverse_transform_space!(E::AbstractArray, TS::Nothing)
-    return nothing
-end
-
-
-function forward_transform_space!(E::AbstractArray, TS::HankelTransforms.Plan)
-    HankelTransforms.dht!(E, TS)
-    return nothing
-end
-
-
-function inverse_transform_space!(E::AbstractArray, TS::HankelTransforms.Plan)
-    HankelTransforms.idht!(E, TS)
-    return nothing
-end
-
-
-function forward_transform_space!(E::AbstractArray, TS::FourierTransforms.Plan)
-    FourierTransforms.fft!(E, TS)
-    return nothing
-end
-
-
-function inverse_transform_space!(E::AbstractArray, TS::FourierTransforms.Plan)
-    FourierTransforms.ifft!(E, TS)
     return nothing
 end
 
@@ -204,7 +156,4 @@ end
 function Kfunc_nonparaxial(medium, w, kt)
     beta = Media.beta_func(medium, w)
     return sqrt(beta^2 - kt^2 + 0im)
-end
-
-
 end
