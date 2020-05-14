@@ -11,7 +11,6 @@ function init_raman(unit, grid, field, medium, p)
     Eu = Units.E(unit, real(n0))
     chi3 = 4 / 3 * real(n0)^2 * EPS0 * C0 * n2
     Rnl = EPS0 * chi3 * Eu^3
-    Rnl = convert(FloatGPU, Rnl)
 
     # For assymetric grids, where abs(tmin) != tmax, we need tshift to put
     # H(t) into the grid center (see "circular convolution"):
@@ -21,7 +20,9 @@ function init_raman(unit, grid, field, medium, p)
     Hraman = FourierTransforms.ifftshift(Hraman)
     Hraman = @. Hraman + 0im   # real -> complex
     FFTW.fft!(Hraman)   # time -> frequency
-    if !isa(grid, Grids.GridT)   # FIXME: should be removed in a generic code.
+
+    if ! isa(grid, Grids.GridT)   # FIXME: should be removed in a generic code.
+        Rnl = convert(FloatGPU, Rnl)
         Hraman = CuArrays.CuArray{Complex{FloatGPU}}(Hraman)
     end
 
@@ -51,7 +52,7 @@ function calc_raman_nothg(
     F::AbstractArray{Complex{T}}, E::AbstractArray{Complex{T}}, p::Tuple, z::T,
 ) where T<:AbstractFloat
     Hraman, FT = p
-    @. F = FloatGPU(3 / 4) * abs2(E)
+    @. F = 3 / 4 * abs2(E)
     FourierTransforms.convolution!(F, FT, Hraman)
     @. F = F * real(E)
     return nothing

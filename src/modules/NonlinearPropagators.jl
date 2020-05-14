@@ -214,7 +214,7 @@ function _func_r!(
     for resp in responses
         resp.calculate(Ftmp, E, resp.p, z)
         Guards.apply_field_filter!(Ftmp, guard)
-        @. dE = dE + resp.Rnl * Ftmp
+        update_dE!(dE, resp.Rnl, Ftmp)   # dE = dE + Rnl * Ftmp
     end
 
     # Nonparaxiality:
@@ -246,7 +246,7 @@ function _func_t!(
         resp.calculate(Ftmp, E, resp.p, z)
         Guards.apply_field_filter!(Ftmp, guard)
         AnalyticSignals.rsig2aspec!(Ftmp, FT)
-        @. dE = dE + resp.Rnl * Ftmp
+        update_dE!(dE, resp.Rnl, Ftmp)   # dE = dE + Rnl * Ftmp
     end
     @. dE = -1im * QZ * dE
 
@@ -271,7 +271,7 @@ function _func_rt!(
         resp.calculate(Ftmp, E, resp.p, z)
         Guards.apply_field_filter!(Ftmp, guard)
         AnalyticSignals.rsig2aspec!(Ftmp, FT)
-        _update_dE!(dE, resp.Rnl, Ftmp)   # dE = dE + Ra * Ftmp
+        update_dE!(dE, resp.Rnl, Ftmp)   # dE = dE + Rnl * Ftmp
     end
 
     # Nonparaxiality:
@@ -302,7 +302,7 @@ function _func_xy!(
     for resp in responses
         resp.calculate(Ftmp, E, resp.p, z)
         Guards.apply_field_filter!(Ftmp, guard)
-        @. dE = dE + resp.Rnl * Ftmp
+        update_dE!(dE, resp.Rnl, Ftmp)   # dE = dE + Rnl * Ftmp
     end
 
     # Nonparaxiality:
@@ -319,22 +319,22 @@ function _func_xy!(
 end
 
 
-function _update_dE!(
-    dE::CuArrays.CuArray{Complex{T}, 2},
-    R::T,
-    E::CuArrays.CuArray{Complex{T}, 2},
+function update_dE!(
+    dE::AbstractArray{Complex{T}},
+    R::Union{T, AbstractArray{T}, AbstractArray{Complex{T}}},
+    F::AbstractArray{Complex{T}},
 ) where T
-    @. dE = dE + R * E
+    @. dE = dE + R * F
     return nothing
 end
 
 
-function _update_dE!(
+function update_dE!(
     dE::CuArrays.CuArray{Complex{T}, 2},
     R::CuArrays.CuArray{Complex{T}, 1},
-    E::CuArrays.CuArray{Complex{T}, 2},
+    F::CuArrays.CuArray{Complex{T}, 2},
 ) where T
-    N = length(E)
+    N = length(F)
 
     function get_config(kernel)
         fun = kernel.fun
@@ -343,20 +343,21 @@ function _update_dE!(
         return (threads=config.threads, blocks=blocks)
     end
 
-    CUDAnative.@cuda config=get_config _update_dE_kernel(dE, R, E)
+    CUDAnative.@cuda config=get_config update_dE_kernel(dE, R, F)
     return nothing
 end
 
 
-function _update_dE_kernel(dE, R, E)
-    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
+function update_dE_kernel(dE, R, F)
+    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x +
+         CUDAnative.threadIdx().x
     stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
     Nr, Nt = size(E)
     cartesian = CartesianIndices((Nr, Nt))
     for k=id:stride:Nr*Nt
         i = cartesian[k][1]
         j = cartesian[k][2]
-        dE[i, j] = dE[i, j] + R[j] * E[i, j]
+        dE[i, j] = dE[i, j] + R[j] * F[i, j]
     end
     return nothing
 end
