@@ -3,6 +3,7 @@ struct NonlinearPropagator{P<:Equations.Integrator}
 end
 
 
+# ******************************************************************************
 function NonlinearPropagator(
     unit::Units.UnitR,
     grid::Grids.GridR,
@@ -37,8 +38,8 @@ function NonlinearPropagator(
 
     # Problem:
     Ftmp = zero(field.E)
-    p = (responses, Ftmp, guard, PARAXIAL, QZ, field.HT)
-    prob = Equations.Problem(_func_r!, Ftmp, p)
+    p = (responses, QZ, Ftmp, guard, nothing, field.HT, PARAXIAL)
+    prob = Equations.Problem(func!, Ftmp, p)
     integ = Equations.Integrator(prob, ALG)
 
     return NonlinearPropagator(integ)
@@ -78,8 +79,8 @@ function NonlinearPropagator(
 
     # Problem:
     Ftmp = zero(field.E)
-    p = (responses, field.FT, Ftmp, guard, QZ)
-    prob = Equations.Problem(_func_t!, Ftmp, p)
+    p = (responses, QZ, Ftmp, guard, field.FT, nothing, PARAXIAL)
+    prob = Equations.Problem(func!, Ftmp, p)
     integ = Equations.Integrator(prob, ALG)
 
     return NonlinearPropagator(integ)
@@ -123,8 +124,8 @@ function NonlinearPropagator(
 
     # Problem:
     Ftmp = zero(field.E)
-    p = (responses, field.FT, Ftmp, guard, PARAXIAL, QZ, field.HT)
-    prob = Equations.Problem(_func_rt!, Ftmp, p)
+    p = (responses, QZ, Ftmp, guard, field.FT, field.HT, PARAXIAL)
+    prob = Equations.Problem(func!, Ftmp, p)
     integ = Equations.Integrator(prob, ALG)
 
     return NonlinearPropagator(integ)
@@ -167,8 +168,8 @@ function NonlinearPropagator(
 
     # Problem:
     Ftmp = zero(field.E)
-    p = (responses, Ftmp, guard, PARAXIAL, QZ, field.FT)
-    prob = Equations.Problem(_func_xy!, Ftmp, p)
+    p = (responses, QZ, Ftmp, guard, nothing, field.FT, PARAXIAL)
+    prob = Equations.Problem(func!, Ftmp, p)
     integ = Equations.Integrator(prob, ALG)
 
     return NonlinearPropagator(integ)
@@ -182,124 +183,39 @@ function propagate!(
 end
 
 
-function _func_r!(
-    dE::AbstractArray{Complex{T}, 1},
-    E::AbstractArray{Complex{T}, 1},
+function func!(
+    dE::AbstractArray{Complex{T}},
+    E::AbstractArray{Complex{T}},
     p::Tuple,
     z::T,
 ) where T<:AbstractFloat
-    responses, Ftmp, guard, PARAXIAL, QZ, HT = p
+    responses, QZ, Ftmp, guard, PT, PS, PARAXIAL = p
 
-    fill!(dE, 0)
+    inverse_transform_time!(E, PT)
 
+    @. dE = 0
     for resp in responses
         resp.calculate(Ftmp, E, resp.p, z)
         Guards.apply_field_filter!(Ftmp, guard)
+        real_signal_to_analytic_spectrum!(Ftmp, PT)
         update_dE!(dE, resp.Rnl, Ftmp)   # dE = dE + Rnl * Ftmp
     end
 
-    # Nonparaxiality:
     if PARAXIAL
         @. dE = -1im * QZ * dE
     else
-        HankelTransforms.dht!(dE, HT)
+        forward_transform_space!(dE, PS)
         @. dE = -1im * QZ * dE
         Guards.apply_spectral_filter!(dE, guard)
-        HankelTransforms.idht!(dE, HT)
+        inverse_transform_space!(dE, PS)
     end
 
+    forward_transform_time!(E, PT)
     return nothing
 end
 
 
-function _func_t!(
-    dE::AbstractArray{Complex{T}, 1},
-    E::AbstractArray{Complex{T}, 1},
-    p::Tuple,
-    z::T,
-) where T<:AbstractFloat
-    responses, FT, Ftmp, guard, QZ = p
-
-    FourierTransforms.ifft!(E, FT)
-
-    fill!(dE, 0)
-    for resp in responses
-        resp.calculate(Ftmp, E, resp.p, z)
-        Guards.apply_field_filter!(Ftmp, guard)
-        AnalyticSignals.rsig2aspec!(Ftmp, FT)
-        update_dE!(dE, resp.Rnl, Ftmp)   # dE = dE + Rnl * Ftmp
-    end
-    @. dE = -1im * QZ * dE
-
-    FourierTransforms.fft!(E, FT)
-    return nothing
-end
-
-
-function _func_rt!(
-    dE::AbstractArray{Complex{T}, 2},
-    E::AbstractArray{Complex{T}, 2},
-    p::Tuple,
-    z::T,
-) where T<:AbstractFloat
-    responses, FT, Ftmp, guard, PARAXIAL, QZ, HT = p
-
-    FourierTransforms.ifft!(E, FT)
-
-    fill!(dE, 0)
-
-    for resp in responses
-        resp.calculate(Ftmp, E, resp.p, z)
-        Guards.apply_field_filter!(Ftmp, guard)
-        AnalyticSignals.rsig2aspec!(Ftmp, FT)
-        update_dE!(dE, resp.Rnl, Ftmp)   # dE = dE + Rnl * Ftmp
-    end
-
-    # Nonparaxiality:
-    if PARAXIAL
-        @. dE = -1im * QZ * dE
-    else
-        HankelTransforms.dht!(dE, HT)
-        @. dE = -1im * QZ * dE
-        Guards.apply_spectral_filter!(dE, guard)
-        HankelTransforms.idht!(dE, HT)
-    end
-
-    FourierTransforms.fft!(E, FT)
-    return nothing
-end
-
-
-function _func_xy!(
-    dE::AbstractArray{Complex{T}, 2},
-    E::AbstractArray{Complex{T}, 2},
-    p::Tuple,
-    z::T,
-) where T<:AbstractFloat
-    responses, Ftmp, guard, PARAXIAL, QZ, FT = p
-
-    fill!(dE, 0)
-
-    for resp in responses
-        resp.calculate(Ftmp, E, resp.p, z)
-        Guards.apply_field_filter!(Ftmp, guard)
-        update_dE!(dE, resp.Rnl, Ftmp)   # dE = dE + Rnl * Ftmp
-    end
-
-    # Nonparaxiality:
-    if PARAXIAL
-        @. dE = -1im * QZ * dE
-    else
-        FourierTransforms.fft!(dE, FT)
-        @. dE = -1im * QZ * dE
-        Guards.apply_spectral_filter!(dE, guard)
-        FourierTransforms.ifft!(dE, FT)
-    end
-
-    return nothing
-end
-
-
+# ******************************************************************************
 function update_dE!(
     dE::AbstractArray{Complex{T}},
     R::Union{T, AbstractArray{T}, AbstractArray{Complex{T}}},

@@ -89,7 +89,7 @@ function zstep(
 
     if isa(grid, Grids.GridT) | isa(grid, Grids.GridRT)
         @timeit "field -> spectr" begin
-            FourierTransforms.fft!(field.E, field.FT)
+            forward_transform_time!(field.E, field.FT)
             CUDAdrv.synchronize()
         end
     end
@@ -108,7 +108,7 @@ function zstep(
 
     if isa(grid, Grids.GridT) | isa(grid, Grids.GridRT)
         @timeit "spectr -> field" begin
-            FourierTransforms.ifft!(field.E, field.FT)
+            inverse_transform_time!(field.E, field.FT)
             CUDAdrv.synchronize()
         end
     end
@@ -122,36 +122,73 @@ end
 
 
 # ******************************************************************************
-function forward_transform_space!(E::AbstractArray, TS::Nothing)
+function forward_transform_space!(E::AbstractArray, P::Nothing)
     return nothing
 end
 
 
-function inverse_transform_space!(E::AbstractArray, TS::Nothing)
+function inverse_transform_space!(E::AbstractArray, P::Nothing)
     return nothing
 end
 
 
-function forward_transform_space!(E::AbstractArray, TS::HankelTransforms.Plan)
-    HankelTransforms.dht!(E, TS)
+function forward_transform_space!(E::AbstractArray, P::HankelTransforms.Plan)
+    HankelTransforms.dht!(E, P)
     return nothing
 end
 
 
-function inverse_transform_space!(E::AbstractArray, TS::HankelTransforms.Plan)
-    HankelTransforms.idht!(E, TS)
+function inverse_transform_space!(E::AbstractArray, P::HankelTransforms.Plan)
+    HankelTransforms.idht!(E, P)
     return nothing
 end
 
 
-function forward_transform_space!(E::AbstractArray, TS::FourierTransforms.Plan)
-    FourierTransforms.fft!(E, TS)
+function forward_transform_space!(E::AbstractArray, P::FourierTransforms.Plan)
+    FourierTransforms.fft!(E, P)
     return nothing
 end
 
 
-function inverse_transform_space!(E::AbstractArray, TS::FourierTransforms.Plan)
-    FourierTransforms.ifft!(E, TS)
+function inverse_transform_space!(E::AbstractArray, P::FourierTransforms.Plan)
+    FourierTransforms.ifft!(E, P)
+    return nothing
+end
+
+
+# ******************************************************************************
+function forward_transform_time!(E::AbstractArray, P::Nothing)
+    return nothing
+end
+
+
+function inverse_transform_time!(E::AbstractArray, P::Nothing)
+    return nothing
+end
+
+
+function forward_transform_time!(E::AbstractArray, P::FourierTransforms.Plan)
+    FourierTransforms.fft!(E, P)
+    return nothing
+end
+
+
+function inverse_transform_time!(E::AbstractArray, P::FourierTransforms.Plan)
+    FourierTransforms.ifft!(E, P)
+    return nothing
+end
+
+
+# ******************************************************************************
+function real_signal_to_analytic_spectrum!(E::AbstractArray, P::Nothing)
+    return nothing
+end
+
+
+function real_signal_to_analytic_spectrum!(
+    E::AbstractArray, P::FourierTransforms.Plan,
+)
+    AnalyticSignals.rsig2aspec!(E, P)
     return nothing
 end
 
