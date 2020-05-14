@@ -12,25 +12,69 @@ import ..Guards
 import ..Media
 import ..Units
 
+const TSPlan = Union{HankelTransforms.Plan, FourierTransforms.Plan, Nothing}
 
-abstract type LinearPropagator end
 
-
-# ******************************************************************************
-# R and RT
-# ******************************************************************************
-struct LinearPropagatorR{
+struct LinearPropagator{
     T<:AbstractFloat,
     A<:AbstractArray{Complex{T}},
     G<:Guards.Guard,
-    P<:HankelTransforms.Plan
-} <: LinearPropagator
+    P<:TSPlan
+}
     KZ :: A
     guard :: G
-    HT :: P
+    TS :: P
 end
 
 
+function propagate!(
+    E::AbstractArray{Complex{T}},
+    LP::LinearPropagator,
+    z::T
+) where T
+    forward_transform_space!(E, LP.TS)
+    @. E = E * exp(-1im * LP.KZ * z)
+    Guards.apply_spectral_filter!(E, LP.guard)
+    inverse_transform_space!(E, LP.TS)
+    return nothing
+end
+
+
+function forward_transform_space!(E::AbstractArray, TS::Nothing)
+    return nothing
+end
+
+
+function inverse_transform_space!(E::AbstractArray, TS::Nothing)
+    return nothing
+end
+
+
+function forward_transform_space!(E::AbstractArray, TS::HankelTransforms.Plan)
+    HankelTransforms.dht!(E, TS)
+    return nothing
+end
+
+
+function inverse_transform_space!(E::AbstractArray, TS::HankelTransforms.Plan)
+    HankelTransforms.idht!(E, TS)
+    return nothing
+end
+
+
+function forward_transform_space!(E::AbstractArray, TS::FourierTransforms.Plan)
+    FourierTransforms.fft!(E, TS)
+    return nothing
+end
+
+
+function inverse_transform_space!(E::AbstractArray, TS::FourierTransforms.Plan)
+    FourierTransforms.ifft!(E, TS)
+    return nothing
+end
+
+
+# ******************************************************************************
 function LinearPropagator(
     unit::Units.UnitR,
     grid::Grids.GridR,
@@ -53,7 +97,30 @@ function LinearPropagator(
     end
     KZ = CuArrays.CuArray{Complex{FloatGPU}}(KZ)
 
-    return LinearPropagatorR(KZ, guard, field.HT)
+    return LinearPropagator(KZ, guard, field.HT)
+end
+
+
+function LinearPropagator(
+    unit::Units.UnitT,
+    grid::Grids.GridT,
+    medium::Media.Medium,
+    field::Fields.FieldT,
+    guard::Guards.Guard,
+    PARAXIAL::Bool,
+)
+    w0 = field.w0
+    vf = Media.group_velocity(medium, w0)   # frame velocity
+
+    KZ = zeros(ComplexF64, grid.Nt)
+    for i=1:grid.Nt
+        w = grid.w[i] * unit.w
+        KZ[i] = Kfunc(PARAXIAL, medium, w, 0.0) * unit.z
+        KZ[i] = KZ[i] - w / vf * unit.z
+        KZ[i] = conj(KZ[i])   # in order to make fft instead of ifft
+    end
+
+    return LinearPropagator(KZ, guard, nothing)
 end
 
 
@@ -80,82 +147,7 @@ function LinearPropagator(
     end
     KZ = CuArrays.CuArray{Complex{FloatGPU}}(KZ)
 
-    return LinearPropagatorR(KZ, guard, field.HT)
-end
-
-
-function propagate!(
-    E::AbstractArray{Complex{T}},
-    LP::LinearPropagatorR,
-    z::T
-) where T
-    HankelTransforms.dht!(E, LP.HT)
-    @. E = E * exp(-1im * LP.KZ * z)
-    Guards.apply_spectral_filter!(E, LP.guard)
-    HankelTransforms.idht!(E, LP.HT)
-    return nothing
-end
-
-
-# ******************************************************************************
-# T
-# ******************************************************************************
-struct LinearPropagatorT{
-    T<:AbstractFloat,
-    A<:AbstractArray{Complex{T}},
-    G<:Guards.Guard,
-} <: LinearPropagator
-    KZ :: A
-    guard :: G
-end
-
-
-function LinearPropagator(
-    unit::Units.UnitT,
-    grid::Grids.GridT,
-    medium::Media.Medium,
-    field::Fields.FieldT,
-    guard::Guards.Guard,
-    PARAXIAL::Bool,
-)
-    w0 = field.w0
-    vf = Media.group_velocity(medium, w0)   # frame velocity
-
-    KZ = zeros(ComplexF64, grid.Nt)
-    for i=1:grid.Nt
-        w = grid.w[i] * unit.w
-        KZ[i] = Kfunc(PARAXIAL, medium, w, 0.0) * unit.z
-        KZ[i] = KZ[i] - w / vf * unit.z
-        KZ[i] = conj(KZ[i])   # in order to make fft instead of ifft
-    end
-
-    return LinearPropagatorT(KZ, guard)
-end
-
-
-function propagate!(
-    E::AbstractArray{Complex{T}, 1},
-    LP::LinearPropagatorT,
-    z::T
-) where T
-    @. E = E * exp(-1im * LP.KZ * z)
-    Guards.apply_spectral_filter!(E, LP.guard)
-    return nothing
-end
-
-
-# ******************************************************************************
-# XY
-# ******************************************************************************
-struct LinearPropagatorXY{
-    T<:AbstractFloat,
-    A<:AbstractArray{Complex{T}},
-    G<:Guards.Guard,
-    P<:FourierTransforms.Plan
-} <: LinearPropagator
-    KZ :: A
-    guard :: G
-    FT :: P
+    return LinearPropagator(KZ, guard, field.HT)
 end
 
 
@@ -183,20 +175,7 @@ function LinearPropagator(
     end
     KZ = CuArrays.CuArray{Complex{FloatGPU}}(KZ)
 
-    return LinearPropagatorXY(KZ, guard, field.FT)
-end
-
-
-function propagate!(
-    E::AbstractArray{Complex{T}},
-    LP::LinearPropagatorXY,
-    z::T
-) where T
-    FourierTransforms.fft!(E, LP.FT)
-    @. E = E * exp(-1im * LP.KZ * z)
-    Guards.apply_spectral_filter!(E, LP.guard)
-    FourierTransforms.ifft!(E, LP.FT)
-    return nothing
+    return LinearPropagator(KZ, guard, field.FT)
 end
 
 
