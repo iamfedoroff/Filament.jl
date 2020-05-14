@@ -38,7 +38,7 @@ function NonlinearPropagator(
 
     # Problem:
     Ftmp = zero(field.E)
-    p = (responses, QZ, Ftmp, guard, nothing, field.HT, PARAXIAL)
+    p = (responses, QZ, Ftmp, guard, field.PS, field.PT, PARAXIAL)
     prob = Equations.Problem(func!, Ftmp, p)
     integ = Equations.Integrator(prob, ALG)
 
@@ -79,7 +79,7 @@ function NonlinearPropagator(
 
     # Problem:
     Ftmp = zero(field.E)
-    p = (responses, QZ, Ftmp, guard, field.FT, nothing, PARAXIAL)
+    p = (responses, QZ, Ftmp, guard, field.PS, field.PT, PARAXIAL)
     prob = Equations.Problem(func!, Ftmp, p)
     integ = Equations.Integrator(prob, ALG)
 
@@ -124,7 +124,7 @@ function NonlinearPropagator(
 
     # Problem:
     Ftmp = zero(field.E)
-    p = (responses, QZ, Ftmp, guard, field.FT, field.HT, PARAXIAL)
+    p = (responses, QZ, Ftmp, guard, field.PS, field.PT, PARAXIAL)
     prob = Equations.Problem(func!, Ftmp, p)
     integ = Equations.Integrator(prob, ALG)
 
@@ -168,7 +168,7 @@ function NonlinearPropagator(
 
     # Problem:
     Ftmp = zero(field.E)
-    p = (responses, QZ, Ftmp, guard, nothing, field.FT, PARAXIAL)
+    p = (responses, QZ, Ftmp, guard, field.PS, field.PT, PARAXIAL)
     prob = Equations.Problem(func!, Ftmp, p)
     integ = Equations.Integrator(prob, ALG)
 
@@ -189,7 +189,7 @@ function func!(
     p::Tuple,
     z::T,
 ) where T<:AbstractFloat
-    responses, QZ, Ftmp, guard, PT, PS, PARAXIAL = p
+    responses, QZ, Ftmp, guard, PS, PT, PARAXIAL = p
 
     inverse_transform_time!(E, PT)
 

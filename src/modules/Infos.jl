@@ -171,8 +171,8 @@ end
 function info_field(
     unit::Units.UnitR,
     grid::Grids.GridR,
-    field::Fields.FieldR,
-    analyzer::FieldAnalyzers.FieldAnalyzerR,
+    field::Fields.Field,
+    analyzer::FieldAnalyzers.FieldAnalyzer,
 )
     w0 = field.w0
     f0 = w0 / (2 * pi)
@@ -207,8 +207,8 @@ end
 function info_field(
     unit::Units.UnitT,
     grid::Grids.GridT,
-    field::Fields.FieldT,
-    analyzer::FieldAnalyzers.FieldAnalyzerT,
+    field::Fields.Field,
+    analyzer::FieldAnalyzers.FieldAnalyzer,
 )
     w0 = field.w0
     f0 = field.w0 / (2 * pi)
@@ -243,8 +243,8 @@ end
 function info_field(
     unit::Units.UnitRT,
     grid::Grids.GridRT,
-    field::Fields.FieldRT,
-    analyzer::FieldAnalyzers.FieldAnalyzerRT,
+    field::Fields.Field,
+    analyzer::FieldAnalyzers.FieldAnalyzer,
 )
     w0 = field.w0
     f0 = field.w0 / (2 * pi)
@@ -293,8 +293,8 @@ end
 function info_field(
     unit::Units.UnitXY,
     grid::Grids.GridXY,
-    field::Fields.FieldXY,
-    analyzer::FieldAnalyzers.FieldAnalyzerXY,
+    field::Fields.Field,
+    analyzer::FieldAnalyzers.FieldAnalyzer,
 )
     w0 = field.w0
     f0 = w0 / (2 * pi)
@@ -329,9 +329,9 @@ end
 function info_medium(
     unit::Units.UnitR,
     grid::Grids.GridR,
-    field::Fields.FieldR,
+    field::Fields.Field,
     medium::Media.Medium,
-    analyzer::FieldAnalyzers.FieldAnalyzerR,
+    analyzer::FieldAnalyzers.FieldAnalyzer,
 )
     w0 = field.w0
 
@@ -368,9 +368,9 @@ end
 function info_medium(
     unit::Units.UnitT,
     grid::Grids.GridT,
-    field::Fields.FieldT,
+    field::Fields.Field,
     medium::Media.Medium,
-    analyzer::FieldAnalyzers.FieldAnalyzerT,
+    analyzer::FieldAnalyzers.FieldAnalyzer,
 )
     w0 = field.w0
 
@@ -402,9 +402,9 @@ end
 function info_medium(
     unit::Units.UnitRT,
     grid::Grids.GridRT,
-    field::Fields.FieldRT,
+    field::Fields.Field,
     medium::Media.Medium,
-    analyzer::FieldAnalyzers.FieldAnalyzerRT,
+    analyzer::FieldAnalyzers.FieldAnalyzer,
 )
     w0 = field.w0
 
@@ -445,9 +445,9 @@ end
 function info_medium(
     unit::Units.UnitXY,
     grid::Grids.GridXY,
-    field::Fields.FieldXY,
+    field::Fields.Field,
     medium::Media.Medium,
-    analyzer::FieldAnalyzers.FieldAnalyzerXY,
+    analyzer::FieldAnalyzers.FieldAnalyzer,
 )
     w0 = field.w0
 

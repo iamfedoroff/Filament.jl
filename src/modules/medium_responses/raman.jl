@@ -32,7 +32,7 @@ function init_raman(unit, grid, field, medium, p)
         calc = calc_raman_nothg
     end
 
-    p = (Hraman, field.FT)
+    p = (Hraman, field.PT)
     return Media.NonlinearResponse(Rnl, calc, p)
 end
 
@@ -40,9 +40,9 @@ end
 function calc_raman(
     F::AbstractArray{Complex{T}}, E::AbstractArray{Complex{T}}, p::Tuple, z::T,
 ) where T<:AbstractFloat
-    Hraman, FT = p
+    Hraman, PT = p
     @. F = real(E)^2
-    FourierTransforms.convolution!(F, FT, Hraman)
+    FourierTransforms.convolution!(F, PT, Hraman)
     @. F = F * real(E)
     return nothing
 end
@@ -51,9 +51,9 @@ end
 function calc_raman_nothg(
     F::AbstractArray{Complex{T}}, E::AbstractArray{Complex{T}}, p::Tuple, z::T,
 ) where T<:AbstractFloat
-    Hraman, FT = p
+    Hraman, PT = p
     @. F = 3 / 4 * abs2(E)
-    FourierTransforms.convolution!(F, FT, Hraman)
+    FourierTransforms.convolution!(F, PT, Hraman)
     @. F = F * real(E)
     return nothing
 end

@@ -33,7 +33,7 @@ end
 function Guard(
     unit::Units.UnitR,
     grid::Grids.GridR,
-    field::Fields.FieldR,
+    field::Fields.Field,
     medium::Media.Medium,
     rguard::T,
     kguard::T,
@@ -56,7 +56,7 @@ end
 function Guard(
     unit::Units.UnitT,
     grid::Grids.GridT,
-    field::Fields.FieldT,
+    field::Fields.Field,
     medium::Media.Medium,
     tguard::T,
     wguard::T,
@@ -73,7 +73,7 @@ end
 function Guard(
     unit::Units.UnitRT,
     grid::Grids.GridRT,
-    field::Fields.FieldRT,
+    field::Fields.Field,
     medium::Media.Medium,
     rguard::T,
     tguard::T,

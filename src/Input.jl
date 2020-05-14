@@ -79,8 +79,8 @@ function prepare(fname)
         model_keys = (
             NONLINEARITY=NONLINEARITY,
             PLASMA=PLASMA,
-            KPARAXIAL=false,
-            QPARAXIAL=false,
+            KPARAXIAL=true,
+            QPARAXIAL=true,
             ALG=ALG,
         )
         p_model = (responses_local, plasma_equation_local, model_keys)

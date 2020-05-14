@@ -192,8 +192,9 @@ const GROUP_FDAT = "field"
 const GROUP_ZDAT = "zdata"
 
 
-mutable struct PlotHDF{T<:AbstractFloat, I<:Int, B<:Bool}
+mutable struct PlotHDF{G, T<:AbstractFloat, I<:Int}
     fname :: String
+    geometry :: G
     ifield :: I
     dz_field :: T
     zprev_field :: T
@@ -201,7 +202,7 @@ mutable struct PlotHDF{T<:AbstractFloat, I<:Int, B<:Bool}
     izdata :: I
     dz_zdata :: T
     znext_zdata :: T
-    ZDATA :: B
+    ZDATA :: Bool
 end
 
 
@@ -213,7 +214,7 @@ function PlotHDF(
     dz_field::T,
     dz_zdata::T,
 ) where T<:AbstractFloat
-    if isa(grid, Grids.GridRT)
+    if grid isa Grids.GridRT
         ZDATA = true
     else
         ZDATA = false
@@ -241,8 +242,9 @@ function PlotHDF(
     end
 
     return PlotHDF(
-        fname, ifield, dz_field, zprev_field, znext_field,
-               izdata, dz_zdata, znext_zdata, ZDATA,
+        fname, typeof(grid),
+        ifield, dz_field, zprev_field, znext_field,
+        izdata, dz_zdata, znext_zdata, ZDATA,
     )
 end
 
@@ -369,7 +371,17 @@ function writeHDF(
 
         fp = HDF5.h5open(plothdf.fname, "r+")
         group_fdat = fp[GROUP_FDAT]
-        write_field(group_fdat, dset, field)
+        if plothdf.geometry <: Grids.GridR
+            write_field_r(group_fdat, dset, field)
+        elseif plothdf.geometry <: Grids.GridT
+            write_field_t(group_fdat, dset, field)
+        elseif plothdf.geometry <: Grids.GridRT
+            write_field_rt(group_fdat, dset, field)
+        elseif plothdf.geometry <: Grids.GridXY
+            write_field_xy(group_fdat, dset, field)
+        else
+            error("Wrong grid geometry.")
+        end
         HDF5.attrs(group_fdat[dset])["z"] = z
         HDF5.close(fp)
 
@@ -428,19 +440,19 @@ function writeHDF_zdata(
 end
 
 
-function write_field(group, dataset, field::Fields.FieldR)
+function write_field_r(group, dataset, field::Fields.Field)
     group[dataset] = CuArrays.collect(field.E)
     return nothing
 end
 
 
-function write_field(group, dataset, field::Fields.FieldT)
+function write_field_t(group, dataset, field::Fields.Field)
     group[dataset] = field.E
     return nothing
 end
 
 
-function write_field(group, dataset, field::Fields.FieldRT)
+function write_field_rt(group, dataset, field::Fields.Field)
     E = CuArrays.collect(transpose(real.(field.E)))
     shape = size(E)
     typesize = sizeof(eltype(E))
@@ -450,7 +462,7 @@ function write_field(group, dataset, field::Fields.FieldRT)
 end
 
 
-function write_field(group, dataset, field::Fields.FieldXY)
+function write_field_xy(group, dataset, field::Fields.Field)
     group[dataset] = CuArrays.collect(transpose(field.E))
     return nothing
 end

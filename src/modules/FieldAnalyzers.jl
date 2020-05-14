@@ -33,7 +33,7 @@ end
 
 
 function FieldAnalyzer(
-    grid::Grids.GridR, field::Fields.FieldR, z::T,
+    grid::Grids.GridR, field::Fields.Field, z::T,
 ) where T<:AbstractFloat
     Imax, rfil, P = [zero(T) for i=1:3]
 
@@ -48,7 +48,7 @@ end
 
 
 function analyze!(
-    analyzer::FieldAnalyzerR, grid::Grids.GridR, field::Fields.FieldR, z::T,
+    analyzer::FieldAnalyzerR, grid::Grids.GridR, field::Fields.Field, z::T,
 ) where T<:AbstractFloat
     analyzer.z = z
 
@@ -83,7 +83,7 @@ end
 
 
 function FieldAnalyzer(
-    grid::Grids.GridT, field::Fields.FieldT, z::T,
+    grid::Grids.GridT, field::Fields.Field, z::T,
 ) where T<:AbstractFloat
     Imax, rhomax, duration, F = [zero(T) for i=1:4]
     Nt = length(field.E)
@@ -93,7 +93,7 @@ end
 
 
 function analyze!(
-    analyzer::FieldAnalyzerT, grid::Grids.GridT, field::Fields.FieldT, z::T,
+    analyzer::FieldAnalyzerT, grid::Grids.GridT, field::Fields.Field, z::T,
 ) where T<:AbstractFloat
     analyzer.z = z
 
@@ -146,7 +146,7 @@ end
 
 
 function FieldAnalyzer(
-    grid::Grids.GridRT, field::Fields.FieldRT, z::T,
+    grid::Grids.GridRT, field::Fields.Field, z::T,
 ) where T<:AbstractFloat
     Fmax, Imax, rhomax, De, rfil, rpl, tau, W = [zero(T) for i=1:8]
 
@@ -172,7 +172,7 @@ end
 
 
 function analyze!(
-    analyzer::FieldAnalyzerRT, grid::Grids.GridRT, field::Fields.FieldRT, z::T,
+    analyzer::FieldAnalyzerRT, grid::Grids.GridRT, field::Fields.Field, z::T,
 ) where T<:AbstractFloat
     analyzer.z = z
 
@@ -191,12 +191,12 @@ function analyze!(
     #     Ew = rfft(Et)
     #     Ew = 2 * Ew * dt
     #     S = 2 * pi * Int[|Ew|^2 * r * dr]
-    FourierTransforms.fft!(field.E, field.FT)
+    FourierTransforms.fft!(field.E, field.PT)
     AnalyticSignals.aspec2rspec!(analyzer.Egpu, field.E)
     analyzer.Sgpu .= sum(convert(T, 8 * pi) .* abs2.(analyzer.Egpu) .*
                          analyzer.rdr .* grid.dt^2, dims=1)
     copyto!(analyzer.S, analyzer.Sgpu)
-    FourierTransforms.ifft!(field.E, field.FT)
+    FourierTransforms.ifft!(field.E, field.PT)
 
     analyzer.Fmax = maximum(analyzer.Frgpu)
 
@@ -238,7 +238,7 @@ end
 
 
 function FieldAnalyzer(
-    grid::Grids.GridXY, field::Fields.FieldXY, z::T,
+    grid::Grids.GridXY, field::Fields.Field, z::T,
 ) where T<:AbstractFloat
     Imax, ax, ay, P = [zero(T) for i=1:4]
     Nx, Ny = size(field.E)
@@ -250,7 +250,7 @@ end
 
 
 function analyze!(
-    analyzer::FieldAnalyzerXY, grid::Grids.GridXY, field::Fields.FieldXY, z::T,
+    analyzer::FieldAnalyzerXY, grid::Grids.GridXY, field::Fields.Field, z::T,
 ) where T<:AbstractFloat
     analyzer.z = z
 

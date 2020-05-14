@@ -1,15 +1,12 @@
-const TSPlan = Union{HankelTransforms.Plan, FourierTransforms.Plan, Nothing}
-
-
 struct LinearPropagator{
     T<:AbstractFloat,
     A<:AbstractArray{Complex{T}},
     G<:Guards.Guard,
-    P<:TSPlan
+    P<:Union{HankelTransforms.Plan, FourierTransforms.Plan, Nothing}
 }
     KZ :: A
     guard :: G
-    TS :: P
+    PS :: P
 end
 
 
@@ -18,10 +15,10 @@ function propagate!(
     LP::LinearPropagator,
     z::T
 ) where T
-    forward_transform_space!(E, LP.TS)
+    forward_transform_space!(E, LP.PS)
     @. E = E * exp(-1im * LP.KZ * z)
     Guards.apply_spectral_filter!(E, LP.guard)
-    inverse_transform_space!(E, LP.TS)
+    inverse_transform_space!(E, LP.PS)
     return nothing
 end
 
@@ -31,7 +28,7 @@ function LinearPropagator(
     unit::Units.UnitR,
     grid::Grids.GridR,
     medium::Media.Medium,
-    field::Fields.FieldR,
+    field::Fields.Field,
     guard::Guards.Guard,
     PARAXIAL::Bool,
 )
@@ -49,7 +46,7 @@ function LinearPropagator(
     end
     KZ = CuArrays.CuArray{Complex{FloatGPU}}(KZ)
 
-    return LinearPropagator(KZ, guard, field.HT)
+    return LinearPropagator(KZ, guard, field.PS)
 end
 
 
@@ -57,7 +54,7 @@ function LinearPropagator(
     unit::Units.UnitT,
     grid::Grids.GridT,
     medium::Media.Medium,
-    field::Fields.FieldT,
+    field::Fields.Field,
     guard::Guards.Guard,
     PARAXIAL::Bool,
 )
@@ -66,13 +63,14 @@ function LinearPropagator(
 
     KZ = zeros(ComplexF64, grid.Nt)
     for i=1:grid.Nt
+        kt = 0.0
         w = grid.w[i] * unit.w
-        KZ[i] = Kfunc(PARAXIAL, medium, w, 0.0) * unit.z
+        KZ[i] = Kfunc(PARAXIAL, medium, w, kt) * unit.z
         KZ[i] = KZ[i] - w / vf * unit.z
         KZ[i] = conj(KZ[i])   # in order to make fft instead of ifft
     end
 
-    return LinearPropagator(KZ, guard, nothing)
+    return LinearPropagator(KZ, guard, field.PS)
 end
 
 
@@ -80,7 +78,7 @@ function LinearPropagator(
     unit::Units.UnitRT,
     grid::Grids.GridRT,
     medium::Media.Medium,
-    field::Fields.FieldRT,
+    field::Fields.Field,
     guard::Guards.Guard,
     PARAXIAL::Bool,
 )
@@ -99,7 +97,7 @@ function LinearPropagator(
     end
     KZ = CuArrays.CuArray{Complex{FloatGPU}}(KZ)
 
-    return LinearPropagator(KZ, guard, field.HT)
+    return LinearPropagator(KZ, guard, field.PS)
 end
 
 
@@ -107,7 +105,7 @@ function LinearPropagator(
     unit::Units.UnitXY,
     grid::Grids.GridXY,
     medium::Media.Medium,
-    field::Fields.FieldXY,
+    field::Fields.Field,
     guard::Guards.Guard,
     PARAXIAL::Bool,
 )
@@ -127,7 +125,7 @@ function LinearPropagator(
     end
     KZ = CuArrays.CuArray{Complex{FloatGPU}}(KZ)
 
-    return LinearPropagator(KZ, guard, field.FT)
+    return LinearPropagator(KZ, guard, field.PS)
 end
 
 
