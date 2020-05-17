@@ -59,9 +59,9 @@ function convolution!(
     plan::Plan,
     H::AbstractArray{Complex{T}, 1},
 ) where T
-    fft!(x, plan)
+    ifft!(x, plan)   # time -> frequency [exp(-i*w*t)]
     @. x = H * x
-    ifft!(x, plan)
+    fft!(x, plan)   # frequency -> time [exp(-i*w*t)]
     return nothing
 end
 
@@ -71,7 +71,7 @@ function convolution!(
     plan::Plan,
     H::CuArrays.CuArray{Complex{T}, 1},
 ) where T
-    fft!(x, plan)
+    ifft!(x, plan)   # time -> frequency [exp(-i*w*t)]
 
     N = length(x)
 
@@ -84,7 +84,7 @@ function convolution!(
 
     CUDAnative.@cuda config=get_config _convolution_kernel!(x, H)
 
-    ifft!(x, plan)
+    fft!(x, plan)   # frequency -> time [exp(-i*w*t)]
     return nothing
 end
 

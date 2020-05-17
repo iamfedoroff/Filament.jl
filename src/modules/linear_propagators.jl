@@ -16,7 +16,7 @@ function propagate!(
     z::T
 ) where T
     forward_transform_space!(E, LP.PS)
-    @. E = E * exp(-1im * LP.KZ * z)
+    @. E = E * exp(1im * LP.KZ * z)
     Guards.apply_spectral_filter!(E, LP.guard)
     inverse_transform_space!(E, LP.PS)
     return nothing
@@ -42,7 +42,6 @@ function LinearPropagator(
         # Here the moving frame is added to reduce the truncation error, which
         # appears due to use of Float32 precision:
         KZ[i] = KZ[i] - w0 / vf * unit.z
-        KZ[i] = conj(KZ[i])   # in order to make fft instead of ifft
     end
     KZ = CuArrays.CuArray{Complex{FloatGPU}}(KZ)
 
@@ -67,7 +66,6 @@ function LinearPropagator(
         w = grid.w[i] * unit.w
         KZ[i] = Kfunc(PARAXIAL, medium, w, kt) * unit.z
         KZ[i] = KZ[i] - w / vf * unit.z
-        KZ[i] = conj(KZ[i])   # in order to make fft instead of ifft
     end
 
     return LinearPropagator(KZ, guard, field.PS)
@@ -92,7 +90,6 @@ function LinearPropagator(
         w = grid.w[j] * unit.w
         KZ[i, j] = Kfunc(PARAXIAL, medium, w, kt) * unit.z
         KZ[i, j] = KZ[i, j] - w / vf * unit.z
-        KZ[i, j] = conj(KZ[i, j])   # in order to make fft instead of ifft
     end
     end
     KZ = CuArrays.CuArray{Complex{FloatGPU}}(KZ)
@@ -120,7 +117,6 @@ function LinearPropagator(
         # Here the moving frame is added to reduce the truncation error, which
         # appears due to use of Float32 precision:
         KZ[i, j] = KZ[i, j] - w0 / vf * unit.z
-        KZ[i, j] = conj(KZ[i, j])   # in order to make fft instead of ifft
     end
     end
     KZ = CuArrays.CuArray{Complex{FloatGPU}}(KZ)

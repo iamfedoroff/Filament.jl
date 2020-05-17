@@ -3,7 +3,6 @@ module AnalyticSignals
 import CuArrays
 import CUDAdrv
 import CUDAnative
-import FFTW
 
 import ..FourierTransforms
 
@@ -174,9 +173,9 @@ function rsig2asig!(
     E::AbstractArray{Complex{T}},
     FT::FourierTransforms.Plan,
 ) where T
-    FourierTransforms.fft!(E, FT)
+    FourierTransforms.ifft!(E, FT)   # time -> frequency [exp(-i*w*t)]
     rspec2aspec!(E)
-    FourierTransforms.ifft!(E, FT)
+    FourierTransforms.fft!(E, FT)   # frequency -> time [exp(-i*w*t)]
     return nothing
 end
 
@@ -197,7 +196,7 @@ function rsig2aspec!(
     E::AbstractArray{Complex{T}},
     FT::FourierTransforms.Plan,
 ) where T
-    FourierTransforms.fft!(E, FT)
+    FourierTransforms.ifft!(E, FT)   # time -> frequency [exp(-i*w*t)]
     rspec2aspec!(E)
     return nothing
 end

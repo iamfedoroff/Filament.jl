@@ -191,12 +191,12 @@ function analyze!(
     #     Ew = rfft(Et)
     #     Ew = 2 * Ew * dt
     #     S = 2 * pi * Int[|Ew|^2 * r * dr]
-    FourierTransforms.fft!(field.E, field.PT)
+    FourierTransforms.ifft!(field.E, field.PT)   # time -> frequency [exp(-i*w*t)]
     AnalyticSignals.aspec2rspec!(analyzer.Egpu, field.E)
     analyzer.Sgpu .= sum(convert(T, 8 * pi) .* abs2.(analyzer.Egpu) .*
                          analyzer.rdr .* grid.dt^2, dims=1)
     copyto!(analyzer.S, analyzer.Sgpu)
-    FourierTransforms.ifft!(field.E, field.PT)
+    FourierTransforms.fft!(field.E, field.PT)   # frequency -> time [exp(-i*w*t)]
 
     analyzer.Fmax = maximum(analyzer.Frgpu)
 

@@ -12,7 +12,6 @@ function init_lattice(unit, grid, field, medium, p)
     mu = medium.permeability(grid.w * unit.w)
     Rnl = @. n / (MU0 * mu * C0^2) * Eu
 
-    @. Rnl = conj(Rnl)
     Rnl = CuArrays.CuArray{Complex{FloatGPU}}(Rnl)
 
     dnr = @. dnr_func(grid.r, unit.r)

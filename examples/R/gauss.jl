@@ -1,4 +1,4 @@
-z = 0.   # [m] the distance at which the initial condition is defined
+z = 0.0   # [m] the distance at which the initial condition is defined
 
 lam0 = 800e-9   # [m] central wavelength
 
@@ -11,10 +11,10 @@ function initial_condition(r, ru, Iu)
 
     # Focusing:
     f = 0.5   # [m] focal distance
-    n0 = 1.   # refractive index
-    w0 = 2. * pi * C0 / lam0   # central frequency
+    n0 = 1.0   # refractive index
+    w0 = 2 * pi * C0 / lam0   # central frequency
     k0 = n0 * w0 / C0   # wavenumber
-    E = @. E * exp(1im * k0 * (r * ru)^2 / (2. * f))
+    E = @. E * exp(-1im * k0 * (r * ru)^2 / (2 * f))
 
     return E
 end

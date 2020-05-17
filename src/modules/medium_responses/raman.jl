@@ -16,10 +16,16 @@ function init_raman(unit, grid, field, medium, p)
     # H(t) into the grid center (see "circular convolution"):
     tshift = grid.tmin + 0.5 * (grid.tmax - grid.tmin)
     Hraman = @. raman_response((grid.t - tshift) * unit.t)
-    Hraman = Hraman * grid.dt * unit.t
-    Hraman = FourierTransforms.ifftshift(Hraman)
+    Hraman = Hraman * unit.t
     Hraman = @. Hraman + 0im   # real -> complex
-    FFTW.fft!(Hraman)   # time -> frequency
+
+    # The correct way to calculate spectrum which matches theory:
+    #    S = ifftshift(E)   # compensation of the spectrum oscillations
+    #    S = ifft(S) * len(E) * dt   # normalization
+    #    S = np.fft.fftshift(S)   # recovery of the proper array order
+    Hraman = FourierTransforms.ifftshift(Hraman)
+    FFTW.ifft!(Hraman)   # time -> frequency [exp(-i*w*t)]
+    @. Hraman = Hraman * grid.Nt * grid.dt
 
     if ! isa(grid, Grids.GridT)   # FIXME: should be removed in a generic code.
         Rnl = convert(FloatGPU, Rnl)

@@ -54,10 +54,10 @@ function func!(
     end
 
     if PARAXIAL
-        @. dE = -1im * QZ * dE
+        @. dE = 1im * QZ * dE
     else
         forward_transform_space!(dE, PS)
-        @. dE = -1im * QZ * dE
+        @. dE = 1im * QZ * dE
         Guards.apply_spectral_filter!(dE, guard)
         inverse_transform_space!(dE, PS)
     end
@@ -90,7 +90,6 @@ function QZfunc(
     for i=1:grid.Nr
         kt = grid.k[i] * unit.k
         QZ[i] = Qfunc(PARAXIAL, medium, w0, kt) * unit.z / Eu
-        QZ[i] = conj(QZ[i])   # in order to make fft instead of ifft
     end
 
     return CuArrays.CuArray{Complex{FloatGPU}}(QZ)
@@ -112,7 +111,6 @@ function QZfunc(
     for i=1:grid.Nt
         w = grid.w[i] * unit.w
         QZ[i] = Qfunc(PARAXIAL, medium, w, 0.0) * unit.z / Eu
-        QZ[i] = conj(QZ[i])   # in order to make fft instead of ifft
     end
 
     return QZ
@@ -136,7 +134,6 @@ function QZfunc(
         kt = grid.k[i] * unit.k
         w = grid.w[j] * unit.w
         QZ[i, j] = Qfunc(PARAXIAL, medium, w, kt) * unit.z / Eu
-        QZ[i, j] = conj(QZ[i, j])   # in order to make fft instead of ifft
     end
     end
     return CuArrays.CuArray{Complex{FloatGPU}}(QZ)
@@ -159,7 +156,6 @@ function QZfunc(
     for i=1:grid.Nx
         kt = sqrt((grid.kx[i] * unit.kx)^2 + (grid.ky[j] * unit.ky)^2)
         QZ[i, j] = Qfunc(PARAXIAL, medium, w0, kt) * unit.z / Eu
-        QZ[i, j] = conj(QZ[i, j])   # in order to make fft instead of ifft
     end
     end
     return CuArrays.CuArray{Complex{FloatGPU}}(QZ)

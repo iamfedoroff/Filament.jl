@@ -29,9 +29,9 @@ function initial_condition(r, t, ru, tu, Iu)
     w = 2 * pi * FourierTransforms.fftfreq(Nt, t[2] - t[1])
     for i=1:Nr
         Et = E[i, :]
-        Ew = FFTW.fft(Et)
-        @. Ew = Ew * exp(1im * n0 * (w * wu) / C0 * (r[i] * ru)^2 / (2 * f))
-        Et = FFTW.ifft(Ew)
+        Ew = FFTW.ifft(Et)   # time -> frequency [exp(-i*w*t)]
+        @. Ew = Ew * exp(-1im * n0 * (w * wu) / C0 * (r[i] * ru)^2 / (2 * f))
+        Et = FFTW.fft(Ew)   # frequency -> time [exp(-i*w*t)]
         E[i, :] = Et
     end
 

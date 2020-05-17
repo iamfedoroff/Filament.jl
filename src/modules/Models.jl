@@ -168,13 +168,13 @@ end
 
 
 function forward_transform_time!(E::AbstractArray, P::FourierTransforms.Plan)
-    FourierTransforms.fft!(E, P)
+    FourierTransforms.ifft!(E, P)   # time -> frequency [exp(-i*w*t)]
     return nothing
 end
 
 
 function inverse_transform_time!(E::AbstractArray, P::FourierTransforms.Plan)
-    FourierTransforms.ifft!(E, P)
+    FourierTransforms.fft!(E, P)   # frequency -> time [exp(-i*w*t)]
     return nothing
 end
 
