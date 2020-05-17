@@ -122,4 +122,25 @@ function Field(unit::Units.UnitXY, grid::Grids.GridXY, p::Tuple)
 end
 
 
+function Field(unit::Units.UnitXYT, grid::Grids.GridXYT, p::Tuple)
+    lam0, initial_condition = p
+    T = typeof(lam0)
+
+    w0 = convert(T, 2 * pi * C0 / lam0)
+
+    E = initial_condition(
+        grid.x, grid.y, grid.t, unit.x, unit.y, unit.t, unit.I,
+    )
+    E = CuArrays.CuArray{Complex{T}}(E)
+
+    PS = FourierTransforms.Plan(E, [1, 2])
+    PT = FourierTransforms.Plan(E, [3])
+    AnalyticSignals.rsig2asig!(E, PT)   # convert to analytic signal
+
+    rho = CuArrays.zeros(T, (grid.Nx, grid.Ny, grid.Nt))
+    kdrho = CuArrays.zeros(T, (grid.Nx, grid.Ny, grid.Nt))
+    return Field(w0, E, PS, PT, rho, kdrho)
+end
+
+
 end

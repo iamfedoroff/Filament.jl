@@ -16,7 +16,7 @@ function Unit(geometry::String, p::Tuple)
     elseif geometry == "XY"
         unit = UnitXY(p...)
     elseif geometry == "XYT"
-        error("XYT geometry is not implemented yet.")
+        unit = UnitXYT(p...)
     else
         error("Wrong grid geometry.")
     end
@@ -101,6 +101,32 @@ function UnitXY(xu::T, yu::T, zu::T, Iu::T) where T
     kxu = 1 / xu
     kyu = 1 / yu
     return UnitXY(xu, yu, kxu, kyu, zu, Iu)
+end
+
+
+# ******************************************************************************
+# XYT
+# ******************************************************************************
+struct UnitXYT{T} <: Unit{T}
+    x :: T
+    y :: T
+    kx :: T
+    ky :: T
+    z :: T
+    t :: T
+    w :: T
+    lam :: T
+    I :: T
+    rho :: T
+end
+
+
+function UnitXYT(xu::T, yu::T, zu::T, tu::T, Iu::T, rhou::T) where T
+    kxu = 1 / xu
+    kyu = 1 / yu
+    wu = 1 / tu
+    lamu = tu
+    return UnitXYT(xu, yu, kxu, kyu, zu, tu, wu, lamu, Iu, rhou)
 end
 
 

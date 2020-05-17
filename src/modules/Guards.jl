@@ -27,6 +27,16 @@ struct Guard2D{A<:AbstractArray, A2<:AbstractArray} <: Guard
 end
 
 
+struct Guard3D{A<:AbstractArray, A2<:AbstractArray} <: Guard
+    F1 :: A   # field filter along dimension 1
+    F2 :: A   # field filter along dimension 2
+    F3 :: A   # field filter along dimension 3
+    S1 :: A2   # spectrum filter along dimension 1
+    S2 :: A2   # spectrum filter along dimension 2
+    S3 :: A   # spectrum filter along dimension 3
+end
+
+
 # ******************************************************************************
 # R
 # ******************************************************************************
@@ -135,6 +145,45 @@ end
 
 
 # ******************************************************************************
+# XYT
+# ******************************************************************************
+function Guard(
+    unit::Units.UnitXYT,
+    grid::Grids.GridXYT,
+    field::Fields.Field,
+    medium::Media.Medium,
+    xguard::T,
+    yguard::T,
+    tguard::T,
+    kxguard::T,
+    kyguard::T,
+    wguard::T,
+) where T<:AbstractFloat
+    Xguard = guard_window_both(grid.x, xguard)
+    Yguard = guard_window_both(grid.y, yguard)
+    Tguard = guard_window_both(grid.t, tguard)
+
+    # k0 = Media.k_func(medium, field.w0)
+    # kxmax = k0 * sind(kxguard)
+    # kymax = k0 * sind(kyguard)
+    # KXguard = @. exp(-((grid.kx * unit.kx)^2 / kxmax^2)^20)
+    # KYguard = @. exp(-((grid.ky * unit.ky)^2 / kymax^2)^20)
+    KXguard = ones(length(grid.kx))
+    KYguard = ones(length(grid.ky))
+
+    Wguard = @. exp(-((grid.w * unit.w)^2 / wguard^2)^20)
+
+    Xguard = CuArrays.CuArray{T}(Xguard)
+    Yguard = CuArrays.CuArray{T}(Yguard)
+    Tguard = CuArrays.CuArray{T}(Tguard)
+    KXguard = CuArrays.CuArray{T}(KXguard)
+    KYguard = CuArrays.CuArray{T}(KYguard)
+    Wguard = CuArrays.CuArray{T}(Wguard)
+    return Guard3D(Xguard, Yguard, Tguard, KXguard, KYguard, Wguard)
+end
+
+
+# ******************************************************************************
 function apply_field_filter!(E::AbstractArray{T, 1}, guard::Guard1D) where T
     @. E = E * guard.F
 end
@@ -157,6 +206,24 @@ function apply_field_filter!(
 end
 
 
+function apply_field_filter!(
+    E::CuArrays.CuArray{T, 3},
+    guard::Guard3D,
+) where T
+    N = length(E)
+
+    function get_config(kernel)
+        fun = kernel.fun
+        config = CUDAdrv.launch_configuration(fun)
+        blocks = cld(N, config.threads)
+        return (threads=config.threads, blocks=blocks)
+    end
+
+    CUDAnative.@cuda config=get_config kernel!(E, guard.F1, guard.F2, guard.F3)
+end
+
+
+# ******************************************************************************
 function apply_spectral_filter!(E::AbstractArray{T, 1}, guard::Guard1D) where T
     @. E = E * guard.S
 end
@@ -179,6 +246,24 @@ function apply_spectral_filter!(
 end
 
 
+function apply_spectral_filter!(
+    E::CuArrays.CuArray{T, 3},
+    guard::Guard3D,
+) where T
+    N = length(E)
+
+    function get_config(kernel)
+        fun = kernel.fun
+        config = CUDAdrv.launch_configuration(fun)
+        blocks = cld(N, config.threads)
+        return (threads=config.threads, blocks=blocks)
+    end
+
+    CUDAnative.@cuda config=get_config kernel!(E, guard.S1, guard.S2, guard.S3)
+end
+
+
+# ******************************************************************************
 function kernel!(
     F::CUDAnative.CuDeviceArray{Complex{T}, 2},
     A::CUDAnative.CuDeviceArray{T, 1},
@@ -212,6 +297,27 @@ function kernel!(
         i = cartesian[k][1]
         j = cartesian[k][2]
         F[i, j] = F[i, j] * A[i, j] * B[j]
+    end
+    return nothing
+end
+
+
+function kernel!(
+    F::CUDAnative.CuDeviceArray{Complex{T}, 3},
+    A::CUDAnative.CuDeviceArray{T, 1},
+    B::CUDAnative.CuDeviceArray{T, 1},
+    C::CUDAnative.CuDeviceArray{T, 1},
+) where T<:AbstractFloat
+    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x +
+         CUDAnative.threadIdx().x
+    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
+    N1, N2, N3 = size(F)
+    cartesian = CartesianIndices((N1, N2, N3))
+    for k=id:stride:N1*N2*N3
+        i1 = cartesian[k][1]
+        i2 = cartesian[k][2]
+        i3 = cartesian[k][2]
+        F[i1, i2, i3] = F[i1, i2, i3] * A[i1] * B[i2] * C[i3]
     end
     return nothing
 end

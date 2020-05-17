@@ -183,6 +183,39 @@ end
 
 
 # ******************************************************************************
+# XYT
+# ******************************************************************************
+function PlotDAT(fname::String, unit::Units.UnitXYT)
+    plotvars = [
+        PlotVar("z", "m", unit.z),
+        PlotVar("Imax", "W/m^2", unit.I),
+        PlotVar("Nemax", "1/m^3", unit.rho),
+        PlotVar("Fmax", "J/m^2", unit.t * unit.I),
+        PlotVar("ax", "m", unit.x),
+        PlotVar("ay", "m", unit.y),
+        PlotVar("W", "J", unit.x * unit.y * unit.t * unit.I),
+    ]
+    _write_header(fname, plotvars)
+    return PlotDAT(fname)
+end
+
+
+function writeDAT(plotdat::PlotDAT, analyzer::FieldAnalyzers.FieldAnalyzerXYT)
+    fp = open(plotdat.fname, "a")
+    write(fp, "  ")
+    write(fp, "$(fmt(analyzer.z)) ")
+    write(fp, "$(fmt(analyzer.Imax)) ")
+    write(fp, "$(fmt(analyzer.rhomax)) ")
+    write(fp, "$(fmt(analyzer.Fmax)) ")
+    write(fp, "$(fmt(analyzer.ax)) ")
+    write(fp, "$(fmt(analyzer.ay)) ")
+    write(fp, "$(fmt(analyzer.W)) ")
+    write(fp, "\n")
+    close(fp)
+end
+
+
+# ******************************************************************************
 # PlotHDF
 # ******************************************************************************
 const PFVERSION = "2.0"
@@ -293,6 +326,19 @@ function _write_group_unit(fp, unit::Units.UnitXY)
 end
 
 
+function _write_group_unit(fp, unit::Units.UnitXYT)
+    HDF5.g_create(fp, GROUP_UNIT)
+    group = fp[GROUP_UNIT]
+    group["x"] = unit.x
+    group["y"] = unit.y
+    group["z"] = unit.z
+    group["t"] = unit.t
+    group["I"] = unit.I
+    group["Ne"] = unit.rho
+    return nothing
+end
+
+
 function _write_group_grid(fp, grid::Grids.GridR)
     HDF5.g_create(fp, GROUP_GRID)
     group = fp[GROUP_GRID]
@@ -341,6 +387,23 @@ function _write_group_grid(fp, grid::Grids.GridXY)
 end
 
 
+function _write_group_grid(fp, grid::Grids.GridXYT)
+    HDF5.g_create(fp, GROUP_GRID)
+    group = fp[GROUP_GRID]
+    group["geometry"] = "XYT"
+    group["xmin"] = grid.xmin
+    group["xmax"] = grid.xmax
+    group["Nx"] = grid.Nx
+    group["ymin"] = grid.ymin
+    group["ymax"] = grid.ymax
+    group["Ny"] = grid.Ny
+    group["tmin"] = grid.tmin
+    group["tmax"] = grid.tmax
+    group["Nt"] = grid.Nt
+    return nothing
+end
+
+
 function _write_group_zdat(fp, grid::Grids.GridRT)
     HDF5.g_create(fp, GROUP_ZDAT)
     group = fp[GROUP_ZDAT]
@@ -379,6 +442,8 @@ function writeHDF(
             write_field_rt(group_fdat, dset, field)
         elseif plothdf.geometry <: Grids.GridXY
             write_field_xy(group_fdat, dset, field)
+        elseif plothdf.geometry <: Grids.GridXYT
+            write_field_xyt(group_fdat, dset, field)
         else
             error("Wrong grid geometry.")
         end
@@ -464,6 +529,17 @@ end
 
 function write_field_xy(group, dataset, field::Fields.Field)
     group[dataset] = CuArrays.collect(transpose(field.E))
+    return nothing
+end
+
+
+function write_field_xyt(group, dataset, field::Fields.Field)
+    # E = CuArrays.collect(real.(field.E))
+    # shape = size(E)
+    # typesize = sizeof(eltype(E))
+    # chunk = guess_chunk(shape, typesize)
+    # group[dataset, "chunk", chunk, "shuffle", (), "compress", 9] = E
+    group[dataset] = CuArrays.collect(real.(field.E))
     return nothing
 end
 

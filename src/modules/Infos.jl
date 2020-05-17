@@ -168,6 +168,31 @@ function info_grid(unit::Units.UnitXY, grid::Grids.GridXY)
 end
 
 
+function info_grid(unit::Units.UnitXYT, grid::Grids.GridXYT)
+    dkx = grid.kx[2] - grid.kx[1]
+    dky = grid.ky[2] - grid.ky[1]
+    kxc = 2 * pi * 0.5 / dkx   # x angular spatial Nyquist frequency
+    kyc = 2 * pi * 0.5 / dky   # y angular spatial Nyquist frequency
+    f = grid.w / (2 * pi)
+    df = f[2] - f[1]
+    fc = 0.5 / grid.dt   # temporal Nyquist frequency
+
+    sdata =
+    """
+    dx  = $(fmt(grid.dx * unit.x)) [m] - x spatial step
+    dy  = $(fmt(grid.dy * unit.y)) [m] - y spatial step
+    dkx = $(fmt(dkx * unit.kx)) [1/m] - x spatial frequency (angular) step
+    dky = $(fmt(dky * unit.ky)) [1/m] - y spatial frequency (angular) step
+    kxc  = $(fmt(kxc * unit.kx)) [1/m] - x spatial Nyquist frequency (angular)
+    kyc  = $(fmt(kyc * unit.ky)) [1/m] - y spatial Nyquist frequency (angular)
+    dt = $(fmt(grid.dt * unit.t)) [s] - temporal step
+    df = $(fmt(df * unit.w)) [1/s] - temporal frequency step
+    fc = $(fmt(fc * unit.w)) [1/s] - temporal Nyquist frequency
+    """
+    return sdata
+end
+
+
 function info_field(
     unit::Units.UnitR,
     grid::Grids.GridR,
@@ -326,6 +351,31 @@ function info_field(
 end
 
 
+function info_field(
+    unit::Units.UnitXYT,
+    grid::Grids.GridXYT,
+    field::Fields.Field,
+    analyzer::FieldAnalyzers.FieldAnalyzer,
+)
+    w0 = field.w0
+    f0 = field.w0 / (2 * pi)
+    lam0 = 2 * pi * C0 / w0
+
+    I0 = analyzer.Imax * unit.I
+    Wph = HBAR * w0
+
+    sdata =
+    """
+    I0   = $(fmt(I0)) [W/m^2] - initial intensity
+    lam0 = $(fmt(lam0)) [m] - central wavelength
+    f0   = $(fmt(f0)) [1/s] - central frequency
+    w0   = $(fmt(w0)) [1/s] - central frequency (angular)
+    Wph  = $(fmt(Wph)) [J] - energy of one photon
+    """
+    return sdata
+end
+
+
 function info_medium(
     unit::Units.UnitR,
     grid::Grids.GridR,
@@ -476,6 +526,39 @@ function info_medium(
     La     = $(fmt(Media.absorption_length(medium, w0))) [m] - linear absorption length
     Lnl    = $(fmt(Media.nonlinearity_length(medium, w0, I0))) [m] - length of Kerr nonlinearity
     zf     = $(fmt(Media.selffocusing_length(medium, w0, a0, P))) [m] - self-focusing distance
+    """
+    return sdata
+end
+
+
+function info_medium(
+    unit::Units.UnitXYT,
+    grid::Grids.GridXYT,
+    field::Fields.Field,
+    medium::Media.Medium,
+    analyzer::FieldAnalyzers.FieldAnalyzer,
+)
+    w0 = field.w0
+
+    I0 = analyzer.Imax * unit.I
+    Pcr = Media.critical_power(medium, w0)
+
+    sdata =
+    """
+    n0re = $(fmt(real(Media.refractive_index(medium, w0)))) [-] - refractive index (real part)
+    n0im = $(fmt(imag(Media.refractive_index(medium, w0)))) [-] - refractive index (imaginary part)
+    k0 = $(fmt(Media.k_func(medium, w0))) [1/m] - wave number
+    k1 = $(fmt(Media.k1_func(medium, w0))) [s/m] - 1st derivative of wave number: d(k0)/dw
+    k2 = $(fmt(Media.k2_func(medium, w0))) [s^2/m] - 2nd derivative of wave number: d(k1)/dw
+    k3 = $(fmt(Media.k3_func(medium, w0))) [s^3/m] - 3rd derivative of wave number: d(k2)/dw
+    ga = $(fmt(Media.absorption_coefficient(medium, w0))) [1/m] - linear absorption coefficient (by field)
+    vp = $(fmt(Media.phase_velocity(medium, w0) / C0)) [C0] - phase velocity
+    vg = $(fmt(Media.group_velocity(medium, w0) / C0)) [C0] - group velocity
+    n2  = $(fmt(medium.n2)) [m^2/W] - Kerr nonlinear index
+    chi3 = $(fmt(Media.chi3_func(medium, w0))) [m/V] - 3rd order nonlinear susceptibility
+    Pcr = $(fmt(Pcr)) [W] - critical power
+    La     = $(fmt(Media.absorption_length(medium, w0))) [m] - linear absorption length
+    Lnl    = $(fmt(Media.nonlinearity_length(medium, w0, I0))) [m] - length of Kerr nonlinearity
     """
     return sdata
 end

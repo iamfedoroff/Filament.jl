@@ -10,19 +10,19 @@ abstract type Grid end
 
 function Grid(geometry::String, p::Tuple)
     if geometry == "R"
-        unit = GridR(p...)
+        grid = GridR(p...)
     elseif geometry == "T"
-        unit = GridT(p...)
+        grid = GridT(p...)
     elseif geometry == "RT"
-        unit = GridRT(p...)
+        grid = GridRT(p...)
     elseif geometry == "XY"
-        unit = GridXY(p...)
+        grid = GridXY(p...)
     elseif geometry == "XYT"
-        error("XYT geometry is not implemented yet.")
+        grid = GridXYT(p...)
     else
         error("Wrong grid geometry.")
     end
-    return unit
+    return grid
 end
 
 
@@ -139,6 +139,51 @@ function GridXY(
     y, dy, ky = _grid_spatial_rectangular(ymin, ymax, Ny)
     return GridXY(
         xmin, xmax, Nx, x, dx, kx, ymin, ymax, Ny, y, dy, ky,
+    )
+end
+
+
+# ******************************************************************************
+# XYT
+# ******************************************************************************
+struct GridXYT{
+    I<:Int,
+    T<:AbstractFloat,
+    A<:AbstractArray{T},
+    AR<:AbstractArray{T},
+} <: Grid
+    xmin :: T
+    xmax :: T
+    Nx :: I
+    x :: AR
+    dx :: T
+    kx :: A
+
+    ymin :: T
+    ymax :: T
+    Ny :: I
+    y :: AR
+    dy :: T
+    ky :: A
+
+    tmin :: T
+    tmax :: T
+    Nt :: I
+    t :: AR
+    dt :: T
+    w :: A
+end
+
+
+function GridXYT(
+    xmin::T, xmax::T, Nx::I, ymin::T, ymax::T, Ny::I, tmin::T, tmax::T, Nt::I,
+) where {I<:Int, T<:AbstractFloat}
+    x, dx, kx = _grid_spatial_rectangular(xmin, xmax, Nx)
+    y, dy, ky = _grid_spatial_rectangular(ymin, ymax, Ny)
+    t, dt, w = _grid_temporal(tmin, tmax, Nt)
+    return GridXYT(
+        xmin, xmax, Nx, x, dx, kx, ymin, ymax, Ny, y, dy, ky,
+        tmin, tmax, Nt, t, dt, w,
     )
 end
 

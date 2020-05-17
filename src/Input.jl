@@ -130,7 +130,33 @@ function prepare(fname)
         )
         p_model = (responses_local, Dict(), model_keys)
     elseif geometry == "XYT"
-        error("XYT geometry is not implemented yet.")
+        z_local = FloatGPU(z / zu)
+        zmax_local = FloatGPU(zmax)
+        lam0_local = FloatGPU(lam0)
+        dz_plothdf_local = FloatGPU(dz_plothdf)
+
+        p_unit = (xu, yu, zu, tu, Iu, rhou)
+        p_grid = (FloatGPU(xmin), FloatGPU(xmax), Nx,
+                  FloatGPU(ymin), FloatGPU(ymax), Ny,
+                  FloatGPU(tmin), FloatGPU(tmax), Nt)
+        p_field = (FloatGPU(lam0), initial_condition)
+        p_guard = (FloatGPU(xguard), FloatGPU(yguard), FloatGPU(tguard),
+                   FloatGPU(kxguard), FloatGPU(kyguard), FloatGPU(wguard))
+        p_dzadaptive = (dz_initial, dzphimax, mr, nuc, NONLINEARITY)
+
+        if PLASMA
+            plasma_equation_local = plasma_equation
+        else
+            plasma_equation_local = Dict()
+        end
+        model_keys = (
+            NONLINEARITY=NONLINEARITY,
+            PLASMA=PLASMA,
+            KPARAXIAL=KPARAXIAL,
+            QPARAXIAL=QPARAXIAL,
+            ALG=ALG,
+        )
+        p_model = (responses_local, plasma_equation_local, model_keys)
     else
         error("Wrong grid geometry.")
     end

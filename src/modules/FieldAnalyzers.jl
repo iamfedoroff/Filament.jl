@@ -269,6 +269,70 @@ end
 
 
 # ******************************************************************************
+# XYT
+# ******************************************************************************
+mutable struct FieldAnalyzerXYT{
+    T<:AbstractFloat,
+    U1<:AbstractArray{T},
+    U2<:AbstractArray{T},
+    UG1<:AbstractArray{T},
+    UG2<:AbstractArray{T},
+} <: FieldAnalyzer
+    # Observed variables:
+    z :: T
+    Imax :: T
+    rhomax :: T
+    Fmax :: T
+    ax :: T
+    ay :: T
+    W :: T
+    # Storage arrays:
+    Fxy :: U2
+    Ft :: U1
+    Fxygpu :: UG2
+    Ftgpu :: UG1
+end
+
+
+function FieldAnalyzer(
+    grid::Grids.GridXYT, field::Fields.Field, z::T,
+) where T<:AbstractFloat
+    Imax, rhomax, Fmax, ax, ay, W = [zero(T) for i=1:6]
+    Fxy = zeros(T, (grid.Nx, grid.Ny, 1))
+    Ft = zeros(T, (1, 1, grid.Nt))
+    Fxygpu = CuArrays.zeros(T, (grid.Nx, grid.Ny, 1))
+    Ftgpu = CuArrays.zeros(T, (1, 1, grid.Nt))
+    return FieldAnalyzerXYT(
+        z, Imax, rhomax, Fmax, ax, ay, W,  Fxy, Ft, Fxygpu, Ftgpu,
+    )
+end
+
+
+function analyze!(
+    analyzer::FieldAnalyzerXYT, grid::Grids.GridXYT, field::Fields.Field, z::T,
+) where T<:AbstractFloat
+    analyzer.z = z
+
+    analyzer.Imax = maximum(abs2.(field.E))
+    analyzer.rhomax = maximum(field.rho)
+
+    analyzer.Fxygpu .= sum(abs2.(field.E) .* grid.dt, dims=3)
+    copyto!(analyzer.Fxy, analyzer.Fxygpu)
+
+    analyzer.Ftgpu .= sum(abs2.(field.E) .* grid.dx .* grid.dy, dims=[1, 2])
+    copyto!(analyzer.Ft, analyzer.Ftgpu)
+
+    analyzer.Fmax, imax = findmax(analyzer.Fxy)
+
+    @views analyzer.ax = radius(grid.x, analyzer.Fxy[:, imax[2], 1])
+    @views analyzer.ay = radius(grid.y, analyzer.Fxy[imax[1], :, 1])
+
+    analyzer.W = sum(analyzer.Ftgpu) * grid.dt
+    return nothing
+end
+
+
+# ******************************************************************************
 function radius(
     x::AbstractArray{T}, y::AbstractArray{T}, level::T=convert(T, exp(-1)),
 ) where T<:AbstractFloat

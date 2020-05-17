@@ -125,6 +125,34 @@ function LinearPropagator(
 end
 
 
+function LinearPropagator(
+    unit::Units.UnitXYT,
+    grid::Grids.GridXYT,
+    medium::Media.Medium,
+    field::Fields.Field,
+    guard::Guards.Guard,
+    PARAXIAL::Bool,
+)
+    w0 = field.w0
+    vf = Media.group_velocity(medium, w0)   # frame velocity
+
+    KZ = zeros(ComplexF64, (grid.Nx, grid.Ny, grid.Nt))
+    for k=1:grid.Nt
+    for j=1:grid.Ny
+    for i=1:grid.Nx
+        kt = sqrt((grid.kx[i] * unit.kx)^2 + (grid.ky[j] * unit.ky)^2)
+        w = grid.w[k] * unit.w
+        KZ[i, j, k] = Kfunc(PARAXIAL, medium, w, kt) * unit.z
+        KZ[i, j, k] = KZ[i, j, k] - w / vf * unit.z
+    end
+    end
+    end
+    KZ = CuArrays.CuArray{Complex{FloatGPU}}(KZ)
+
+    return LinearPropagator(KZ, guard, field.PS)
+end
+
+
 # ******************************************************************************
 function Kfunc(PARAXIAL, medium, w, kt)
     if PARAXIAL

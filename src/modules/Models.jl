@@ -87,7 +87,7 @@ function zstep(
         end
     end
 
-    if isa(grid, Grids.GridT) | isa(grid, Grids.GridRT)
+    if isa(grid, Grids.GridT) | isa(grid, Grids.GridRT) | isa(grid, Grids.GridXYT)
         @timeit "field -> spectr" begin
             forward_transform_time!(field.E, field.PT)
             CUDAdrv.synchronize()
@@ -106,7 +106,7 @@ function zstep(
         CUDAdrv.synchronize()
     end
 
-    if isa(grid, Grids.GridT) | isa(grid, Grids.GridRT)
+    if isa(grid, Grids.GridT) | isa(grid, Grids.GridRT) | isa(grid, Grids.GridXYT)
         @timeit "spectr -> field" begin
             inverse_transform_time!(field.E, field.PT)
             CUDAdrv.synchronize()
