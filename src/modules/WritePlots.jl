@@ -247,7 +247,7 @@ function PlotHDF(
     dz_field::T,
     dz_zdata::T,
 ) where T<:AbstractFloat
-    if grid isa Grids.GridRT
+    if (grid isa Grids.GridRT) | (grid isa Grids.GridXY)
         ZDATA = true
     else
         ZDATA = false
@@ -422,6 +422,16 @@ function _write_group_zdat(fp, grid::Grids.GridRT)
 end
 
 
+function _write_group_zdat(fp, grid::Grids.GridXY)
+    HDF5.g_create(fp, GROUP_ZDAT)
+    group = fp[GROUP_ZDAT]
+    d_create(group, "z", FloatGPU, ((1,), (-1,)))
+    d_create(group, "Izx", FloatGPU, ((1, grid.Nx), (-1, grid.Nx)))
+    d_create(group, "Izy", FloatGPU, ((1, grid.Ny), (-1, grid.Ny)))
+    return nothing
+end
+
+
 function writeHDF(
     plothdf::PlotHDF,
     field::Fields.Field,
@@ -502,6 +512,38 @@ function writeHDF_zdata(
     data[:, iz] = analyzer.S
 
     HDF5.close(fp)
+
+    return nothing
+end
+
+
+function writeHDF_zdata(
+    plothdf::PlotHDF, analyzer::FieldAnalyzers.FieldAnalyzerXY,
+)
+    iz = plothdf.izdata
+
+    fp = HDF5.h5open(plothdf.fname, "r+")
+
+    group_zdat = fp[GROUP_ZDAT]
+
+    data = group_zdat["z"]
+    HDF5.set_dims!(data, (iz,))
+    data[iz] = analyzer.z
+
+    Nx, Ny = size(analyzer.I)
+    Nx2, Ny2 = Int(Nx / 2), Int(Ny / 2)
+
+    data = group_zdat["Izx"]
+    HDF5.set_dims!(data, (iz, Nx))
+    data[iz, :] = analyzer.I[:, Ny2]
+
+    data = group_zdat["Izy"]
+    HDF5.set_dims!(data, (iz, Ny))
+    data[iz, :] = analyzer.I[Nx2, :]
+
+    HDF5.close(fp)
+
+    return nothing
 end
 
 
