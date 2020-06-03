@@ -20,7 +20,7 @@ function init_current_free(unit, grid, field, medium, p)
     end
 
     if ! isa(grid, Grids.GridT)   # FIXME: should be removed in a generic code.
-        Rnl = CuArrays.CuArray{Complex{FloatGPU}}(Rnl)
+        Rnl = CUDA.CuArray{Complex{FloatGPU}}(Rnl)
     end
 
     p = (field.rho, )

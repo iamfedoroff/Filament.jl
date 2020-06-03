@@ -1,9 +1,7 @@
 module Input
 
 # Global packages:
-import CuArrays
-import CUDAdrv
-import CUDAnative
+import CUDA
 import FFTW
 import StaticArrays
 

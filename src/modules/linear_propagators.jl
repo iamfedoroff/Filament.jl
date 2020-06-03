@@ -43,7 +43,7 @@ function LinearPropagator(
         # appears due to use of Float32 precision:
         KZ[i] = KZ[i] - w0 / vf * unit.z
     end
-    KZ = CuArrays.CuArray{Complex{FloatGPU}}(KZ)
+    KZ = CUDA.CuArray{Complex{FloatGPU}}(KZ)
 
     return LinearPropagator(KZ, guard, field.PS)
 end
@@ -92,7 +92,7 @@ function LinearPropagator(
         KZ[i, j] = KZ[i, j] - w / vf * unit.z
     end
     end
-    KZ = CuArrays.CuArray{Complex{FloatGPU}}(KZ)
+    KZ = CUDA.CuArray{Complex{FloatGPU}}(KZ)
 
     return LinearPropagator(KZ, guard, field.PS)
 end
@@ -119,7 +119,7 @@ function LinearPropagator(
         KZ[i, j] = KZ[i, j] - w0 / vf * unit.z
     end
     end
-    KZ = CuArrays.CuArray{Complex{FloatGPU}}(KZ)
+    KZ = CUDA.CuArray{Complex{FloatGPU}}(KZ)
 
     return LinearPropagator(KZ, guard, field.PS)
 end
@@ -147,7 +147,7 @@ function LinearPropagator(
     end
     end
     end
-    KZ = CuArrays.CuArray{Complex{FloatGPU}}(KZ)
+    KZ = CUDA.CuArray{Complex{FloatGPU}}(KZ)
 
     return LinearPropagator(KZ, guard, field.PS)
 end

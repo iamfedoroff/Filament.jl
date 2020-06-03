@@ -1,7 +1,7 @@
 module Filament
 
 # Global packages --------------------------------------------------------------
-import CUDAdrv
+import CUDA
 import Dates
 import Formatting
 using TimerOutputs
@@ -131,7 +131,7 @@ function main_loop(
 
     zfirst = true
 
-    CUDAdrv.synchronize()
+    CUDA.synchronize()
 
     while z < zmax
 
@@ -147,26 +147,26 @@ function main_loop(
 
         @timeit "zstep" begin
             Models.zstep(z, dz, grid, field, guard, model)
-            CUDAdrv.synchronize()
+            CUDA.synchronize()
         end
 
         @timeit "plots" begin
             # Update plot cache
             @timeit "field analyzer" begin
                 FieldAnalyzers.analyze!(analyzer, grid, field, z)
-                CUDAdrv.synchronize()
+                CUDA.synchronize()
             end
 
             # Write integral parameters to dat file
             @timeit "writeDAT" begin
                 WritePlots.writeDAT(plotdat, analyzer)
-                CUDAdrv.synchronize()
+                CUDA.synchronize()
             end
 
             # Write field to hdf file
             @timeit "writeHDF" begin
                 WritePlots.writeHDF(plothdf, field, analyzer, z)
-                CUDAdrv.synchronize()
+                CUDA.synchronize()
             end
         end
 

@@ -2,7 +2,7 @@ module TabulatedFunctions
 
 import DelimitedFiles
 import StaticArrays
-import CUDAnative
+import CUDA
 
 
 struct TFunction{R<:AbstractRange, T<:AbstractArray} <: Function
@@ -48,9 +48,9 @@ function (tf::TFunction)(x::T) where T<:AbstractFloat
         res = convert(T, 0)   # in order to avoid -Inf in log10(0)
     else
         if T == Float32   # FIXME Dirty hack for launching on both CPU and GPU
-            xlog10 = CUDAnative.log10(x)
+            xlog10 = CUDA.log10(x)
             ylog10 = tfbase(tf, xlog10)
-            res = CUDAnative.pow(convert(T, 10), ylog10)
+            res = CUDA.pow(convert(T, 10), ylog10)
         else
             xlog10 = log10(x)
             ylog10 = tfbase(tf, xlog10)

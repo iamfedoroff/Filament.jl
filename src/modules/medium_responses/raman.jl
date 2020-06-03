@@ -29,7 +29,7 @@ function init_raman(unit, grid, field, medium, p)
 
     if ! isa(grid, Grids.GridT)   # FIXME: should be removed in a generic code.
         Rnl = convert(FloatGPU, Rnl)
-        Hraman = CuArrays.CuArray{Complex{FloatGPU}}(Hraman)
+        Hraman = CUDA.CuArray{Complex{FloatGPU}}(Hraman)
     end
 
     if THG

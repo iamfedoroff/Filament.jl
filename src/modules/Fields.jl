@@ -1,6 +1,6 @@
 module Fields
 
-import CuArrays
+import CUDA
 import HankelTransforms
 
 import ..AnalyticSignals
@@ -36,7 +36,7 @@ function Field(unit::Units.UnitR, grid::Grids.GridR, p::Tuple)
     w0 = convert(T, 2 * pi * C0 / lam0)
 
     E = initial_condition(grid.r, unit.r, unit.I)
-    E = CuArrays.CuArray{Complex{T}}(E)
+    E = CUDA.CuArray{Complex{T}}(E)
 
     if HTLOAD
         PS = HankelTransforms.plan(file_ht)
@@ -68,9 +68,9 @@ function Field(unit::Units.UnitT, grid::Grids.GridT, p::Tuple)
     kdrho = zeros(T, grid.Nt)
 
     # Initialize a dummy GPU array in order to trigger the creation of the
-    # device context. This will allow to call CUDAdrv.synchronize() in the
+    # device context. This will allow to call CUDA.synchronize() in the
     # main cycle.
-    tmp = CuArrays.zeros(T, 1)
+    tmp = CUDA.zeros(T, 1)
 
     return Field(w0, E, PS, PT, rho, kdrho)
 end
@@ -83,7 +83,7 @@ function Field(unit::Units.UnitRT, grid::Grids.GridRT, p::Tuple)
     w0 = convert(T, 2 * pi * C0 / lam0)
 
     E = initial_condition(grid.r, grid.t, unit.r, unit.t, unit.I)
-    E = CuArrays.CuArray{Complex{T}}(E)
+    E = CUDA.CuArray{Complex{T}}(E)
 
     if HTLOAD
         PS = HankelTransforms.plan(file_ht)
@@ -98,8 +98,8 @@ function Field(unit::Units.UnitRT, grid::Grids.GridRT, p::Tuple)
     PT = FourierTransforms.Plan(E, [2])
     AnalyticSignals.rsig2asig!(E, PT)   # convert to analytic signal
 
-    rho = CuArrays.zeros(T, (grid.Nr, grid.Nt))
-    kdrho = CuArrays.zeros(T, (grid.Nr, grid.Nt))
+    rho = CUDA.zeros(T, (grid.Nr, grid.Nt))
+    kdrho = CUDA.zeros(T, (grid.Nr, grid.Nt))
     return Field(w0, E, PS, PT, rho, kdrho)
 end
 
@@ -111,7 +111,7 @@ function Field(unit::Units.UnitXY, grid::Grids.GridXY, p::Tuple)
     w0 = convert(T, 2 * pi * C0 / lam0)
 
     E = initial_condition(grid.x, grid.y, unit.x, unit.y, unit.I)
-    E = CuArrays.CuArray{Complex{T}}(E)
+    E = CUDA.CuArray{Complex{T}}(E)
 
     PS = FourierTransforms.Plan(E)
 
@@ -131,14 +131,14 @@ function Field(unit::Units.UnitXYT, grid::Grids.GridXYT, p::Tuple)
     E = initial_condition(
         grid.x, grid.y, grid.t, unit.x, unit.y, unit.t, unit.I,
     )
-    E = CuArrays.CuArray{Complex{T}}(E)
+    E = CUDA.CuArray{Complex{T}}(E)
 
     PS = FourierTransforms.Plan(E, [1, 2])
     PT = FourierTransforms.Plan(E, [3])
     AnalyticSignals.rsig2asig!(E, PT)   # convert to analytic signal
 
-    rho = CuArrays.zeros(T, (grid.Nx, grid.Ny, grid.Nt))
-    kdrho = CuArrays.zeros(T, (grid.Nx, grid.Ny, grid.Nt))
+    rho = CUDA.zeros(T, (grid.Nx, grid.Ny, grid.Nt))
+    kdrho = CUDA.zeros(T, (grid.Nx, grid.Ny, grid.Nt))
     return Field(w0, E, PS, PT, rho, kdrho)
 end
 

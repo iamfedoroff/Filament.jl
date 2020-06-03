@@ -1,9 +1,7 @@
 module FourierTransforms
 
 import FFTW
-import CUDAdrv
-import CUDAnative
-import CuArrays
+import CUDA
 
 
 struct Plan{P<:FFTW.Plan, PI<:FFTW.Plan}
@@ -19,21 +17,21 @@ function Plan(F::AbstractArray{Complex{T}}, region=nothing) where T
     pfft = FFTW.plan_fft!(F, region)
     pifft = FFTW.plan_ifft!(F, region)
     # in-place FFTs results in segfault after run completion
-    # https://github.com/JuliaGPU/CuArrays.jl/issues/662
+    # https://github.com/JuliaGPU/CUDA.jl/issues/95
     # pfft = FFTW.plan_fft!(F, region)
     # pifft = FFTW.plan_ifft!(F, region)
     return Plan(pfft, pifft)
 end
 
 
-function Plan(F::CuArrays.CuArray{Complex{T}}, region=nothing) where T
+function Plan(F::CUDA.CuArray{Complex{T}}, region=nothing) where T
     if region == nothing
         region = [i for i=1:ndims(F)]
     end
     pfft = FFTW.plan_fft(F, region)
     pifft = FFTW.plan_ifft(F, region)
     # in-place FFTs results in segfault after run completion
-    # https://github.com/JuliaGPU/CuArrays.jl/issues/662
+    # https://github.com/JuliaGPU/CUDA.jl/issues/95
     # pfft = FFTW.plan_fft!(F, region)
     # pifft = FFTW.plan_ifft!(F, region)
     return Plan(pfft, pifft)
@@ -67,9 +65,9 @@ end
 
 
 function convolution!(
-    x::CuArrays.CuArray{Complex{T}, 2},
+    x::CUDA.CuArray{Complex{T}, 2},
     plan::Plan,
-    H::CuArrays.CuArray{Complex{T}, 1},
+    H::CUDA.CuArray{Complex{T}, 1},
 ) where T
     ifft!(x, plan)   # time -> frequency [exp(-i*w*t)]
 
@@ -77,12 +75,12 @@ function convolution!(
 
     function get_config(kernel)
         fun = kernel.fun
-        config = CUDAdrv.launch_configuration(fun)
+        config = CUDA.launch_configuration(fun)
         blocks = cld(N, config.threads)
         return (threads=config.threads, blocks=blocks)
     end
 
-    CUDAnative.@cuda config=get_config _convolution_kernel!(x, H)
+    CUDA.@cuda config=get_config _convolution_kernel!(x, H)
 
     fft!(x, plan)   # frequency -> time [exp(-i*w*t)]
     return nothing
@@ -90,9 +88,8 @@ end
 
 
 function _convolution_kernel!(x, H)
-    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x +
-         CUDAnative.threadIdx().x
-    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
+    id = (CUDA.blockIdx().x - 1) * CUDA.blockDim().x + CUDA.threadIdx().x
+    stride = CUDA.blockDim().x * CUDA.gridDim().x
     Nr, Nt = size(x)
     cartesian = CartesianIndices((Nr, Nt))
     for k=id:stride:Nr*Nt

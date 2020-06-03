@@ -17,7 +17,7 @@ function init_current_losses(unit, grid, field, medium, p)
     end
 
     if !isa(grid, Grids.GridT)   # FIXME: should be removed in a generic code.
-        Rnl = CuArrays.CuArray{Complex{FloatGPU}}(Rnl)
+        Rnl = CUDA.CuArray{Complex{FloatGPU}}(Rnl)
     end
 
     fearg_real(x::Complex) = real(x)^2
@@ -55,24 +55,24 @@ function inverse!(F::AbstractArray{Complex{T}}) where T<:AbstractFloat
 end
 
 
-function inverse!(F::CuArrays.CuArray{Complex{T}}) where T<:AbstractFloat
+function inverse!(F::CUDA.CuArray{Complex{T}}) where T<:AbstractFloat
     N = length(F)
 
     function get_config(kernel)
         fun = kernel.fun
-        config = CUDAdrv.launch_configuration(fun)
+        config = CUDA.launch_configuration(fun)
         blocks = cld(N, config.threads)
         return (threads=config.threads, blocks=blocks)
     end
 
-    CUDAnative.@cuda config=get_config inverse_kernel(F)
+    CUDA.@cuda config=get_config inverse_kernel(F)
     return nothing
 end
 
 
 function inverse_kernel(F)
-    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
-    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
+    id = (CUDA.blockIdx().x - 1) * CUDA.blockDim().x + CUDA.threadIdx().x
+    stride = CUDA.blockDim().x * CUDA.gridDim().x
     N = length(F)
     for k=id:stride:N
         if real(F[k]) >= 1e-30

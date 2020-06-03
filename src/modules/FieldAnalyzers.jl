@@ -1,6 +1,6 @@
 module FieldAnalyzers
 
-import CuArrays
+import CUDA
 
 import ..AnalyticSignals
 import ..FourierTransforms
@@ -38,11 +38,11 @@ function FieldAnalyzer(
     Imax, rfil, P = [zero(T) for i=1:3]
 
     rdr = @. grid.r * grid.dr
-    rdr = CuArrays.CuArray{T}(rdr)
+    rdr = CUDA.CuArray{T}(rdr)
 
     Nr = length(field.E)
     I = zeros(T, Nr)
-    Igpu = CuArrays.zeros(T, Nr)
+    Igpu = CUDA.zeros(T, Nr)
     return FieldAnalyzerR(z, Imax, rfil, P, rdr, I, Igpu)
 end
 
@@ -151,7 +151,7 @@ function FieldAnalyzer(
     Fmax, Imax, rhomax, De, rfil, rpl, tau, W = [zero(T) for i=1:8]
 
     rdr = @. grid.r * grid.dr
-    rdr = CuArrays.CuArray{T}(rdr)
+    rdr = CUDA.CuArray{T}(rdr)
 
     Nr, Nt = size(field.E)
     Nw = FourierTransforms.rfft_length(Nt)
@@ -159,11 +159,11 @@ function FieldAnalyzer(
     Ft = zeros(T, (1, Nt))
     rho = zeros(T, Nr)
     S = zeros(T, (1, Nw))
-    Frgpu = CuArrays.zeros(T, (Nr, 1))
-    Ftgpu = CuArrays.zeros(T, (1, Nt))
-    rhogpu = CuArrays.zeros(T, Nr)
-    Sgpu = CuArrays.zeros(T, (1, Nw))
-    Egpu = CuArrays.zeros(Complex{T}, (Nr, Nw))
+    Frgpu = CUDA.zeros(T, (Nr, 1))
+    Ftgpu = CUDA.zeros(T, (1, Nt))
+    rhogpu = CUDA.zeros(T, Nr)
+    Sgpu = CUDA.zeros(T, (1, Nw))
+    Egpu = CUDA.zeros(Complex{T}, (Nr, Nw))
     return FieldAnalyzerRT(
         z, Fmax, Imax, rhomax, De, rfil, rpl, tau, W,
         rdr, Fr, Ft, rho, S, Frgpu, Ftgpu, rhogpu, Sgpu, Egpu,
@@ -243,7 +243,7 @@ function FieldAnalyzer(
     Imax, ax, ay, P = [zero(T) for i=1:4]
     Nx, Ny = size(field.E)
     I = zeros(T, (Nx, Ny))
-    Igpu = CuArrays.zeros(T, (Nx, Ny))
+    Igpu = CUDA.zeros(T, (Nx, Ny))
 
     return FieldAnalyzerXY(z, Imax, ax, ay, P, I, Igpu)
 end
@@ -300,8 +300,8 @@ function FieldAnalyzer(
     Imax, rhomax, Fmax, ax, ay, W = [zero(T) for i=1:6]
     Fxy = zeros(T, (grid.Nx, grid.Ny, 1))
     Ft = zeros(T, (1, 1, grid.Nt))
-    Fxygpu = CuArrays.zeros(T, (grid.Nx, grid.Ny, 1))
-    Ftgpu = CuArrays.zeros(T, (1, 1, grid.Nt))
+    Fxygpu = CUDA.zeros(T, (grid.Nx, grid.Ny, 1))
+    Ftgpu = CUDA.zeros(T, (1, 1, grid.Nt))
     return FieldAnalyzerXYT(
         z, Imax, rhomax, Fmax, ax, ay, W,  Fxy, Ft, Fxygpu, Ftgpu,
     )

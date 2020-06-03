@@ -1,8 +1,6 @@
 module AnalyticSignals
 
-import CuArrays
-import CUDAdrv
-import CUDAnative
+import CUDA
 
 import ..FourierTransforms
 
@@ -28,27 +26,24 @@ function rspec2aspec!(S::AbstractArray{Complex{T}, 1}) where T
 end
 
 
-function rspec2aspec!(S::CuArrays.CuArray{Complex{T}}) where T
+function rspec2aspec!(S::CUDA.CuArray{Complex{T}}) where T
     N = length(S)
 
     function get_config(kernel)
         fun = kernel.fun
-        config = CUDAdrv.launch_configuration(fun)
+        config = CUDA.launch_configuration(fun)
         blocks = cld(N, config.threads)
         return (threads=config.threads, blocks=blocks)
     end
 
-    CUDAnative.@cuda config=get_config _rspec2aspec_kernel!(S)
+    CUDA.@cuda config=get_config _rspec2aspec_kernel!(S)
     return nothing
 end
 
 
-function _rspec2aspec_kernel!(
-    S::CUDAnative.CuDeviceArray{Complex{T}, 2},
-) where T
-    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x +
-         CUDAnative.threadIdx().x
-    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
+function _rspec2aspec_kernel!(S::CUDA.CuDeviceArray{Complex{T}, 2}) where T
+    id = (CUDA.blockIdx().x - 1) * CUDA.blockDim().x + CUDA.threadIdx().x
+    stride = CUDA.blockDim().x * CUDA.gridDim().x
     Nr, Nt = size(S)
     Nthalf = half(Nt)
     cartesian = CartesianIndices((Nr, Nt))
@@ -67,12 +62,9 @@ function _rspec2aspec_kernel!(
 end
 
 
-function _rspec2aspec_kernel!(
-    S::CUDAnative.CuDeviceArray{Complex{T}, 3},
-) where T
-    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x +
-         CUDAnative.threadIdx().x
-    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
+function _rspec2aspec_kernel!(S::CUDA.CuDeviceArray{Complex{T}, 3}) where T
+    id = (CUDA.blockIdx().x - 1) * CUDA.blockDim().x + CUDA.threadIdx().x
+    stride = CUDA.blockDim().x * CUDA.gridDim().x
     Nx, Ny, Nt = size(S)
     Nthalf = half(Nt)
     cartesian = CartesianIndices((Nx, Ny, Nt))
@@ -127,30 +119,29 @@ end
 
 
 function aspec2rspec!(
-    Sr::CuArrays.CuArray{Complex{T}},
-    Sa::CuArrays.CuArray{Complex{T}},
+    Sr::CUDA.CuArray{Complex{T}},
+    Sa::CUDA.CuArray{Complex{T}},
 ) where T
     N = length(Sr)
 
     function get_config(kernel)
         fun = kernel.fun
-        config = CUDAdrv.launch_configuration(fun)
+        config = CUDA.launch_configuration(fun)
         blocks = cld(N, config.threads)
         return (threads=config.threads, blocks=blocks)
     end
 
-    CUDAnative.@cuda config=get_config _aspec2rspec_kernel!(Sr, Sa)
+    CUDA.@cuda config=get_config _aspec2rspec_kernel!(Sr, Sa)
     return nothing
 end
 
 
 function _aspec2rspec_kernel!(
-    Sr::CUDAnative.CuDeviceArray{Complex{T}, 2},
-    Sa::CUDAnative.CuDeviceArray{Complex{T}, 2},
+    Sr::CUDA.CuDeviceArray{Complex{T}, 2},
+    Sa::CUDA.CuDeviceArray{Complex{T}, 2},
 ) where T
-    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x +
-         CUDAnative.threadIdx().x
-    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
+    id = (CUDA.blockIdx().x - 1) * CUDA.blockDim().x + CUDA.threadIdx().x
+    stride = CUDA.blockDim().x * CUDA.gridDim().x
     Nr, Nw = size(Sr)
     cartesian = CartesianIndices((Nr, Nw))
     for k=id:stride:Nr*Nw

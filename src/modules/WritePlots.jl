@@ -1,6 +1,6 @@
 module WritePlots
 
-import CuArrays
+import CUDA
 import Formatting
 import HDF5
 
@@ -548,7 +548,7 @@ end
 
 
 function write_field_r(group, dataset, field::Fields.Field)
-    group[dataset] = CuArrays.collect(field.E)
+    group[dataset] = CUDA.collect(field.E)
     return nothing
 end
 
@@ -560,7 +560,7 @@ end
 
 
 function write_field_rt(group, dataset, field::Fields.Field)
-    E = CuArrays.collect(transpose(real.(field.E)))
+    E = CUDA.collect(transpose(real.(field.E)))
     shape = size(E)
     typesize = sizeof(eltype(E))
     chunk = guess_chunk(shape, typesize)
@@ -570,18 +570,18 @@ end
 
 
 function write_field_xy(group, dataset, field::Fields.Field)
-    group[dataset] = CuArrays.collect(transpose(field.E))
+    group[dataset] = CUDA.collect(transpose(field.E))
     return nothing
 end
 
 
 function write_field_xyt(group, dataset, field::Fields.Field)
-    # E = CuArrays.collect(real.(field.E))
+    # E = CUDA.collect(real.(field.E))
     # shape = size(E)
     # typesize = sizeof(eltype(E))
     # chunk = guess_chunk(shape, typesize)
     # group[dataset, "chunk", chunk, "shuffle", (), "compress", 9] = E
-    group[dataset] = CuArrays.collect(real.(field.E))
+    group[dataset] = CUDA.collect(real.(field.E))
     return nothing
 end
 

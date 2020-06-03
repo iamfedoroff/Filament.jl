@@ -12,10 +12,10 @@ function init_lattice(unit, grid, field, medium, p)
     mu = medium.permeability(grid.w * unit.w)
     Rnl = @. n / (MU0 * mu * C0^2) * Eu
 
-    Rnl = CuArrays.CuArray{Complex{FloatGPU}}(Rnl)
+    Rnl = CUDA.CuArray{Complex{FloatGPU}}(Rnl)
 
     dnr = @. dnr_func(grid.r, unit.r)
-    dnr = CuArrays.CuArray{FloatGPU}(dnr)
+    dnr = CUDA.CuArray{FloatGPU}(dnr)
 
     p = (dnr, dnz_func, unit.z)
     return Media.NonlinearResponse(Rnl, calc_lattice, p)

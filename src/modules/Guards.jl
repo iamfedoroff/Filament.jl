@@ -1,8 +1,6 @@
 module Guards
 
-import CuArrays
-import CUDAdrv
-import CUDAnative
+import CUDA
 
 import ..Fields
 import ..Grids
@@ -54,8 +52,8 @@ function Guard(
     kmax = k0 * sind(kguard)
     Kguard = @. exp(-((grid.k * unit.k)^2 / kmax^2)^20)
 
-    Rguard = CuArrays.CuArray{T}(Rguard)
-    Kguard = CuArrays.CuArray{T}(Kguard)
+    Rguard = CUDA.CuArray{T}(Rguard)
+    Kguard = CUDA.CuArray{T}(Kguard)
     return Guard1D(Rguard, Kguard)
 end
 
@@ -106,10 +104,10 @@ function Guard(
 
     Wguard = @. exp(-((grid.w * unit.w)^2 / wguard^2)^20)
 
-    Rguard = CuArrays.CuArray{T}(Rguard)
-    Tguard = CuArrays.CuArray{T}(Tguard)
-    Kguard = CuArrays.CuArray{T}(Kguard)
-    Wguard = CuArrays.CuArray{T}(Wguard)
+    Rguard = CUDA.CuArray{T}(Rguard)
+    Tguard = CUDA.CuArray{T}(Tguard)
+    Kguard = CUDA.CuArray{T}(Kguard)
+    Wguard = CUDA.CuArray{T}(Wguard)
     return Guard2D(Rguard, Tguard, Kguard, Wguard)
 end
 
@@ -136,10 +134,10 @@ function Guard(
     KXguard = @. exp(-((grid.kx * unit.kx)^2 / kxmax^2)^20)
     KYguard = @. exp(-((grid.ky * unit.ky)^2 / kymax^2)^20)
 
-    Xguard = CuArrays.CuArray{T}(Xguard)
-    Yguard = CuArrays.CuArray{T}(Yguard)
-    KXguard = CuArrays.CuArray{T}(KXguard)
-    KYguard = CuArrays.CuArray{T}(KYguard)
+    Xguard = CUDA.CuArray{T}(Xguard)
+    Yguard = CUDA.CuArray{T}(Yguard)
+    KXguard = CUDA.CuArray{T}(KXguard)
+    KYguard = CUDA.CuArray{T}(KYguard)
     return Guard2D(Xguard, Yguard, KXguard, KYguard)
 end
 
@@ -173,12 +171,12 @@ function Guard(
 
     Wguard = @. exp(-((grid.w * unit.w)^2 / wguard^2)^20)
 
-    Xguard = CuArrays.CuArray{T}(Xguard)
-    Yguard = CuArrays.CuArray{T}(Yguard)
-    Tguard = CuArrays.CuArray{T}(Tguard)
-    KXguard = CuArrays.CuArray{T}(KXguard)
-    KYguard = CuArrays.CuArray{T}(KYguard)
-    Wguard = CuArrays.CuArray{T}(Wguard)
+    Xguard = CUDA.CuArray{T}(Xguard)
+    Yguard = CUDA.CuArray{T}(Yguard)
+    Tguard = CUDA.CuArray{T}(Tguard)
+    KXguard = CUDA.CuArray{T}(KXguard)
+    KYguard = CUDA.CuArray{T}(KYguard)
+    Wguard = CUDA.CuArray{T}(Wguard)
     return Guard3D(Xguard, Yguard, Tguard, KXguard, KYguard, Wguard)
 end
 
@@ -189,37 +187,31 @@ function apply_field_filter!(E::AbstractArray{T, 1}, guard::Guard1D) where T
 end
 
 
-function apply_field_filter!(
-    E::CuArrays.CuArray{T, 2},
-    guard::Guard2D,
-) where T
+function apply_field_filter!(E::CUDA.CuArray{T, 2}, guard::Guard2D) where T
     N = length(E)
 
     function get_config(kernel)
         fun = kernel.fun
-        config = CUDAdrv.launch_configuration(fun)
+        config = CUDA.launch_configuration(fun)
         blocks = cld(N, config.threads)
         return (threads=config.threads, blocks=blocks)
     end
 
-    CUDAnative.@cuda config=get_config kernel!(E, guard.F1, guard.F2)
+    CUDA.@cuda config=get_config kernel!(E, guard.F1, guard.F2)
 end
 
 
-function apply_field_filter!(
-    E::CuArrays.CuArray{T, 3},
-    guard::Guard3D,
-) where T
+function apply_field_filter!(E::CUDA.CuArray{T, 3}, guard::Guard3D) where T
     N = length(E)
 
     function get_config(kernel)
         fun = kernel.fun
-        config = CUDAdrv.launch_configuration(fun)
+        config = CUDA.launch_configuration(fun)
         blocks = cld(N, config.threads)
         return (threads=config.threads, blocks=blocks)
     end
 
-    CUDAnative.@cuda config=get_config kernel!(E, guard.F1, guard.F2, guard.F3)
+    CUDA.@cuda config=get_config kernel!(E, guard.F1, guard.F2, guard.F3)
 end
 
 
@@ -229,49 +221,42 @@ function apply_spectral_filter!(E::AbstractArray{T, 1}, guard::Guard1D) where T
 end
 
 
-function apply_spectral_filter!(
-    E::CuArrays.CuArray{T, 2},
-    guard::Guard2D,
-) where T
+function apply_spectral_filter!(E::CUDA.CuArray{T, 2}, guard::Guard2D) where T
     N = length(E)
 
     function get_config(kernel)
         fun = kernel.fun
-        config = CUDAdrv.launch_configuration(fun)
+        config = CUDA.launch_configuration(fun)
         blocks = cld(N, config.threads)
         return (threads=config.threads, blocks=blocks)
     end
 
-    CUDAnative.@cuda config=get_config kernel!(E, guard.S1, guard.S2)
+    CUDA.@cuda config=get_config kernel!(E, guard.S1, guard.S2)
 end
 
 
-function apply_spectral_filter!(
-    E::CuArrays.CuArray{T, 3},
-    guard::Guard3D,
-) where T
+function apply_spectral_filter!(E::CUDA.CuArray{T, 3}, guard::Guard3D) where T
     N = length(E)
 
     function get_config(kernel)
         fun = kernel.fun
-        config = CUDAdrv.launch_configuration(fun)
+        config = CUDA.launch_configuration(fun)
         blocks = cld(N, config.threads)
         return (threads=config.threads, blocks=blocks)
     end
 
-    CUDAnative.@cuda config=get_config kernel!(E, guard.S1, guard.S2, guard.S3)
+    CUDA.@cuda config=get_config kernel!(E, guard.S1, guard.S2, guard.S3)
 end
 
 
 # ******************************************************************************
 function kernel!(
-    F::CUDAnative.CuDeviceArray{Complex{T}, 2},
-    A::CUDAnative.CuDeviceArray{T, 1},
-    B::CUDAnative.CuDeviceArray{T, 1},
+    F::CUDA.CuDeviceArray{Complex{T}, 2},
+    A::CUDA.CuDeviceArray{T, 1},
+    B::CUDA.CuDeviceArray{T, 1},
 ) where T<:AbstractFloat
-    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x +
-         CUDAnative.threadIdx().x
-    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
+    id = (CUDA.blockIdx().x - 1) * CUDA.blockDim().x + CUDA.threadIdx().x
+    stride = CUDA.blockDim().x * CUDA.gridDim().x
     N1, N2 = size(F)
     cartesian = CartesianIndices((N1, N2))
     for k=id:stride:N1*N2
@@ -284,13 +269,12 @@ end
 
 
 function kernel!(
-    F::CUDAnative.CuDeviceArray{Complex{T}, 2},
-    A::CUDAnative.CuDeviceArray{T, 2},
-    B::CUDAnative.CuDeviceArray{T, 1},
+    F::CUDA.CuDeviceArray{Complex{T}, 2},
+    A::CUDA.CuDeviceArray{T, 2},
+    B::CUDA.CuDeviceArray{T, 1},
 ) where T<:AbstractFloat
-    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x +
-         CUDAnative.threadIdx().x
-    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
+    id = (CUDA.blockIdx().x - 1) * CUDA.blockDim().x + CUDA.threadIdx().x
+    stride = CUDA.blockDim().x * CUDA.gridDim().x
     N1, N2 = size(F)
     cartesian = CartesianIndices((N1, N2))
     for k=id:stride:N1*N2
@@ -303,14 +287,13 @@ end
 
 
 function kernel!(
-    F::CUDAnative.CuDeviceArray{Complex{T}, 3},
-    A::CUDAnative.CuDeviceArray{T, 1},
-    B::CUDAnative.CuDeviceArray{T, 1},
-    C::CUDAnative.CuDeviceArray{T, 1},
+    F::CUDA.CuDeviceArray{Complex{T}, 3},
+    A::CUDA.CuDeviceArray{T, 1},
+    B::CUDA.CuDeviceArray{T, 1},
+    C::CUDA.CuDeviceArray{T, 1},
 ) where T<:AbstractFloat
-    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x +
-         CUDAnative.threadIdx().x
-    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
+    id = (CUDA.blockIdx().x - 1) * CUDA.blockDim().x + CUDA.threadIdx().x
+    stride = CUDA.blockDim().x * CUDA.gridDim().x
     N1, N2, N3 = size(F)
     cartesian = CartesianIndices((N1, N2, N3))
     for k=id:stride:N1*N2*N3

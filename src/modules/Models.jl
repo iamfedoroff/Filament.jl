@@ -1,9 +1,7 @@
 module Models
 
 # Global packages:
-import CuArrays
-import CUDAdrv
-import CUDAnative
+import CUDA
 import HankelTransforms
 import StaticArrays
 using TimerOutputs
@@ -83,39 +81,39 @@ function zstep(
     if model.PLASMA
         @timeit "plasma" begin
             solve!(model.PE, field.rho, field.kdrho, grid.t, field.E)
-            CUDAdrv.synchronize()
+            CUDA.synchronize()
         end
     end
 
     if isa(grid, Grids.GridT) | isa(grid, Grids.GridRT) | isa(grid, Grids.GridXYT)
         @timeit "field -> spectr" begin
             forward_transform_time!(field.E, field.PT)
-            CUDAdrv.synchronize()
+            CUDA.synchronize()
         end
     end
 
     if model.NONLINEARITY
         @timeit "nonlinearity" begin
            propagate!(field.E, model.NP, z, dz)
-           CUDAdrv.synchronize()
+           CUDA.synchronize()
        end
     end
 
     @timeit "linear" begin
         propagate!(field.E, model.LP, dz)
-        CUDAdrv.synchronize()
+        CUDA.synchronize()
     end
 
     if isa(grid, Grids.GridT) | isa(grid, Grids.GridRT) | isa(grid, Grids.GridXYT)
         @timeit "spectr -> field" begin
             inverse_transform_time!(field.E, field.PT)
-            CUDAdrv.synchronize()
+            CUDA.synchronize()
         end
     end
 
     @timeit "field filter" begin
         Guards.apply_field_filter!(field.E, guard)
-        CUDAdrv.synchronize()
+        CUDA.synchronize()
     end
     return nothing
 end

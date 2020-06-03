@@ -124,7 +124,7 @@ function kdrho_photoionization_avalanche(
             Ilog = convert(T, -30)   # I=1e-30 in order to avoid -Inf in log(0)
         else
             if T == Float32   # FIXME Dirty hack for launching on both CPU and GPU
-                Ilog = CUDAnative.log10(I)
+                Ilog = CUDA.log10(I)
             else
                 Ilog = log10(I)
             end

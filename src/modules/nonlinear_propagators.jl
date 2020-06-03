@@ -92,7 +92,7 @@ function QZfunc(
         QZ[i] = Qfunc(PARAXIAL, medium, w0, kt) * unit.z / Eu
     end
 
-    return CuArrays.CuArray{Complex{FloatGPU}}(QZ)
+    return CUDA.CuArray{Complex{FloatGPU}}(QZ)
 end
 
 
@@ -136,7 +136,7 @@ function QZfunc(
         QZ[i, j] = Qfunc(PARAXIAL, medium, w, kt) * unit.z / Eu
     end
     end
-    return CuArrays.CuArray{Complex{FloatGPU}}(QZ)
+    return CUDA.CuArray{Complex{FloatGPU}}(QZ)
 end
 
 
@@ -158,7 +158,7 @@ function QZfunc(
         QZ[i, j] = Qfunc(PARAXIAL, medium, w0, kt) * unit.z / Eu
     end
     end
-    return CuArrays.CuArray{Complex{FloatGPU}}(QZ)
+    return CUDA.CuArray{Complex{FloatGPU}}(QZ)
 end
 
 
@@ -210,28 +210,27 @@ end
 
 
 function update_dE!(
-    dE::CuArrays.CuArray{Complex{T}, 2},
-    R::CuArrays.CuArray{Complex{T}, 1},
-    F::CuArrays.CuArray{Complex{T}, 2},
+    dE::CUDA.CuArray{Complex{T}, 2},
+    R::CUDA.CuArray{Complex{T}, 1},
+    F::CUDA.CuArray{Complex{T}, 2},
 ) where T
     N = length(F)
 
     function get_config(kernel)
         fun = kernel.fun
-        config = CUDAdrv.launch_configuration(fun)
+        config = CUDA.launch_configuration(fun)
         blocks = cld(N, config.threads)
         return (threads=config.threads, blocks=blocks)
     end
 
-    CUDAnative.@cuda config=get_config update_dE_kernel(dE, R, F)
+    CUDA.@cuda config=get_config update_dE_kernel(dE, R, F)
     return nothing
 end
 
 
 function update_dE_kernel(dE, R, F)
-    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x +
-         CUDAnative.threadIdx().x
-    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
+    id = (CUDA.blockIdx().x - 1) * CUDA.blockDim().x + CUDA.threadIdx().x
+    stride = CUDA.blockDim().x * CUDA.gridDim().x
     Nr, Nt = size(F)
     cartesian = CartesianIndices((Nr, Nt))
     for k=id:stride:Nr*Nt

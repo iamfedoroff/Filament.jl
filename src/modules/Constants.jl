@@ -1,7 +1,5 @@
 module Constants
 
-import CUDAdrv
-import CUDAnative
 using PhysicalConstants.CODATA2018
 
 # const TFloat = Float32

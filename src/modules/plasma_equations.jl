@@ -71,27 +71,27 @@ end
 
 function solve!(
     PE::PlasmaEquation,
-    rho::CuArrays.CuArray{T,2},
-    kdrho::CuArrays.CuArray{T,2},
+    rho::CUDA.CuArray{T,2},
+    kdrho::CUDA.CuArray{T,2},
     t::AbstractArray{T,1},
-    E::CuArrays.CuArray{Complex{T},2},
+    E::CUDA.CuArray{Complex{T},2},
 ) where T<:AbstractFloat
     Nr, Nt = size(rho)
 
     function get_config(kernel)
         fun = kernel.fun
-        config = CUDAdrv.launch_configuration(fun)
+        config = CUDA.launch_configuration(fun)
         blocks = cld(Nr, config.threads)
         return (threads=config.threads, blocks=blocks)
     end
 
-    CUDAnative.@cuda config=get_config solve_kernel(PE, rho, kdrho, t, E)
+    CUDA.@cuda config=get_config solve_kernel(PE, rho, kdrho, t, E)
     return nothing
 end
 
 function solve_kernel(PE, rho, kdrho, t, E)
-    id = (CUDAnative.blockIdx().x - 1) * CUDAnative.blockDim().x + CUDAnative.threadIdx().x
-    stride = CUDAnative.blockDim().x * CUDAnative.gridDim().x
+    id = (CUDA.blockIdx().x - 1) * CUDA.blockDim().x + CUDA.threadIdx().x
+    stride = CUDA.blockDim().x * CUDA.gridDim().x
 
     integ = PE.integ
     extract = PE.extract
