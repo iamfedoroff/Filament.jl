@@ -20,9 +20,9 @@ end
 
 
 function refractive_index(medium, w)
-    eps = medium.permittivity(w)
-    mu = medium.permeability(w)
-    return sqrt(eps * mu)
+    eps = medium.permittivity(abs(w))
+    mu = medium.permeability(abs(w))
+    return sqrt(eps * mu + 0im)
 end
 
 
