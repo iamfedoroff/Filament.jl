@@ -202,7 +202,7 @@ function analyze!(
 
     analyzer.Imax = maximum(abs2.(field.E))
 
-    analyzer.rhomax = maximum(analyzer.rhogpu)
+    analyzer.rhomax = maximum(field.rho)
 
     analyzer.De = convert(T, 2 * pi) * sum(analyzer.rhogpu .* analyzer.rdr)
 
