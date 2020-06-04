@@ -3,7 +3,7 @@ module Infos
 import Dates
 import Formatting
 
-import ..Constants: C0, HBAR
+import ..Constants: C0, QE, HBAR
 import ..FieldAnalyzers
 import ..Fields
 import ..Grids
@@ -211,6 +211,7 @@ function info_field(
 
     Pg = pi * a0^2 * I0
     Wph = HBAR * w0
+    Wphev = Wph / QE
 
     sdata =
     """
@@ -224,6 +225,7 @@ function info_field(
     P    = $(fmt(P)) [W] - peak power
     Pg   = $(fmt(Pg)) [W] - Gaussian peak power (pi*a0^2*I0)
     Wph  = $(fmt(Wph)) [J] - energy of one photon
+    Wph  = $(fmt(Wphev)) [eV] - energy of one photon
     """
     return sdata
 end
@@ -247,6 +249,7 @@ function info_field(
 
     Fg = sqrt(pi) * t0 * I0
     Wph = HBAR * w0
+    Wphev = Wph / QE
 
     sdata =
     """
@@ -260,6 +263,7 @@ function info_field(
     F    = $(fmt(F)) [J/m^2] - peak fluence
     Fg   = $(fmt(Fg)) [J/m^2] - Gaussian peak fluence (pi^0.5*t0*I0)
     Wph  = $(fmt(Wph)) [J] - energy of one photon
+    Wph  = $(fmt(Wphev)) [eV] - energy of one photon
     """
     return sdata
 end
@@ -290,6 +294,7 @@ function info_field(
     Fg = sqrt(pi) * t0 * I0
     Wg = pi^1.5 * t0 * a0^2 * I0
     Wph = HBAR * w0
+    Wphev = Wph / QE
 
     sdata =
     """
@@ -310,6 +315,7 @@ function info_field(
     W    = $(fmt(W)) [J] - pulse energy
     Wg   = $(fmt(Wg)) [J] - Gaussian pulse energy (pi^1.5*t0*a0^2*I0)
     Wph  = $(fmt(Wph)) [J] - energy of one photon
+    Wph  = $(fmt(Wphev)) [eV] - energy of one photon
     """
     return sdata
 end
@@ -333,6 +339,7 @@ function info_field(
 
     Pg = pi * a0^2 * I0
     Wph = HBAR * w0
+    Wphev = Wph / QE
 
     sdata =
     """
@@ -346,6 +353,7 @@ function info_field(
     P    = $(fmt(P)) [W] - peak power
     Pg   = $(fmt(Pg)) [W] - Gaussian peak power (pi*a0^2*I0)
     Wph  = $(fmt(Wph)) [J] - energy of one photon
+    Wph  = $(fmt(Wphev)) [eV] - energy of one photon
     """
     return sdata
 end
@@ -363,6 +371,7 @@ function info_field(
 
     I0 = analyzer.Imax * unit.I
     Wph = HBAR * w0
+    Wphev = Wph / QE
 
     sdata =
     """
@@ -371,6 +380,7 @@ function info_field(
     f0   = $(fmt(f0)) [1/s] - central frequency
     w0   = $(fmt(w0)) [1/s] - central frequency (angular)
     Wph  = $(fmt(Wph)) [J] - energy of one photon
+    Wph  = $(fmt(Wphev)) [eV] - energy of one photon
     """
     return sdata
 end
