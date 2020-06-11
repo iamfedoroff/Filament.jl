@@ -188,13 +188,15 @@ function analyze!(
     copyto!(analyzer.rho, analyzer.rhogpu)
 
     # Integral power spectrum:
-    #     Ew = rfft(Et)
-    #     Ew = 2 * Ew * dt
-    #     S = 2 * pi * Int[|Ew|^2 * r * dr]
+    #     Sa = ifft(Ea)
+    #     Sr = aspec2rspec(Sa)
+    #     Sr = 2 * Sr * Nt * dt
+    #     S = 2 * pi * Int[|Sr|^2 * r * dr]
     FourierTransforms.ifft!(field.E, field.PT)   # time -> frequency [exp(-i*w*t)]
     AnalyticSignals.aspec2rspec!(analyzer.Egpu, field.E)
-    analyzer.Sgpu .= sum(convert(T, 8 * pi) .* abs2.(analyzer.Egpu) .*
-                         analyzer.rdr .* grid.dt^2, dims=1)
+    analyzer.Sgpu .= convert(T, 2 * pi) *
+                     sum(abs2.(2 * analyzer.Egpu * grid.Nt * grid.dt) .*
+                         analyzer.rdr, dims=1)
     copyto!(analyzer.S, analyzer.Sgpu)
     FourierTransforms.fft!(field.E, field.PT)   # frequency -> time [exp(-i*w*t)]
 
