@@ -29,7 +29,7 @@ function initial_condition(x, y, t, xu, yu, tu, Iu)
     f = 2.0   # [m] focal distance
     n0 = 1.0   # refractive index
     wu = 1 / tu
-    w = 2 * pi * FourierTransforms.fftfreq(Nt, t[2] - t[1])
+    w = 2 * pi * FFTW.fftfreq(Nt, 1 / (t[2] - t[1]))
     for j=1:Ny
     for i=1:Nx
         Et = E[i, j, :]

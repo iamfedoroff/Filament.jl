@@ -22,8 +22,8 @@ function init_raman(unit, grid, field, medium, p)
     # The correct way to calculate spectrum which matches theory:
     #    S = ifftshift(E)   # compensation of the spectrum oscillations
     #    S = ifft(S) * len(E) * dt   # normalization
-    #    S = np.fft.fftshift(S)   # recovery of the proper array order
-    Hraman = FourierTransforms.ifftshift(Hraman)
+    #    S = fftshift(S)   # recovery of the proper array order
+    Hraman = FFTW.ifftshift(Hraman)
     FFTW.ifft!(Hraman)   # time -> frequency [exp(-i*w*t)]
     @. Hraman = Hraman * grid.Nt * grid.dt
 

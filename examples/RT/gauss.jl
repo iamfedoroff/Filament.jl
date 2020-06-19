@@ -26,7 +26,7 @@ function initial_condition(r, t, ru, tu, Iu)
     f = 2.0   # [m] focal distance
     n0 = 1.0   # refractive index
     wu = 1 / tu
-    w = 2 * pi * FourierTransforms.fftfreq(Nt, t[2] - t[1])
+    w = 2 * pi * FFTW.fftfreq(Nt, 1 / (t[2] - t[1]))
     for i=1:Nr
         Et = E[i, :]
         Ew = FFTW.ifft(Et)   # time -> frequency [exp(-i*w*t)]

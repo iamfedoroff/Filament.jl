@@ -1,5 +1,6 @@
 module Grids
 
+import FFTW
 import HankelTransforms
 
 import ..FourierTransforms
@@ -194,7 +195,7 @@ function _grid_spatial_rectangular(
 ) where T<:AbstractFloat
     x = range(xmin, xmax, length=Nx)   # grid coordinates
     dx = x[2] - x[1]   # step
-    kx = convert(T, 2 * pi) * FourierTransforms.fftfreq(Nx, dx)   # angular frequency
+    kx = convert(T, 2 * pi) * FFTW.fftfreq(Nx, 1 / dx)   # angular frequency
     return x, dx, kx
 end
 
@@ -217,7 +218,7 @@ end
 function _grid_temporal(tmin::T, tmax::T, Nt::Int) where T<:AbstractFloat
     t = range(tmin, tmax, length=Nt)   # grid coordinates
     dt = t[2] - t[1]   # step
-    w = convert(T, 2 * pi) * FourierTransforms.fftfreq(Nt, dt)   # angular frequency
+    w = convert(T, 2 * pi) * FFTW.fftfreq(Nt, 1 / dt)   # angular frequency
     return t, dt, w
 end
 

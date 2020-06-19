@@ -101,35 +101,6 @@ function _convolution_kernel!(x, H)
 end
 
 
-"""
-Return the Discrete Fourier Transform sample frequencies.
-https://github.com/numpy/numpy/blob/v1.15.0/numpy/fft/helper.py#L124-L169
-"""
-function fftfreq(n::Int, d::T) where T<:AbstractFloat
-    val = 1 / (n * d)
-    results = zeros(T, n)
-    N = Int(floor((n - 1) / 2)) + 1
-    p1 = Array(0:N-1)
-    results[1:N] = p1
-    p2 = Array(-Int(floor(n / 2)):-1)
-    results[N+1:end] = p2
-    return results * val
-end
-
-
-"""
-Return the Discrete Fourier Transform sample frequencies (for usage with
-rfft, irfft).
-https://github.com/numpy/numpy/blob/v1.15.0/numpy/fft/helper.py#L173-L221
-"""
-function rfftfreq(n::Int, d::T) where T<:AbstractFloat
-    val = 1 / (n * d)
-    N = Int(floor(n / 2))
-    results = Array{T}(0:N)
-    return results * val
-end
-
-
 function rfft_length(Nt::Int)
     if iseven(Nt)
         Nw = div(Nt, 2) + 1
@@ -138,24 +109,6 @@ function rfft_length(Nt::Int)
     end
     return Nw
 end
-
-
-"""
-Circular-shift along the given dimension of a periodic signal 'x' centered at
-index '1' so it becomes centered at index 'N / 2 + 1', where 'N' is the size of
-that dimension.
-https://github.com/JuliaMath/AbstractFFTs.jl/blob/66695a72b2a29a059a9bf5fae51a3107172f146d/src/definitions.jl#L349
-"""
-fftshift(x) = circshift(x, div.([size(x)...],2))
-
-
-"""
-Circular-shift along the given dimension of a periodic signal 'x' centered at
-index 'N / 2 + 1' so it becomes centered at index '1', where 'N' is the size of
-that dimension.
-https://github.com/JuliaMath/AbstractFFTs.jl/blob/66695a72b2a29a059a9bf5fae51a3107172f146d/src/definitions.jl#L374
-"""
-ifftshift(x) = circshift(x, div.([size(x)...],-2))
 
 
 end
