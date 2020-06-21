@@ -1,9 +1,9 @@
 module FieldAnalyzers
 
 import CUDA
+import FFTW
 
 import ..AnalyticSignals
-import ..FourierTransforms
 
 import ..Fields
 import ..Grids
@@ -154,7 +154,7 @@ function FieldAnalyzer(
     rdr = CUDA.CuArray{T}(rdr)
 
     Nr, Nt = size(field.E)
-    Nw = FourierTransforms.rfft_length(Nt)
+    Nw = length(FFTW.rfftfreq(Nt))
     Fr = zeros(T, (Nr, 1))
     Ft = zeros(T, (1, Nt))
     rho = zeros(T, Nr)
@@ -192,13 +192,13 @@ function analyze!(
     #     Sr = aspec2rspec(Sa)
     #     Sr = 2 * Sr * Nt * dt
     #     S = 2 * pi * Int[|Sr|^2 * r * dr]
-    FourierTransforms.ifft!(field.E, field.PT)   # time -> frequency [exp(-i*w*t)]
+    FFTW.ldiv!(field.E, field.PT, field.E)   # time -> frequency [exp(-i*w*t)]
     AnalyticSignals.aspec2rspec!(analyzer.Egpu, field.E)
     analyzer.Sgpu .= convert(T, 2 * pi) *
                      sum(abs2.(2 * analyzer.Egpu * grid.Nt * grid.dt) .*
                          analyzer.rdr, dims=1)
     copyto!(analyzer.S, analyzer.Sgpu)
-    FourierTransforms.fft!(field.E, field.PT)   # frequency -> time [exp(-i*w*t)]
+    FFTW.mul!(field.E, field.PT, field.E)   # frequency -> time [exp(-i*w*t)]
 
     analyzer.Fmax = maximum(analyzer.Frgpu)
 

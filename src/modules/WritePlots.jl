@@ -1,10 +1,9 @@
 module WritePlots
 
 import CUDA
+import FFTW
 import Formatting
 import HDF5
-
-import ..FourierTransforms
 
 import ..Constants: FloatGPU
 import ..FieldAnalyzers
@@ -408,7 +407,7 @@ function _write_group_zdat(fp, grid::Grids.GridRT)
     HDF5.g_create(fp, GROUP_ZDAT)
     group = fp[GROUP_ZDAT]
 
-    Nw = FourierTransforms.rfft_length(grid.Nt)
+    Nw = length(FFTW.rfftfreq(grid.Nt))
 
     d_create(group, "z", FloatGPU, ((1,), (-1,)))
     # d_create(group, "Fzx", FloatGPU, ((1, grid.Nr), (-1, grid.Nr)))

@@ -1,10 +1,10 @@
 module Fields
 
 import CUDA
+import FFTW
 import HankelTransforms
 
 import ..AnalyticSignals
-import ..FourierTransforms
 
 import ..Constants: C0
 import ..Grids
@@ -14,8 +14,8 @@ import ..Units
 struct Field{
     T<:AbstractFloat,
     A<:AbstractArray{Complex{T}},
-    TPS<:Union{HankelTransforms.Plan, FourierTransforms.Plan, Nothing},
-    TPT<:Union{FourierTransforms.Plan, Nothing},
+    TPS<:Union{HankelTransforms.Plan, FFTW.Plan, Nothing},
+    TPT<:Union{FFTW.Plan, Nothing},
     AP<:Union{AbstractArray{T}, Nothing},
 }
     w0 :: T
@@ -60,7 +60,8 @@ function Field(unit::Units.UnitT, grid::Grids.GridT, p::Tuple)
     E = initial_condition(grid.t, unit.t, unit.I)
     E = Array{Complex{T}}(E)
 
-    PT = FourierTransforms.Plan(E)
+    PT = FFTW.plan_fft!(E)
+
     AnalyticSignals.rsig2asig!(E, PT)   # convert to analytic signal
 
     PS = nothing
@@ -95,7 +96,11 @@ function Field(unit::Units.UnitRT, grid::Grids.GridRT, p::Tuple)
         )
     end
 
-    PT = FourierTransforms.Plan(E, [2])
+    # in-place FFTs results in segfault after run completion
+    # https://github.com/JuliaGPU/CUDA.jl/issues/95
+    # PT = FFTW.plan_fft!(E, [2])
+    PT = FFTW.plan_fft(E, [2])
+
     AnalyticSignals.rsig2asig!(E, PT)   # convert to analytic signal
 
     rho = CUDA.zeros(T, (grid.Nr, grid.Nt))
@@ -113,7 +118,10 @@ function Field(unit::Units.UnitXY, grid::Grids.GridXY, p::Tuple)
     E = initial_condition(grid.x, grid.y, unit.x, unit.y, unit.I)
     E = CUDA.CuArray{Complex{T}}(E)
 
-    PS = FourierTransforms.Plan(E)
+    # in-place FFTs results in segfault after run completion
+    # https://github.com/JuliaGPU/CUDA.jl/issues/95
+    # PS = FFTW.plan_fft!(E)
+    PS = FFTW.plan_fft(E)
 
     PT = nothing
     rho = nothing
@@ -133,8 +141,13 @@ function Field(unit::Units.UnitXYT, grid::Grids.GridXYT, p::Tuple)
     )
     E = CUDA.CuArray{Complex{T}}(E)
 
-    PS = FourierTransforms.Plan(E, [1, 2])
-    PT = FourierTransforms.Plan(E, [3])
+    # in-place FFTs results in segfault after run completion
+    # https://github.com/JuliaGPU/CUDA.jl/issues/95
+    # PS = FFTW.plan_fft!(E, [1, 2])
+    # PT = FFTW.plan_fft!(E, [3])
+    PS = FFTW.plan_fft(E, [1, 2])
+    PT = FFTW.plan_fft(E, [3])
+
     AnalyticSignals.rsig2asig!(E, PT)   # convert to analytic signal
 
     rho = CUDA.zeros(T, (grid.Nx, grid.Ny, grid.Nt))

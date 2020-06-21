@@ -2,7 +2,7 @@ struct LinearPropagator{
     T<:AbstractFloat,
     A<:AbstractArray{Complex{T}},
     G<:Guards.Guard,
-    P<:Union{HankelTransforms.Plan, FourierTransforms.Plan, Nothing}
+    P<:Union{HankelTransforms.Plan, FFTW.Plan, Nothing}
 }
     KZ :: A
     guard :: G

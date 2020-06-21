@@ -1,8 +1,7 @@
 module AnalyticSignals
 
 import CUDA
-
-import ..FourierTransforms
+import FFTW
 
 
 """
@@ -162,11 +161,11 @@ Transforms a real signal to the corresponding analytic signal.
 """
 function rsig2asig!(
     E::AbstractArray{Complex{T}},
-    FT::FourierTransforms.Plan,
+    FT::FFTW.Plan,
 ) where T
-    FourierTransforms.ifft!(E, FT)   # time -> frequency [exp(-i*w*t)]
+    FFTW.ldiv!(E, FT, E)   # time -> frequency [exp(-i*w*t)]
     rspec2aspec!(E)
-    FourierTransforms.fft!(E, FT)   # frequency -> time [exp(-i*w*t)]
+    FFTW.mul!(E, FT, E)   # frequency -> time [exp(-i*w*t)]
     return nothing
 end
 
@@ -185,9 +184,9 @@ Transforms a real signal to the spectrum of the corresponding analytic signal.
 """
 function rsig2aspec!(
     E::AbstractArray{Complex{T}},
-    FT::FourierTransforms.Plan,
+    FT::FFTW.Plan,
 ) where T
-    FourierTransforms.ifft!(E, FT)   # time -> frequency [exp(-i*w*t)]
+    FFTW.ldiv!(E, FT, E)   # time -> frequency [exp(-i*w*t)]
     rspec2aspec!(E)
     return nothing
 end

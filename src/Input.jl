@@ -7,7 +7,6 @@ import StaticArrays
 
 # Local package-like modules:
 import ..Equations
-import ..FourierTransforms
 import ..TabulatedFunctions
 
 # Local modules:

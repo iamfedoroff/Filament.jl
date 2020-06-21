@@ -2,13 +2,13 @@ module Models
 
 # Global packages:
 import CUDA
+import FFTW
 import HankelTransforms
 import StaticArrays
 using TimerOutputs
 
 # Local package-like modules:
 import ..AnalyticSignals
-import ..FourierTransforms
 import ..Equations
 
 # Local modules:
@@ -142,14 +142,14 @@ function inverse_transform_space!(E::AbstractArray, P::HankelTransforms.Plan)
 end
 
 
-function forward_transform_space!(E::AbstractArray, P::FourierTransforms.Plan)
-    FourierTransforms.fft!(E, P)
+function forward_transform_space!(E::AbstractArray, P::FFTW.Plan)
+    FFTW.mul!(E, P, E)
     return nothing
 end
 
 
-function inverse_transform_space!(E::AbstractArray, P::FourierTransforms.Plan)
-    FourierTransforms.ifft!(E, P)
+function inverse_transform_space!(E::AbstractArray, P::FFTW.Plan)
+    FFTW.ldiv!(E, P, E)
     return nothing
 end
 
@@ -165,14 +165,14 @@ function inverse_transform_time!(E::AbstractArray, P::Nothing)
 end
 
 
-function forward_transform_time!(E::AbstractArray, P::FourierTransforms.Plan)
-    FourierTransforms.ifft!(E, P)   # time -> frequency [exp(-i*w*t)]
+function forward_transform_time!(E::AbstractArray, P::FFTW.Plan)
+    FFTW.ldiv!(E, P, E)   # time -> frequency [exp(-i*w*t)]
     return nothing
 end
 
 
-function inverse_transform_time!(E::AbstractArray, P::FourierTransforms.Plan)
-    FourierTransforms.fft!(E, P)   # frequency -> time [exp(-i*w*t)]
+function inverse_transform_time!(E::AbstractArray, P::FFTW.Plan)
+    FFTW.mul!(E, P, E)   # frequency -> time [exp(-i*w*t)]
     return nothing
 end
 
@@ -183,9 +183,7 @@ function real_signal_to_analytic_spectrum!(E::AbstractArray, P::Nothing)
 end
 
 
-function real_signal_to_analytic_spectrum!(
-    E::AbstractArray, P::FourierTransforms.Plan,
-)
+function real_signal_to_analytic_spectrum!(E::AbstractArray, P::FFTW.Plan)
     AnalyticSignals.rsig2aspec!(E, P)
     return nothing
 end

@@ -3,8 +3,6 @@ module Grids
 import FFTW
 import HankelTransforms
 
-import ..FourierTransforms
-
 
 abstract type Grid end
 

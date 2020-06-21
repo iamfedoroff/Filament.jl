@@ -7,9 +7,6 @@ import Formatting
 using TimerOutputs
 
 # Local package-like modules ---------------------------------------------------
-include(joinpath("modules", "FourierTransforms.jl"));
-import .FourierTransforms
-
 include(joinpath("modules", "AnalyticSignals.jl"))
 import .AnalyticSignals
 
