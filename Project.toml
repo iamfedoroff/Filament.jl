@@ -1,5 +1,7 @@
 name = "Filament"
 uuid = "436c3729-2b13-584c-ac49-e737ea50e770"
+authors = ["iamfedoroff <iamfedoroff@gmail.com>"]
+version = "0.1.0"
 
 [deps]
 AnalyticSignals = "2cd955f5-0f25-43a4-a4ad-27687facca30"
