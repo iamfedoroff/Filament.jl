@@ -1,4 +1,4 @@
-struct NonlinearPropagator{P<:Equations.Integrator}
+struct NonlinearPropagator{P<:ODEIntegrators.Integrator}
     integ :: P
 end
 
@@ -28,8 +28,8 @@ function NonlinearPropagator(
     # Problem:
     Ftmp = zero(field.E)
     p = (responses, QZ, Ftmp, guard, field.PS, field.PT, PARAXIAL)
-    prob = Equations.Problem(func!, Ftmp, p)
-    integ = Equations.Integrator(prob, ALG)
+    prob = ODEIntegrators.Problem(func!, Ftmp, p)
+    integ = ODEIntegrators.Integrator(prob, ALG)
 
     return NonlinearPropagator(integ)
 end
@@ -70,7 +70,7 @@ end
 function propagate!(
     E::AbstractArray, NP::NonlinearPropagator, z::T, dz::T,
 ) where T<:AbstractFloat
-    Equations.step!(NP.integ, E, z, dz)
+    ODEIntegrators.step!(NP.integ, E, z, dz)
 end
 
 

@@ -53,8 +53,8 @@ function init_photoionization(unit, n0, w0, params)
 
     # Problem:
     p = (tabfuncs, fiarg, frhonts)   # step function parameters
-    prob = Equations.Problem(func_photoionization, rho0u, p)
-    integ = Equations.Integrator(prob, ALG)
+    prob = ODEIntegrators.Problem(func_photoionization, rho0u, p)
+    integ = ODEIntegrators.Integrator(prob, ALG)
 
     # Function to extract electron density out of the problem solution:
     extract(u::StaticArrays.SVector) = sum(u)

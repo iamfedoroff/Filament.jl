@@ -32,7 +32,7 @@ function solve!(
     rho[1] = extract(utmp)
     for j=1:Nt-1
         args = (E[j], )
-        utmp = Equations.step(integ, utmp, t[j], dt, args)
+        utmp = ODEIntegrators.step(integ, utmp, t[j], dt, args)
         rho[j+1] = extract(utmp)
         kdrho[j] = func_kdrho(utmp, p_kdrho, t[j], args)
     end
@@ -60,7 +60,7 @@ function solve!(
         rho[i, 1] = extract(utmp)
         for j=1:Nt-1
             args = (E[i, j], )
-            utmp = Equations.step(integ, utmp, t[j], dt, args)
+            utmp = ODEIntegrators.step(integ, utmp, t[j], dt, args)
             rho[i, j+1] = extract(utmp)
             kdrho[i, j] = func_kdrho(utmp, p_kdrho, t[j], args)
         end
@@ -106,7 +106,7 @@ function solve_kernel(PE, rho, kdrho, t, E)
         rho[i, 1] = extract(utmp)
         for j=1:Nt-1
             args = (E[i, j], )
-            utmp = Equations.step(integ, utmp, t[j], dt, args)
+            utmp = ODEIntegrators.step(integ, utmp, t[j], dt, args)
             rho[i, j+1] = extract(utmp)
             kdrho[i, j] = func_kdrho(utmp, p_kdrho, t[j], args)
         end

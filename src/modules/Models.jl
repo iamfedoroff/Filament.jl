@@ -4,12 +4,12 @@ module Models
 import CUDA
 import FFTW
 import HankelTransforms
+import ODEIntegrators
 import StaticArrays
 using TimerOutputs
 
 # Local package-like modules:
 import ..AnalyticSignals
-import ..Equations
 
 # Local modules:
 import ..Constants: FloatGPU, MU0

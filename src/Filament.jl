@@ -10,9 +10,6 @@ using TimerOutputs
 include(joinpath("modules", "AnalyticSignals.jl"))
 import .AnalyticSignals
 
-include(joinpath("modules", "Equations.jl"))
-import .Equations
-
 include(joinpath("modules", "TabulatedFunctions.jl"))
 import .TabulatedFunctions
 

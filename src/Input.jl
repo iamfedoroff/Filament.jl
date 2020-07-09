@@ -3,10 +3,10 @@ module Input
 # Global packages:
 import CUDA
 import FFTW
+import ODEIntegrators
 import StaticArrays
 
 # Local package-like modules:
-import ..Equations
 import ..TabulatedFunctions
 
 # Local modules:
