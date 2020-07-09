@@ -7,9 +7,6 @@ import Formatting
 using TimerOutputs
 
 # Local package-like modules ---------------------------------------------------
-include(joinpath("modules", "AnalyticSignals.jl"))
-import .AnalyticSignals
-
 include(joinpath("modules", "TabulatedFunctions.jl"))
 import .TabulatedFunctions
 

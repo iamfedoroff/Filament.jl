@@ -1,9 +1,8 @@
 module FieldAnalyzers
 
+import AnalyticSignals
 import CUDA
 import FFTW
-
-import ..AnalyticSignals
 
 import ..Fields
 import ..Grids

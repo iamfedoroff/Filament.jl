@@ -1,10 +1,9 @@
 module Fields
 
+import AnalyticSignals
 import CUDA
 import FFTW
 import HankelTransforms
-
-import ..AnalyticSignals
 
 import ..Constants: C0
 import ..Grids

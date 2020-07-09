@@ -1,6 +1,6 @@
 module Models
 
-# Global packages:
+import AnalyticSignals
 import CUDA
 import FFTW
 import HankelTransforms
@@ -8,10 +8,6 @@ import ODEIntegrators
 import StaticArrays
 using TimerOutputs
 
-# Local package-like modules:
-import ..AnalyticSignals
-
-# Local modules:
 import ..Constants: FloatGPU, MU0
 import ..Fields
 import ..Grids

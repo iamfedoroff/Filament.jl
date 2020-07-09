@@ -2,6 +2,7 @@ name = "Filament"
 uuid = "436c3729-2b13-584c-ac49-e737ea50e770"
 
 [deps]
+AnalyticSignals = "2cd955f5-0f25-43a4-a4ad-27687facca30"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
