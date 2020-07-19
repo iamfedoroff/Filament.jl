@@ -114,11 +114,9 @@ end
 # ******************************************************************************
 mutable struct FieldAnalyzerRT{
     T<:AbstractFloat,
-    U1<:AbstractArray{T},
-    U2<:AbstractArray{T},
-    UG1<:AbstractArray{T},
-    UG2<:AbstractArray{T},
-    UCG2<:AbstractArray{Complex{T}},
+    A<:AbstractArray{T},
+    AG<:AbstractArray{T},
+    ACG<:AbstractArray{Complex{T}},
 } <: FieldAnalyzer
     # Observed variables:
     z :: T
@@ -131,16 +129,13 @@ mutable struct FieldAnalyzerRT{
     tau :: T
     W :: T
     # Storage arrays:
-    rdr :: UG1
-    Fr :: U2
-    Ft :: U2
-    rho :: U1
-    S :: U2
-    Frgpu :: UG2
-    Ftgpu :: UG2
-    rhogpu :: UG1
-    Sgpu :: UG2
-    Egpu :: UCG2
+    Fr :: A
+    Ft :: A
+    rho :: A
+    S :: A
+    rdr :: AG
+    rhogpu :: AG
+    Egpu :: ACG
 end
 
 
@@ -154,18 +149,15 @@ function FieldAnalyzer(
 
     Nr, Nt = size(field.E)
     Nw = length(FFTW.rfftfreq(Nt))
-    Fr = zeros(T, (Nr, 1))
-    Ft = zeros(T, (1, Nt))
+    Fr = zeros(T, Nr)
+    Ft = zeros(T, Nt)
     rho = zeros(T, Nr)
-    S = zeros(T, (1, Nw))
-    Frgpu = CUDA.zeros(T, (Nr, 1))
-    Ftgpu = CUDA.zeros(T, (1, Nt))
+    S = zeros(T, Nw)
     rhogpu = CUDA.zeros(T, Nr)
-    Sgpu = CUDA.zeros(T, (1, Nw))
     Egpu = CUDA.zeros(Complex{T}, (Nr, Nw))
     return FieldAnalyzerRT(
         z, Fmax, Imax, rhomax, De, rfil, rpl, tau, W,
-        rdr, Fr, Ft, rho, S, Frgpu, Ftgpu, rhogpu, Sgpu, Egpu,
+        Fr, Ft, rho, S, rdr, rhogpu, Egpu,
     )
 end
 
@@ -175,13 +167,12 @@ function analyze!(
 ) where T<:AbstractFloat
     analyzer.z = z
 
-    analyzer.Frgpu .= sum(abs2.(field.E) .* grid.dt, dims=2)
-    copyto!(analyzer.Fr, analyzer.Frgpu)
+    Frgpu = vec(sum(abs2, field.E, dims=2)) * grid.dt
+    copyto!(analyzer.Fr, Frgpu)
 
-    analyzer.Ftgpu .= sum(
-        convert(T, 2 * pi) .* abs2.(field.E) .* analyzer.rdr, dims=1,
-    )
-    copyto!(analyzer.Ft, analyzer.Ftgpu)
+    Ftgpu = convert(T, 2 * pi) *
+            vec(sum(abs2.(field.E) .* analyzer.rdr, dims=1))
+    copyto!(analyzer.Ft, Ftgpu)
 
     @views @. analyzer.rhogpu = field.rho[:, end]
     copyto!(analyzer.rho, analyzer.rhogpu)
@@ -193,15 +184,15 @@ function analyze!(
     #     S = 2 * pi * Int[|Sr|^2 * r * dr]
     FFTW.ldiv!(field.E, field.PT, field.E)   # time -> frequency [exp(-i*w*t)]
     AnalyticSignals.aspec2rspec!(analyzer.Egpu, field.E)
-    analyzer.Sgpu .= convert(T, 2 * pi) *
-                     sum(abs2.(2 * analyzer.Egpu * grid.Nt * grid.dt) .*
-                         analyzer.rdr, dims=1)
-    copyto!(analyzer.S, analyzer.Sgpu)
+    Sgpu = convert(T, 2 * pi) *
+           vec(sum(abs2.(2 * analyzer.Egpu * grid.Nt * grid.dt) .* analyzer.rdr,
+               dims=1))
+    copyto!(analyzer.S, Sgpu)
     FFTW.mul!(field.E, field.PT, field.E)   # frequency -> time [exp(-i*w*t)]
 
-    analyzer.Fmax = maximum(analyzer.Frgpu)
+    analyzer.Fmax = maximum(Frgpu)
 
-    analyzer.Imax = maximum(abs2.(field.E))
+    analyzer.Imax = maximum(abs2, field.E)
 
     analyzer.rhomax = maximum(field.rho)
 
@@ -213,7 +204,7 @@ function analyze!(
 
     analyzer.tau = radius(grid.t, analyzer.Ft)
 
-    analyzer.W = convert(T, 2 * pi) * sum(analyzer.Frgpu .* analyzer.rdr)
+    analyzer.W = convert(T, 2 * pi) * sum(Frgpu .* analyzer.rdr)
     return nothing
 end
 
