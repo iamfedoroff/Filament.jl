@@ -1,29 +1,10 @@
-struct PlasmaEquation{I, FE, FK, P}
-    integ :: I
-    extract :: FE
-    func_kdrho :: FK
-    p_kdrho :: P
-end
-
-
-function PlasmaEquation(unit::Units.Unit, n0, w0, params)
-    init = params["init"]
-    integ, extract, func_kdrho, p_kdrho = init(unit, n0, w0, params)
-    return PlasmaEquation(integ, extract, func_kdrho, p_kdrho)
-end
-
-
 function solve!(
-    PE::PlasmaEquation,
     rho::AbstractArray{T,1},
     kdrho::AbstractArray{T,1},
     t::AbstractArray{T,1},
-    E::AbstractArray{Complex{T},1},
+    p::Tuple,
 ) where T<:AbstractFloat
-    integ = PE.integ
-    extract = PE.extract
-    func_kdrho = PE.func_kdrho
-    p_kdrho = PE.p_kdrho
+    integ, extract, kdrho_func, kdrho_p = p
 
     Nt = length(t)
     dt = t[2] - t[1]
@@ -31,50 +12,20 @@ function solve!(
     utmp = integ.prob.u0
     rho[1] = extract(utmp)
     for j=1:Nt-1
-        args = (E[j], )
+        args = ()
         utmp = ODEIntegrators.step(integ, utmp, t[j], dt, args)
         rho[j+1] = extract(utmp)
-        kdrho[j] = func_kdrho(utmp, p_kdrho, t[j], args)
+        kdrho[j] = kdrho_func(utmp, kdrho_p, t[j])
     end
     return nothing
 end
 
 
 function solve!(
-    PE::PlasmaEquation,
-    rho::AbstractArray{T,2},
-    kdrho::AbstractArray{T,2},
-    t::AbstractArray{T,1},
-    E::AbstractArray{Complex{T},2},
-) where T<:AbstractFloat
-    integ = PE.integ
-    extract = PE.extract
-    func_kdrho = PE.func_kdrho
-    p_kdrho = PE.p_kdrho
-
-    dt = t[2] - t[1]
-
-    Nr, Nt = size(rho)
-    for i=1:Nr
-        utmp = integ.prob.u0
-        rho[i, 1] = extract(utmp)
-        for j=1:Nt-1
-            args = (E[i, j], )
-            utmp = ODEIntegrators.step(integ, utmp, t[j], dt, args)
-            rho[i, j+1] = extract(utmp)
-            kdrho[i, j] = func_kdrho(utmp, p_kdrho, t[j], args)
-        end
-    end
-    return nothing
-end
-
-
-function solve!(
-    PE::PlasmaEquation,
     rho::CUDA.CuArray{T,2},
     kdrho::CUDA.CuArray{T,2},
     t::AbstractArray{T,1},
-    E::CUDA.CuArray{Complex{T},2},
+    p::Tuple,
 ) where T<:AbstractFloat
     Nr, Nt = size(rho)
 
@@ -85,30 +36,30 @@ function solve!(
         return (threads=config.threads, blocks=blocks)
     end
 
-    CUDA.@cuda config=get_config solve_kernel(PE, rho, kdrho, t, E)
+    CUDA.@cuda config=get_config solve_kernel(rho, kdrho, t, p)
     return nothing
 end
 
-function solve_kernel(PE, rho, kdrho, t, E)
+
+function solve_kernel(rho, kdrho, t, p)
     id = (CUDA.blockIdx().x - 1) * CUDA.blockDim().x + CUDA.threadIdx().x
     stride = CUDA.blockDim().x * CUDA.gridDim().x
 
-    integ = PE.integ
-    extract = PE.extract
-    func_kdrho = PE.func_kdrho
-    p_kdrho = PE.p_kdrho
-
-    dt = t[2] - t[1]
+    integs, extract, kdrho_func, kdrho_ps = p
 
     Nr, Nt = size(rho)
+    dt = t[2] - t[1]
+
     for i=id:stride:Nr
+        integ = integs[i]
+        kdrho_p = kdrho_ps[i]
         utmp = integ.prob.u0
         rho[i, 1] = extract(utmp)
         for j=1:Nt-1
-            args = (E[i, j], )
+            args = ()
             utmp = ODEIntegrators.step(integ, utmp, t[j], dt, args)
             rho[i, j+1] = extract(utmp)
-            kdrho[i, j] = func_kdrho(utmp, p_kdrho, t[j], args)
+            kdrho[i, j] = kdrho_func(utmp, kdrho_p, t[j])
         end
     end
     return nothing

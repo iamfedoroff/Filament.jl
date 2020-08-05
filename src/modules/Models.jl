@@ -23,7 +23,7 @@ include("plasma_equations.jl")
 struct Model{TLP, TNP, TPE, B<:Bool}
     LP :: TLP
     NP :: TNP
-    PE :: TPE
+    pe :: TPE
     NONLINEARITY :: B
     PLASMA :: B
 end
@@ -54,15 +54,14 @@ function Model(
     end
 
     if PLASMA
-        w0 = field.w0
-        n0 = Media.refractive_index(medium, w0)
-        PE = PlasmaEquation(unit, n0, w0, plasma_equation)
-        solve!(PE, field.rho, field.kdrho, grid.t, field.E)
+        init = plasma_equation["init"]
+        pe = init(unit, grid, field, medium, plasma_equation)
+        solve!(field.rho, field.kdrho, grid.t, pe)
     else
-        PE = nothing
+        pe = nothing
     end
 
-    return Model(LP, NP, PE, NONLINEARITY, PLASMA)
+    return Model(LP, NP, pe, NONLINEARITY, PLASMA)
 end
 
 
@@ -76,7 +75,7 @@ function zstep(
 ) where T<:AbstractFloat
     if model.PLASMA
         @timeit "plasma" begin
-            solve!(model.PE, field.rho, field.kdrho, grid.t, field.E)
+            solve!(field.rho, field.kdrho, grid.t, model.pe)
             CUDA.synchronize()
         end
     end

@@ -1,4 +1,4 @@
-function init_photoionization(unit, n0, w0, params)
+function init_photoionization(unit, grid, field, medium, params)
     ALG = params["ALG"]
     EREAL = params["EREAL"]
     KDEP = params["KDEP"]
@@ -7,10 +7,14 @@ function init_photoionization(unit, n0, w0, params)
     components = params["components"]
 
     # Dirty hack which allows to launch T geometry on CPU with Float64:
-    TFloat = FloatGPU
-    if typeof(unit) == Units.UnitT{Float64}
+    if isa(grid, Grids.GridT)
         TFloat = Float64
+    else
+        TFloat = FloatGPU
     end
+
+    w0 = field.w0
+    n0 = Media.refractive_index(medium, w0)
 
     fiarg_real(x::Complex) = real(x)^2
     fiarg_abs2(x::Complex) = abs2(x)
@@ -52,18 +56,39 @@ function init_photoionization(unit, n0, w0, params)
     rho0u = StaticArrays.SVector{Neq, TFloat}(rho0u)
 
     # Problem:
-    p = (tabfuncs, fiarg, frhonts)   # step function parameters
-    prob = ODEIntegrators.Problem(func_photoionization, rho0u, p)
-    integ = ODEIntegrators.Integrator(prob, ALG)
+    if isa(grid, Grids.GridT)
+        p = (tabfuncs, fiarg, frhonts, grid.t, field.E)
+        prob = ODEIntegrators.Problem(func_photoionization, rho0u, p)
+        integs = ODEIntegrators.Integrator(prob, ALG)
+    else
+        integs = Array{ODEIntegrators.Integrator}(undef, grid.Nr)
+        for i=1:grid.Nr
+            Ei = CUDA.cudaconvert(view(field.E, i, :))
+            pi = (tabfuncs, fiarg, frhonts, grid.t, Ei)
+            probi = ODEIntegrators.Problem(func_photoionization, rho0u, pi)
+            integs[i] = ODEIntegrators.Integrator(probi, ALG)
+        end
+        integs = CUDA.CuArray(hcat([integs[i] for i in 1:grid.Nr]))
+    end
 
     # Function to extract electron density out of the problem solution:
     extract(u::StaticArrays.SVector) = sum(u)
 
     # Function to calculate K * drho/dt:
-    func_kdrho = kdrho_photoionization
-    p_kdrho = (tabfuncs, fiarg, frhonts, Ks, KDEP)
+    kdrho_func = kdrho_photoionization
 
-    return integ, extract, func_kdrho, p_kdrho
+    if isa(grid, Grids.GridT)
+        kdrho_ps = (tabfuncs, fiarg, frhonts, Ks, KDEP, grid.t, field.E)
+    else
+        kdrho_ps = Array{Tuple}(undef, grid.Nr)
+        for i=1:grid.Nr
+            Ei = CUDA.cudaconvert(view(field.E, i, :))
+            kdrho_ps[i] = (tabfuncs, fiarg, frhonts, Ks, KDEP, grid.t, Ei)
+        end
+        kdrho_ps = CUDA.CuArray(hcat([kdrho_ps[i] for i in 1:grid.Nr]))
+    end
+
+    return integs, extract, kdrho_func, kdrho_ps
 end
 
 
@@ -73,9 +98,9 @@ function func_photoionization(
     t::T,
     args::Tuple,
 ) where T<:AbstractFloat
-    tabfuncs, fiarg, frhonts = p
-    E, = args
+    tabfuncs, fiarg, frhonts, tt, EE = p
 
+    E = linterp(t, tt, EE)
     I = fiarg(E)
 
     Neq = length(rho)
@@ -97,11 +122,10 @@ function kdrho_photoionization(
     rho::AbstractArray{T},
     p::Tuple,
     t::T,
-    args::Tuple,
 ) where T<:AbstractFloat
-    tabfuncs, fiarg, frhonts, Ks, KDEP = p
-    E, = args
+    tabfuncs, fiarg, frhonts, Ks, KDEP, tt, EE = p
 
+    E = linterp(t, tt, EE)
     I = fiarg(E)
     if KDEP
         if I <= 0
@@ -133,4 +157,18 @@ function kdrho_photoionization(
         kdrho = kdrho + K * drho
     end
     return kdrho
+end
+
+
+function linterp(t::AbstractFloat, tt::AbstractArray, ff::AbstractArray)
+    if t <= tt[1]
+        f = ff[1]
+    elseif t >= tt[end]
+        f = ff[end]
+    else
+        dt = tt[2] - tt[1]
+        i = Int(cld(t - tt[1], dt))   # number of steps from tt[1] to t
+        f = ff[i] + (ff[i+1] - ff[i]) / (tt[i+1] - tt[i]) * (t - tt[i])
+    end
+    return f
 end
