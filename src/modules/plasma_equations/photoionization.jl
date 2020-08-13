@@ -99,7 +99,7 @@ function func_photoionization(
 ) where T<:AbstractFloat
     tabfuncs, fiarg, frhonts, tt, EE = p
 
-    E = linterp(t, tt, EE)
+    E = TabulatedFunctions.linterp(t, tt, EE)
     I = fiarg(E)
 
     Neq = length(rho)
@@ -124,7 +124,7 @@ function kdrho_photoionization(
 ) where T<:AbstractFloat
     tabfuncs, fiarg, frhonts, Ks, KDEP, tt, EE = p
 
-    E = linterp(t, tt, EE)
+    E = TabulatedFunctions.linterp(t, tt, EE)
     I = fiarg(E)
     if KDEP
         if I <= 0
@@ -156,18 +156,4 @@ function kdrho_photoionization(
         kdrho = kdrho + K * drho
     end
     return kdrho
-end
-
-
-function linterp(t::AbstractFloat, tt::AbstractArray, ff::AbstractArray)
-    if t <= tt[1]
-        f = ff[1]
-    elseif t >= tt[end]
-        f = ff[end]
-    else
-        dt = tt[2] - tt[1]
-        i = Int(cld(t - tt[1], dt))   # number of steps from tt[1] to t
-        f = ff[i] + (ff[i+1] - ff[i]) / (tt[i+1] - tt[i]) * (t - tt[i])
-    end
-    return f
 end

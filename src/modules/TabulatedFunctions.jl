@@ -137,4 +137,23 @@ function findindex(x::AbstractArray{T}, xc::T) where T<:AbstractFloat
 end
 
 
+"""
+Linear interpolation on a grid with the constant step.
+"""
+function linterp(t::AbstractFloat, tt::AbstractArray, ff::AbstractArray)
+    if t <= tt[1]
+        f = ff[1]
+    elseif t >= tt[end]
+        f = ff[end]
+    else
+        Nt = length(tt)
+        dt = tt[2] - tt[1]
+        i = Int(cld(t - tt[1], dt))   # number of steps from tt[1] to t
+        i = min(i, Nt-1)   # extra safety
+        f = ff[i] + (ff[i+1] - ff[i]) / (tt[i+1] - tt[i]) * (t - tt[i])
+    end
+    return f
+end
+
+
 end
