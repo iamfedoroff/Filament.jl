@@ -96,7 +96,6 @@ function func_photoionization(
     rho::AbstractArray{T},
     p::Tuple,
     t::T,
-    args::Tuple,
 ) where T<:AbstractFloat
     tabfuncs, fiarg, frhonts, tt, EE = p
 

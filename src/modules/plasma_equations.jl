@@ -12,8 +12,7 @@ function solve!(
     utmp = integ.prob.u0
     rho[1] = extract(utmp)
     for j=1:Nt-1
-        args = ()
-        utmp = ODEIntegrators.step(integ, utmp, t[j], dt, args)
+        utmp = ODEIntegrators.step(integ, utmp, t[j], dt)
         rho[j+1] = extract(utmp)
         kdrho[j] = kdrho_func(utmp, kdrho_p, t[j])
     end
@@ -56,8 +55,7 @@ function solve_kernel(rho, kdrho, t, p)
         utmp = integ.prob.u0
         rho[i, 1] = extract(utmp)
         for j=1:Nt-1
-            args = ()
-            utmp = ODEIntegrators.step(integ, utmp, t[j], dt, args)
+            utmp = ODEIntegrators.step(integ, utmp, t[j], dt)
             rho[i, j+1] = extract(utmp)
             kdrho[i, j] = kdrho_func(utmp, kdrho_p, t[j])
         end

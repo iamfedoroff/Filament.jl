@@ -108,7 +108,6 @@ function func_photoionization_avalanche(
     rho::AbstractArray{T},
     p::Tuple,
     t::T,
-    args::Tuple,
 ) where T<:AbstractFloat
     tabfuncs, fiarg, frhonts, Ravas, tt, EE = p
 
