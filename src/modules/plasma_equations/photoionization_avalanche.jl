@@ -1,4 +1,4 @@
-function init_photoionization_avalanche(unit, grid, field, medium, params)
+function init_photoionization_avalanche(t, E, w0, units, params)
     ALG = params["ALG"]
     EREAL = params["EREAL"]
     KDEP = params["KDEP"]
@@ -8,15 +8,9 @@ function init_photoionization_avalanche(unit, grid, field, medium, params)
     mr = params["mr"]
     components = params["components"]
 
-    # Dirty hack which allows to launch T geometry on CPU with Float64:
-    if isa(grid, Grids.GridT)
-        TFloat = Float64
-    else
-        TFloat = FloatGPU
-    end
+    tu, Eu, Iu, rhou = units
 
-    w0 = field.w0
-    n0 = Media.refractive_index(medium, w0)
+    TFloat = eltype(t)   # allows to launch T geometry on CPU with Float64
 
     fiarg_real(x::Complex) = real(x)^2
     fiarg_abs2(x::Complex) = abs2(x)
@@ -37,11 +31,11 @@ function init_photoionization_avalanche(unit, grid, field, medium, params)
         tfname = comp["ionization_rate"]
 
         # Photoionization:
-        tf = TabulatedFunctions.TFunction(TFloat, tfname, 1/unit.I, unit.t)
+        tf = TabulatedFunctions.TFunction(TFloat, tfname, 1/Iu, tu)
         tabfuncs[i] = tf
 
         frhont = frac * rho_nt
-        frhont = frhont / unit.rho
+        frhont = frhont / rhou
         frhonts[i] = frhont
 
         # Impact ionization:
@@ -49,8 +43,7 @@ function init_photoionization_avalanche(unit, grid, field, medium, params)
         MR = mr * ME   # reduced mass of electron and hole (effective mass)
         sigmaB = QE^2 / MR * nuc / (nuc^2 + w0^2)
         Rava = sigmaB / Ui
-        Eu = sqrt(unit.I / (0.5 * real(n0) * EPS0 * C0))
-        Rava = Rava * unit.t * Eu^2
+        Rava = Rava * tu * Eu^2
         Ravas[i] = Rava
 
         # K * drho/dt:
@@ -63,24 +56,25 @@ function init_photoionization_avalanche(unit, grid, field, medium, params)
 
     # Initial condition:
     Neq = Ncomp   # number of equations
-    rho0u = rho0 / unit.rho
+    rho0u = rho0 / rhou
     rho0u = ones(Neq) * rho0u
     rho0u = StaticArrays.SVector{Neq, TFloat}(rho0u)
 
     # Problem:
-    if isa(grid, Grids.GridT)
-        p = (tabfuncs, fiarg, frhonts, Ravas, grid.t, field.E)
+    if ndims(E) == 1
+        p = (tabfuncs, fiarg, frhonts, Ravas, t, E)
         prob = ODEIntegrators.Problem(func_photoionization_avalanche, rho0u, p)
         integs = ODEIntegrators.Integrator(prob, ALG)
     else
-        integs = Array{ODEIntegrators.Integrator}(undef, grid.Nr)
-        for i=1:grid.Nr
-            Ei = CUDA.cudaconvert(view(field.E, i, :))
-            pi = (tabfuncs, fiarg, frhonts, Ravas, grid.t, Ei)
+        Nr, Nt = size(E)
+        integs = Array{ODEIntegrators.Integrator}(undef, Nr)
+        for i=1:Nr
+            Ei = CUDA.cudaconvert(view(E, i, :))
+            pi = (tabfuncs, fiarg, frhonts, Ravas, t, Ei)
             probi = ODEIntegrators.Problem(func_photoionization_avalanche, rho0u, pi)
             integs[i] = ODEIntegrators.Integrator(probi, ALG)
         end
-        integs = CUDA.CuArray(hcat([integs[i] for i in 1:grid.Nr]))
+        integs = CUDA.CuArray(hcat([integs[i] for i in 1:Nr]))
     end
 
     # Function to extract electron density out of the problem solution:
@@ -89,15 +83,16 @@ function init_photoionization_avalanche(unit, grid, field, medium, params)
     # Function to calculate K * drho/dt:
     kdrho_func = kdrho_photoionization_avalanche
 
-    if isa(grid, Grids.GridT)
-        kdrho_ps = (tabfuncs, fiarg, frhonts, Ks, KDEP, grid.t, field.E)
+    if ndims(E) == 1
+        kdrho_ps = (tabfuncs, fiarg, frhonts, Ks, KDEP, t, E)
     else
-        kdrho_ps = Array{Tuple}(undef, grid.Nr)
-        for i=1:grid.Nr
-            Ei = CUDA.cudaconvert(view(field.E, i, :))
-            kdrho_ps[i] = (tabfuncs, fiarg, frhonts, Ks, KDEP, grid.t, Ei)
+        Nr, Nt = size(E)
+        kdrho_ps = Array{Tuple}(undef, Nr)
+        for i=1:Nr
+            Ei = CUDA.cudaconvert(view(E, i, :))
+            kdrho_ps[i] = (tabfuncs, fiarg, frhonts, Ks, KDEP, t, Ei)
         end
-        kdrho_ps = CUDA.CuArray(hcat([kdrho_ps[i] for i in 1:grid.Nr]))
+        kdrho_ps = CUDA.CuArray(hcat([kdrho_ps[i] for i in 1:Nr]))
     end
 
     return integs, extract, kdrho_func, kdrho_ps

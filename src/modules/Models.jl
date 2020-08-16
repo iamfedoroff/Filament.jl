@@ -54,8 +54,14 @@ function Model(
     end
 
     if PLASMA
+        w0 = field.w0
+        n0 = Media.refractive_index(medium, w0)
+        Eu = Units.E(unit, real(n0))
+        units = (unit.t, Eu, unit.I, unit.rho)
+
         init = plasma_equation["init"]
-        pe = init(unit, grid, field, medium, plasma_equation)
+        pe = init(grid.t, field.E, w0, units, plasma_equation)
+
         solve!(field.rho, field.kdrho, grid.t, pe)
     else
         pe = nothing
