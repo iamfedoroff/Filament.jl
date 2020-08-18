@@ -55,34 +55,41 @@ function init_photoionization_avalanche(t, E, w0, units, params)
     Ks = StaticArrays.SVector{Ncomp, TFloat}(Ks)
 
     # Initial condition:
-    Neq = Ncomp   # number of equations
-    rho0u = rho0 / rhou
-    rho0u = ones(Neq) * rho0u
-    rho0u = StaticArrays.SVector{Neq, TFloat}(rho0u)
+    rho0u = ones(Ncomp) * rho0 / rhou
+    rho0u = StaticArrays.SVector{Ncomp, TFloat}(rho0u)
 
     # Problem:
     if ndims(E) == 1
         p = (tabfuncs, fiarg, frhonts, Ravas, t, E)
         prob = ODEIntegrators.Problem(func_photoionization_avalanche, rho0u, p)
         integs = ODEIntegrators.Integrator(prob, ALG)
+
+        p = (tabfuncs, fiarg, frhonts, t, E)
+        prob = ODEIntegrators.Problem(func_photoionization, rho0u, p)
+        kdrho_integs = ODEIntegrators.Integrator(prob, ALG)
     else
         Nr, Nt = size(E)
         integs = Array{ODEIntegrators.Integrator}(undef, Nr)
+        kdrho_integs = Array{ODEIntegrators.Integrator}(undef, Nr)
         for i=1:Nr
             Ei = CUDA.cudaconvert(view(E, i, :))
+
             pi = (tabfuncs, fiarg, frhonts, Ravas, t, Ei)
             probi = ODEIntegrators.Problem(func_photoionization_avalanche, rho0u, pi)
             integs[i] = ODEIntegrators.Integrator(probi, ALG)
+
+            pi = (tabfuncs, fiarg, frhonts, t, Ei)
+            probi = ODEIntegrators.Problem(func_photoionization, rho0u, pi)
+            kdrho_integs[i] = ODEIntegrators.Integrator(probi, ALG)
         end
         integs = CUDA.CuArray(hcat([integs[i] for i in 1:Nr]))
+        kdrho_integs = CUDA.CuArray(hcat([kdrho_integs[i] for i in 1:Nr]))
     end
 
     # Function to extract electron density out of the problem solution:
     extract(u::StaticArrays.SVector) = sum(u)
 
     # Function to calculate K * drho/dt:
-    kdrho_func = kdrho_photoionization_avalanche
-
     if ndims(E) == 1
         kdrho_ps = (tabfuncs, fiarg, frhonts, Ks, KDEP, t, E)
     else
@@ -95,7 +102,7 @@ function init_photoionization_avalanche(t, E, w0, units, params)
         kdrho_ps = CUDA.CuArray(hcat([kdrho_ps[i] for i in 1:Nr]))
     end
 
-    return integs, extract, kdrho_func, kdrho_ps
+    return integs, extract, kdrho_integs, kdrho_func, kdrho_ps
 end
 
 
@@ -110,25 +117,51 @@ function func_photoionization_avalanche(
     I = fiarg(E)
     E2 = real(E)^2
 
-    Neq = length(rho)
-    drho = StaticArrays.SVector{Neq, T}(rho)
-    for i=1:Neq
+    rho_tot = sum(rho)   # total electron density
+
+    Ncomp = length(rho)
+    drho = StaticArrays.SVector{Ncomp, T}(rho)
+    for i=1:Ncomp
         tf = tabfuncs[i]
-        R1 = tf(I)
-
         frhont = frhonts[i]
-
         Rava = Ravas[i]
+
+        R1 = tf(I)
         R2 = Rava * E2
 
-        tmp = R1 * (frhont - rho[i]) + R2 * rho[i]
+        tmp = R1 * (frhont - rho[i]) + R2 * (frhont - rho[i]) / frhont * rho_tot
         drho = StaticArrays.setindex(drho, tmp, i)
     end
     return drho
 end
 
 
-function kdrho_photoionization_avalanche(
+function func_photoionization(
+    rho::AbstractArray{T},
+    p::Tuple,
+    t::T,
+) where T<:AbstractFloat
+    tabfuncs, fiarg, frhonts, tt, EE = p
+
+    E = TabulatedFunctions.linterp(t, tt, EE)
+    I = fiarg(E)
+
+    Ncomp = length(rho)
+    drho = StaticArrays.SVector{Ncomp, T}(rho)
+    for i=1:Ncomp
+        tf = tabfuncs[i]
+        frhont = frhonts[i]
+
+        R1 = tf(I)
+
+        tmp = R1 * (frhont - rho[i])
+        drho = StaticArrays.setindex(drho, tmp, i)
+    end
+    return drho
+end
+
+
+function kdrho_func(
     rho::AbstractArray{T},
     p::Tuple,
     t::T,
@@ -137,6 +170,7 @@ function kdrho_photoionization_avalanche(
 
     E = TabulatedFunctions.linterp(t, tt, EE)
     I = fiarg(E)
+
     if KDEP
         if I <= 0
             Ilog = convert(T, -30)   # I=1e-30 in order to avoid -Inf in log(0)
@@ -149,9 +183,9 @@ function kdrho_photoionization_avalanche(
         end
     end
 
-    Neq = length(rho)
+    Ncomp = length(rho)
     kdrho = convert(T, 0)
-    for i=1:Neq
+    for i=1:Ncomp
         tf = tabfuncs[i]
         R1 = tf(I)
 
