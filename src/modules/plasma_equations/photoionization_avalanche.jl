@@ -165,7 +165,7 @@ function kdrho_func(
     I = fiarg(E)
 
     if KDEP
-        if I == 0
+        if I <= 0
             Ilog = convert(T, -30)   # I=1e-30 in order to avoid -Inf in log(0)
         else
             if T == Float32   # FIXME Dirty hack for launching on both CPU and GPU
