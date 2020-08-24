@@ -5,9 +5,9 @@ import StaticArrays
 import CUDA
 
 
-struct TFunction{R<:AbstractRange, T<:AbstractArray} <: Function
-    x :: R
-    y :: T
+struct TFunction{A1<:AbstractArray, A2<:AbstractArray} <: Function
+    x :: A1
+    y :: A2
 end
 
 
@@ -37,7 +37,9 @@ function TFunction(T::Type, fname::String, xu::F, yu::F) where F<:AbstractFloat
     @assert allclose(diff(x))
 
     N = length(x)
-    x = StepRangeLen{T, T, T}(range(x[1], x[end], length=N))
+    xmin = convert(T, x[1])
+    xmax = convert(T, x[end])
+    x = range(xmin, xmax, length=N)
     y = StaticArrays.SVector{N, T}(y)
     return TFunction(x, y)
 end
@@ -45,7 +47,7 @@ end
 
 function (tf::TFunction)(x::T) where T<:AbstractFloat
     if x <= 0
-        res = convert(T, 0)   # in order to avoid -Inf in log10(0)
+        res = zero(T)   # in order to avoid -Inf in log10(0)
     else
         if T == Float32   # FIXME Dirty hack for launching on both CPU and GPU
             xlog10 = CUDA.log10(x)
@@ -54,7 +56,7 @@ function (tf::TFunction)(x::T) where T<:AbstractFloat
         else
             xlog10 = log10(x)
             ylog10 = linterp(xlog10, tf.x, tf.y)
-            res = 10.0^ylog10
+            res = 10^ylog10
         end
     end
     return res
@@ -67,20 +69,20 @@ Calculates the interpolated derivative of tabulated function tf in point x.
 function dtf(tf::TabulatedFunctions.TFunction, x::AbstractFloat)
     dx = tf.x.step
     if x <= tf.x[1]
-        y2 = dtfongrid(tf, 2)
-        y1 = dtfongrid(tf, 1)
+        y2 = derivative(tf.x, tf.y, 2)
+        y1 = derivative(tf.x, tf.y, 1)
         dydx = (y2 - y1) / dx
         res = y2 + dydx * (x - tf.x[2])
     elseif x >= tf.x[end]
         N = length(tf.x)
-        yN = dtfongrid(tf, N)
-        yNm1 = dtfongrid(tf, N - 1)
+        yN = derivative(tf.x, tf.y, N)
+        yNm1 = derivative(tf.x, tf.y, N-1)
         dydx = (yN - yNm1) / dx
         res = yNm1 + dydx * (x - tf.x[end-1])
     else
         i = Int(cld(x - tf.x[1], dx))   # number of steps from x[1] to x
-        yip1 = dtfongrid(tf, i+1)
-        yi = dtfongrid(tf, i)
+        yip1 = derivative(tf.x, tf.y, i+1)
+        yi = derivative(tf.x, tf.y, i)
         dydx = (yip1 - yi) / dx
         res = yi + dydx * (x - tf.x[i])
     end
@@ -89,49 +91,48 @@ end
 
 
 """
-Calculates the derivative of tabulated function tf in grid point with index i
+Derivative on a grid with constatnt step in point with index i
 using the finite difference coefficients for the 4th accuracy order:
 https://en.wikipedia.org/wiki/Finite_difference_coefficient
 """
-function dtfongrid(tf::TabulatedFunctions.TFunction, i::Int)
-    T = eltype(tf.x)
-    N = length(tf.x)
-    h = tf.x.step
+function derivative(x::AbstractArray{T}, y::AbstractArray{T}, i::Int) where T
+    N = length(x)
+    dx = x[2] - x[1]
     if i <= 2
-        c = @. convert(T, (-25/12, 4, -3, 4/3, -1/4))
-        res = (c[1] * tf.y[i] + c[2] * tf.y[i+1] + c[3] * tf.y[i+2] +
-               c[4] * tf.y[i+3] + c[5] * tf.y[i+4]) / h
-    elseif i >= N - 2
-        c = @. convert(T, (25/12, -4, 3, -4/3, 1/4))
-        res = (c[1] * tf.y[i] + c[2] * tf.y[i-1] + c[3] * tf.y[i-2] +
-               c[4] * tf.y[i-3] + c[5] * tf.y[i-4]) / h
+        c = StaticArrays.SVector{5, T}(-25/12, 4, -3, 4/3, -1/4)
+        dydx = (c[1] * y[i] + c[2] * y[i+1] + c[3] * y[i+2] + c[4] * y[i+3] +
+                c[5] * y[i+4]) / dx
+    elseif i >= N-2
+        c = StaticArrays.SVector{5, T}(25/12, -4, 3, -4/3, 1/4)
+        dydx = (c[1] * y[i] + c[2] * y[i-1] + c[3] * y[i-2] + c[4] * y[i-3] +
+                c[5] * y[i-4]) / dx
     else
-        c = @. convert(T, (1/12, -2/3, 0, 2/3, -1/12))
-        res = (c[1] * tf.y[i-2] + c[2] * tf.y[i-1] + c[4] * tf.y[i+1] +
-               c[5] * tf.y[i+2]) / h
+        c = StaticArrays.SVector{5, T}(1/12, -2/3, 0, 2/3, -1/12)
+        dydx = (c[1] * y[i-2] + c[2] * y[i-1] + c[3] * y[i] + c[4] * y[i+1] +
+                c[5] * y[i+2]) / dx
     end
-    return res
+    return dydx
 end
 
 
 """
 Linear interpolation on a grid with the constant step.
 """
-function linterp(t::AbstractFloat, tt::AbstractArray, ff::AbstractArray)
-    dt = tt[2] - tt[1]
-    if t <= tt[1]
-        dfdt = (ff[2] - ff[1]) / dt
-        f = ff[2] + dfdt * (t - tt[2])
-    elseif t >= tt[end]
-        dfdt = (ff[end] - ff[end-1]) / dt
-        f = ff[end-1] + dfdt * (t - tt[end-1])
+function linterp(x::AbstractFloat, xx::AbstractArray, yy::AbstractArray)
+    dx = xx[2] - xx[1]
+    if x <= xx[1]
+        dydx = (yy[2] - yy[1]) / dx
+        y = yy[2] + dydx * (x - xx[2])
+    elseif x >= xx[end]
+        dydx = (yy[end] - yy[end-1]) / dx
+        y = yy[end-1] + dydx * (x - xx[end-1])
     else
-        i = Int(cld(t - tt[1], dt))   # number of steps from tt[1] to t
-        i = min(i, length(tt)-1)   # extra safety
-        dfdt = (ff[i+1] - ff[i]) / dt
-        f = ff[i] + dfdt * (t - tt[i])
+        i = Int(cld(x - xx[1], dx))   # number of steps from xx[1] to x
+        i = min(i, length(xx)-1)   # extra safety
+        dydx = (yy[i+1] - yy[i]) / dx
+        y = yy[i] + dydx * (x - xx[i])
     end
-    return f
+    return y
 end
 
 
