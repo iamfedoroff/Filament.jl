@@ -67,7 +67,7 @@ end
 Calculates the interpolated derivative of tabulated function tf in point x.
 """
 function dtf(tf::TabulatedFunctions.TFunction, x::AbstractFloat)
-    dx = tf.x.step
+    dx = tf.x[2] - tf.x[1]
     if x <= tf.x[1]
         y2 = derivative(tf.x, tf.y, 2)
         y1 = derivative(tf.x, tf.y, 1)
