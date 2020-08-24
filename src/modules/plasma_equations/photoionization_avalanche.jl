@@ -10,10 +10,10 @@ function init_photoionization_avalanche(t, E, w0, units, params)
 
     tu, Eu, Iu, rhou = units
 
-    TFloat = eltype(t)   # allows to launch T geometry on CPU with Float64
+    TFloat = eltype(t)
 
-    fiarg_real(x::Complex) = real(x)^2
-    fiarg_abs2(x::Complex) = abs2(x)
+    fiarg_real(x) = real(x)^2
+    fiarg_abs2(x) = abs2(x)
     if EREAL
         fiarg = fiarg_real
     else
@@ -58,7 +58,7 @@ function init_photoionization_avalanche(t, E, w0, units, params)
     rho0u = ones(Ncomp) * rho0 / rhou
     rho0u = StaticArrays.SVector{Ncomp, TFloat}(rho0u)
 
-    # Problem:
+    # Problems and integrators:
     if ndims(E) == 1
         p = (tabfuncs, fiarg, frhonts, Ravas, t, E)
         prob = ODEIntegrators.Problem(func_photoionization_avalanche, rho0u, p)
@@ -67,40 +67,33 @@ function init_photoionization_avalanche(t, E, w0, units, params)
         p = (tabfuncs, fiarg, frhonts, t, E)
         prob = ODEIntegrators.Problem(func_photoionization, rho0u, p)
         kdrho_integs = ODEIntegrators.Integrator(prob, ALG)
+
+        kdrho_ps = (tabfuncs, fiarg, frhonts, Ks, KDEP, t, E)
     else
         Nr, Nt = size(E)
         integs = Array{ODEIntegrators.Integrator}(undef, Nr)
         kdrho_integs = Array{ODEIntegrators.Integrator}(undef, Nr)
-        for i=1:Nr
-            Ei = CUDA.cudaconvert(view(E, i, :))
-
-            pi = (tabfuncs, fiarg, frhonts, Ravas, t, Ei)
-            probi = ODEIntegrators.Problem(func_photoionization_avalanche, rho0u, pi)
-            integs[i] = ODEIntegrators.Integrator(probi, ALG)
-
-            pi = (tabfuncs, fiarg, frhonts, t, Ei)
-            probi = ODEIntegrators.Problem(func_photoionization, rho0u, pi)
-            kdrho_integs[i] = ODEIntegrators.Integrator(probi, ALG)
-        end
-        integs = CUDA.CuArray(hcat([integs[i] for i in 1:Nr]))
-        kdrho_integs = CUDA.CuArray(hcat([kdrho_integs[i] for i in 1:Nr]))
-    end
-
-    # Function to extract electron density out of the problem solution:
-    extract(u::StaticArrays.SVector) = sum(u)
-
-    # Function to calculate K * drho/dt:
-    if ndims(E) == 1
-        kdrho_ps = (tabfuncs, fiarg, frhonts, Ks, KDEP, t, E)
-    else
-        Nr, Nt = size(E)
         kdrho_ps = Array{Tuple}(undef, Nr)
         for i=1:Nr
             Ei = CUDA.cudaconvert(view(E, i, :))
+
+            p = (tabfuncs, fiarg, frhonts, Ravas, t, Ei)
+            prob = ODEIntegrators.Problem(func_photoionization_avalanche, rho0u, p)
+            integs[i] = ODEIntegrators.Integrator(prob, ALG)
+
+            p = (tabfuncs, fiarg, frhonts, t, Ei)
+            prob = ODEIntegrators.Problem(func_photoionization, rho0u, p)
+            kdrho_integs[i] = ODEIntegrators.Integrator(prob, ALG)
+
             kdrho_ps[i] = (tabfuncs, fiarg, frhonts, Ks, KDEP, t, Ei)
         end
+        integs = CUDA.CuArray(hcat([integs[i] for i in 1:Nr]))
+        kdrho_integs = CUDA.CuArray(hcat([kdrho_integs[i] for i in 1:Nr]))
         kdrho_ps = CUDA.CuArray(hcat([kdrho_ps[i] for i in 1:Nr]))
     end
+
+    # Function to extract electron density out of the problem solution:
+    extract(u) = sum(u)
 
     return integs, extract, kdrho_integs, kdrho_func, kdrho_ps
 end
@@ -172,7 +165,7 @@ function kdrho_func(
     I = fiarg(E)
 
     if KDEP
-        if I <= 0
+        if I == 0
             Ilog = convert(T, -30)   # I=1e-30 in order to avoid -Inf in log(0)
         else
             if T == Float32   # FIXME Dirty hack for launching on both CPU and GPU
@@ -184,12 +177,12 @@ function kdrho_func(
     end
 
     Ncomp = length(rho)
-    kdrho = convert(T, 0)
+    kdrho = zero(T)
     for i=1:Ncomp
         tf = tabfuncs[i]
-        R1 = tf(I)
-
         frhont = frhonts[i]
+
+        R1 = tf(I)
 
         if KDEP
             K = TabulatedFunctions.dtf(tf, Ilog)
