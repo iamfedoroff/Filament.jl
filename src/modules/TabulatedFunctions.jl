@@ -2,21 +2,29 @@ module TabulatedFunctions
 
 import DelimitedFiles
 import StaticArrays
+
+# CPU / GPU specific functions -------------------------------------------------
 import CUDA
 
+mylog10(x::Float32) = CUDA.log10(x)
+mylog10(x::Float64) = log10(x)
 
-struct TFunction{A1<:AbstractArray, A2<:AbstractArray} <: Function
-    x :: A1
-    y :: A2
+mypow10(x::Float32) = CUDA.pow(10f0, x)
+mypow10(x::Float64) = 10^x
+# ------------------------------------------------------------------------------
+
+
+struct TFunction{
+    T<:AbstractFloat,
+    R<:AbstractRange{T},
+    A<:Union{AbstractArray{T}, AbstractArray{Complex{T}}},
+} <: Function
+    x :: R
+    y :: A
 end
 
 
-function TFunction(fname::String, xu::F, yu::F) where F<:AbstractFloat
-    return TFunction(Float32, fname, xu, yu)
-end
-
-
-function TFunction(T::Type, fname::String, xu::F, yu::F) where F<:AbstractFloat
+function TFunction(T::Type, fname::String, xu::AbstractFloat, yu::AbstractFloat)
     data = transpose(DelimitedFiles.readdlm(fname))
     x = data[1, :]
     y = data[2, :]
@@ -36,38 +44,31 @@ function TFunction(T::Type, fname::String, xu::F, yu::F) where F<:AbstractFloat
     @assert issorted(x)
     @assert allclose(diff(x))
 
+    xmin, xmax = convert(T, x[1]), convert(T, x[end])
     N = length(x)
-    xmin = convert(T, x[1])
-    xmax = convert(T, x[end])
     x = range(xmin, xmax, length=N)
     y = StaticArrays.SVector{N, T}(y)
     return TFunction(x, y)
 end
 
 
-function (tf::TFunction)(x::T) where T<:AbstractFloat
+function (tf::TFunction{T})(x::T) where T
     if x <= 0
-        res = zero(T)   # in order to avoid -Inf in log10(0)
+        y = zero(T)   # in order to avoid -Inf in log10(0)
     else
-        if T == Float32   # FIXME Dirty hack for launching on both CPU and GPU
-            xlog10 = CUDA.log10(x)
-            ylog10 = linterp(xlog10, tf.x, tf.y)
-            res = CUDA.pow(convert(T, 10), ylog10)
-        else
-            xlog10 = log10(x)
-            ylog10 = linterp(xlog10, tf.x, tf.y)
-            res = 10^ylog10
-        end
+        xlog10 = mylog10(x)
+        ylog10 = linterp(xlog10, tf.x, tf.y)
+        y = mypow10(ylog10)
     end
-    return res
+    return convert(T, y)
 end
 
 
 """
 Calculates the interpolated derivative of tabulated function tf in point x.
 """
-function dtf(tf::TabulatedFunctions.TFunction, x::AbstractFloat)
-    dx = tf.x[2] - tf.x[1]
+function dtf(tf::TFunction{T}, x::T) where T
+    dx = step(tf.x)
     if x <= tf.x[1]
         y2 = derivative(tf.x, tf.y, 2)
         y1 = derivative(tf.x, tf.y, 1)
@@ -86,7 +87,7 @@ function dtf(tf::TabulatedFunctions.TFunction, x::AbstractFloat)
         dydx = (yip1 - yi) / dx
         res = yi + dydx * (x - tf.x[i])
     end
-    return res
+    return convert(T, res)
 end
 
 
@@ -95,9 +96,13 @@ Derivative on a grid with constatnt step in point with index i
 using the finite difference coefficients for the 4th accuracy order:
 https://en.wikipedia.org/wiki/Finite_difference_coefficient
 """
-function derivative(x::AbstractArray{T}, y::AbstractArray{T}, i::Int) where T
+function derivative(
+    x::AbstractRange{T},
+    y::Union{AbstractArray{T}, AbstractArray{Complex{T}}},
+    i::Int,
+) where T
     N = length(x)
-    dx = x[2] - x[1]
+    dx = step(x)
     if i <= 2
         c = StaticArrays.SVector{5, T}(-25/12, 4, -3, 4/3, -1/4)
         dydx = (c[1] * y[i] + c[2] * y[i+1] + c[3] * y[i+2] + c[4] * y[i+3] +
@@ -111,15 +116,19 @@ function derivative(x::AbstractArray{T}, y::AbstractArray{T}, i::Int) where T
         dydx = (c[1] * y[i-2] + c[2] * y[i-1] + c[3] * y[i] + c[4] * y[i+1] +
                 c[5] * y[i+2]) / dx
     end
-    return dydx
+    return convert(eltype(y), dydx)
 end
 
 
 """
 Linear interpolation on a grid with the constant step.
 """
-function linterp(x::AbstractFloat, xx::AbstractArray, yy::AbstractArray)
-    dx = xx[2] - xx[1]
+function linterp(
+    x::T,
+    xx::AbstractRange{T},
+    yy::Union{AbstractArray{T}, AbstractArray{Complex{T}}},
+) where T
+    dx = step(xx)
     if x <= xx[1]
         dydx = (yy[2] - yy[1]) / dx
         y = yy[2] + dydx * (x - xx[2])
@@ -132,7 +141,7 @@ function linterp(x::AbstractFloat, xx::AbstractArray, yy::AbstractArray)
         dydx = (yy[i+1] - yy[i]) / dx
         y = yy[i] + dydx * (x - xx[i])
     end
-    return y
+    return convert(eltype(yy), y)
 end
 
 
