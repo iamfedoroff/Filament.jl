@@ -164,18 +164,6 @@ function kdrho_func(
     E = TabulatedFunctions.linterp(t, tt, EE)
     I = fiarg(E)
 
-    if KDEP
-        if I <= 0
-            Ilog = convert(T, -30)   # I=1e-30 in order to avoid -Inf in log(0)
-        else
-            if T == Float32   # FIXME Dirty hack for launching on both CPU and GPU
-                Ilog = CUDA.log10(I)
-            else
-                Ilog = log10(I)
-            end
-        end
-    end
-
     Ncomp = length(rho)
     kdrho = zero(T)
     for i=1:Ncomp
@@ -185,7 +173,7 @@ function kdrho_func(
         R1 = tf(I)
 
         if KDEP
-            K = TabulatedFunctions.dtf(tf, Ilog)
+            K = TabulatedFunctions.tfpower(tf, I)
         else
             K = Ks[i]
         end

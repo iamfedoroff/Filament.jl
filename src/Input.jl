@@ -5,9 +5,7 @@ import CUDA
 import FFTW
 import ODEIntegrators
 import StaticArrays
-
-# Local package-like modules:
-import ..TabulatedFunctions
+import TabulatedFunctions
 
 # Local modules:
 import ..Constants: FloatGPU, C0, EPS0, MU0, QE, ME, HBAR

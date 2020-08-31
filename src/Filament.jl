@@ -6,10 +6,6 @@ import Dates
 import Formatting
 using TimerOutputs
 
-# Local package-like modules ---------------------------------------------------
-include(joinpath("modules", "TabulatedFunctions.jl"))
-import .TabulatedFunctions
-
 # Local modules ----------------------------------------------------------------
 include(joinpath("modules", "Constants.jl"))
 import .Constants
