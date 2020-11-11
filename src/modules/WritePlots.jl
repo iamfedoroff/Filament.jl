@@ -452,8 +452,10 @@ function writeHDF(
 
         fp = HDF5.h5open(plothdf.fname, "r+")
         group_fdat = fp[GROUP_FDAT]
-        if plothdf.geometry <: Union{Grids.GridR, Grids.GridRn}
+        if plothdf.geometry <: Grids.GridR
             write_field_r(group_fdat, dset, field)
+        elseif plothdf.geometry <: Grids.GridRn
+            write_field_rn(group_fdat, dset, field)
         elseif plothdf.geometry <: Grids.GridT
             write_field_t(group_fdat, dset, field)
         elseif plothdf.geometry <: Grids.GridRT
@@ -557,6 +559,12 @@ end
 
 function write_field_r(group, dataset, field::Fields.Field)
     group[dataset] = CUDA.collect(field.E)
+    return nothing
+end
+
+
+function write_field_rn(group, dataset, field::Fields.Field)
+    group[dataset] = field.E
     return nothing
 end
 

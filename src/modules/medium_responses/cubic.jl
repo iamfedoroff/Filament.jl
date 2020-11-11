@@ -11,7 +11,7 @@ function init_cubic(unit, grid, field, medium, p)
     chi3 = 4 / 3 * real(n0)^2 * EPS0 * C0 * n2
     Rnl = EPS0 * chi3 * Eu^3
 
-    if ! (grid isa Grids.GridT)   # FIXME: should be removed in a generic code.
+    if ! (grid isa Grids.GridRn) & ! (grid isa Grids.GridT)   # FIXME: should be removed in a generic code.
         Rnl = convert(FloatGPU, Rnl)
     end
 

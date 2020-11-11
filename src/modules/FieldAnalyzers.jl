@@ -37,11 +37,16 @@ function FieldAnalyzer(
     Imax, rfil, P = [zero(T) for i=1:3]
 
     rdr = @. grid.r * grid.dr
-    rdr = CUDA.CuArray{T}(rdr)
 
     Nr = length(field.E)
     I = zeros(T, Nr)
-    Igpu = CUDA.zeros(T, Nr)
+
+    if typeof(grid) <: Grids.GridR
+        rdr = CUDA.CuArray{T}(rdr)
+        Igpu = CUDA.zeros(T, Nr)
+    elseif typeof(grid) <: Grids.GridRn
+        Igpu = zeros(T, Nr)
+    end
     return FieldAnalyzerR(z, Imax, rfil, P, rdr, I, Igpu)
 end
 

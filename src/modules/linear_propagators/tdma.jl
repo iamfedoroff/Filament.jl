@@ -32,29 +32,25 @@ function LinearPropagator(
 
     w0 = field.w0
     beta0 = Media.beta_func(medium, w0)
-
     Rr = 1im / (2 * beta0) * unit.z / unit.r^2
-    Rr = convert(Complex{FloatGPU}, Rr)
 
     # Tridiagonal matrix coefficients:
-    a = zeros(Complex{FloatGPU}, Nr)
-    b = zeros(Complex{FloatGPU}, Nr)
-    c = zeros(Complex{FloatGPU}, Nr)
+    a = zeros(ComplexF64, Nr)
+    b = zeros(ComplexF64, Nr)
+    c = zeros(ComplexF64, Nr)
 
-    d = zeros(Complex{FloatGPU}, Nr)   # right-hand-side vector
-    tmp = zeros(Complex{FloatGPU}, Nr)   # array for temporary storage
+    d = zeros(ComplexF64, Nr)   # right-hand-side vector
+    tmp = zeros(ComplexF64, Nr)   # array for temporary storage
 
     return LinearPropagatorTDMA(Rr, r, a, b, c, d, tmp)
 end
 
 
 function propagate!(
-    Egpu::AbstractArray{Complex{T}},
+    E::AbstractArray{Complex{T}},
     LP::LinearPropagatorTDMA,
     dz::T
 ) where T
-    E = Array(Egpu)
-
     Rr = LP.Rr
     r = LP.r
     a = LP.a
@@ -91,9 +87,6 @@ function propagate!(
     # Solve:
     TridiagonalMatrixAlgorithm.tridag!(E, a, b, c, d, tmp)
     # @. E = E * exp(1im * k0 * (dz * zu))   # constant phase
-
-    E = CUDA.CuArray(E)
-    @. Egpu = E
 
     return nothing
 end

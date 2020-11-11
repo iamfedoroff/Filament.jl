@@ -111,7 +111,7 @@ function QZfunc(
 
     QZ = Qfunc(PARAXIAL, medium, w0, 0) * unit.z / Eu
 
-    return convert(Complex{FloatGPU}, QZ)
+    return QZ
 end
 
 

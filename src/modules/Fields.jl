@@ -57,7 +57,7 @@ function Field(unit::Units.UnitR, grid::Grids.GridRn, p::Tuple)
     w0 = convert(T, 2 * pi * C0 / lam0)
 
     E = initial_condition(grid.r, unit.r, unit.I)
-    E = CUDA.CuArray{Complex{T}}(E)
+    E = convert(Array{Complex{T}}, E)
 
     PS = nothing
     PT = nothing

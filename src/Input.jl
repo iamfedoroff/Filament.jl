@@ -59,15 +59,15 @@ function prepare(fname)
             error("Step compression coefficient 'scomp' should be in the interval (0,1].")
         end
 
-        z_local = FloatGPU(z / zu)
-        zmax_local = FloatGPU(zmax)
-        lam0_local = FloatGPU(lam0)
-        dz_plothdf_local = FloatGPU(dz_plothdf)
+        z_local = z / zu
+        zmax_local = zmax
+        lam0_local = lam0
+        dz_plothdf_local = dz_plothdf
 
         p_unit = (ru, zu, Iu)
-        p_grid = (FloatGPU(rmax), Nr, scomp)
-        p_field = (FloatGPU(lam0), initial_condition)
-        p_guard = (FloatGPU(rguard), FloatGPU(kguard))
+        p_grid = (rmax, Nr, scomp)
+        p_field = (lam0, initial_condition)
+        p_guard = (rguard, kguard)
         p_dzadaptive = (dz_initial, dzphimax, NONLINEARITY)
 
         model_keys = (
