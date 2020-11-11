@@ -54,6 +54,30 @@ function prepare(fname)
             ALG=ALG,
         )
         p_model = (responses_local, Dict(), model_keys)
+    elseif geometry == "Rn"
+        if (scomp <= 0) | (scomp > 1)
+            error("Step compression coefficient 'scomp' should be in the interval (0,1].")
+        end
+
+        z_local = FloatGPU(z / zu)
+        zmax_local = FloatGPU(zmax)
+        lam0_local = FloatGPU(lam0)
+        dz_plothdf_local = FloatGPU(dz_plothdf)
+
+        p_unit = (ru, zu, Iu)
+        p_grid = (FloatGPU(rmax), Nr, scomp)
+        p_field = (FloatGPU(lam0), initial_condition)
+        p_guard = (FloatGPU(rguard), FloatGPU(kguard))
+        p_dzadaptive = (dz_initial, dzphimax, NONLINEARITY)
+
+        model_keys = (
+            NONLINEARITY=NONLINEARITY,
+            PLASMA=false,
+            KPARAXIAL=true,
+            QPARAXIAL=true,
+            ALG=ALG,
+        )
+        p_model = (responses_local, Dict(), model_keys)
     elseif geometry == "T"
         z_local = z / zu
         zmax_local = zmax

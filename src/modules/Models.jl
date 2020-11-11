@@ -15,7 +15,8 @@ import ..Guards
 import ..Media
 import ..Units
 
-include("linear_propagators.jl")
+include(joinpath("linear_propagators", "spectral.jl"))
+include(joinpath("linear_propagators", "tdma.jl"))
 include("nonlinear_propagators.jl")
 include("plasma_equations.jl")
 

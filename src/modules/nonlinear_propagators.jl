@@ -97,6 +97,25 @@ end
 
 
 function QZfunc(
+    unit::Units.UnitR,
+    grid::Grids.GridRn,
+    medium::Media.Medium,
+    field::Fields.Field,
+    PARAXIAL,
+)
+    @assert PARAXIAL
+
+    w0 = field.w0
+    n0 = Media.refractive_index(medium, w0)
+    Eu = Units.E(unit, real(n0))
+
+    QZ = Qfunc(PARAXIAL, medium, w0, 0) * unit.z / Eu
+
+    return convert(Complex{FloatGPU}, QZ)
+end
+
+
+function QZfunc(
     unit::Units.UnitT,
     grid::Grids.GridT,
     medium::Media.Medium,

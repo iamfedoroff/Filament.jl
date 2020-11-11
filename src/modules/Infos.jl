@@ -113,6 +113,21 @@ function info_grid(unit::Units.UnitR, grid::Grids.GridR)
 end
 
 
+function info_grid(unit::Units.UnitR, grid::Grids.GridRn)
+    dr_min = minimum(diff(grid.r))
+    dr_max = maximum(diff(grid.r))
+    dr_avg = sum(diff(grid.r)) / length(diff(grid.r))   # spatial step
+
+    sdata =
+    """
+    dr_min = $(fmt(dr_min * unit.r)) [m] - minimum spatial step
+    dr_max = $(fmt(dr_max * unit.r)) [m] - maximum spatial step
+    dr_avg = $(fmt(dr_avg * unit.r)) [m] - average spatial step
+    """
+    return sdata
+end
+
+
 function info_grid(unit::Units.UnitT, grid::Grids.GridT)
     f = grid.w / (2 * pi)
     df = f[2] - f[1]
@@ -195,7 +210,7 @@ end
 
 function info_field(
     unit::Units.UnitR,
-    grid::Grids.GridR,
+    grid::Union{Grids.GridR, Grids.GridRn},
     field::Fields.Field,
     analyzer::FieldAnalyzers.FieldAnalyzer,
 )
@@ -388,7 +403,7 @@ end
 
 function info_medium(
     unit::Units.UnitR,
-    grid::Grids.GridR,
+    grid::Union{Grids.GridR, Grids.GridRn},
     field::Fields.Field,
     medium::Media.Medium,
     analyzer::FieldAnalyzers.FieldAnalyzer,

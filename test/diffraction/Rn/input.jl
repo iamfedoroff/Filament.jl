@@ -12,28 +12,23 @@ zu = 1.0   # [m] unit of space in z direction
 Iu = 1e12 * 1e4   # [W/m**2] unit of intensity
 
 # Grid -------------------------------------------------------------------------
-geometry = "R"   # grid geometry (R, T, RT, XY, XYT) or (Rn)
+geometry = "Rn"   # grid geometry (R, T, RT, XY, XYT) or (Rn)
 
 rmax = 10.0   # [ru] area in spatial domain
-Nr = 2000  # number of points in spatial domain
+Nr = 2000  # number of points in spatial domain for a uniform grid
+scomp = 0.5   # in (0,1] - step compression coefficient, i.e. s=0.5 means twice less points
 
 # Model ------------------------------------------------------------------------
 zmax = 1.0   # [zu] propagation distance
 dz_initial = zmax / 200   # initial z step
 
-NONLINEARITY = true   # presence of nonlinear terms
-
-KPARAXIAL = false   # paraxial approximation for the linear term
-QPARAXIAL = true   # paraxial approximation for the nonlinear term
+NONLINEARITY = false   # presence of nonlinear terms
 
 rguard = 0.0   # [ru] the width of the lossy slab at the end of r grid
 kguard = 90.0   # [degrees] the cut-off angle for wave vectors
 
 dzphimax = pi / 100   # maximum nonlinear phase for adaptive z step
 Istop = 1e3   # [Iu] maixmum intensity in the problem (stop if exceeded)
-
-HTLOAD = false   # load Hankel transform plan from file
-file_ht = "ht.jld2"   # file with Hankel transfrom plan
 
 ALG = "RK4"   # Solver algorithm for nonlinear part ("RK2", "RK3", "RK4", "Tsit5", or "ATsit5")
 

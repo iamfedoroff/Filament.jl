@@ -58,6 +58,24 @@ function Guard(
 end
 
 
+function Guard(
+    unit::Units.UnitR,
+    grid::Grids.GridRn,
+    field::Fields.Field,
+    medium::Media.Medium,
+    rguard::T,
+    kguard::T,
+) where T<:AbstractFloat
+    Rguard = guard_window_right(grid.r, rguard)
+
+    Kguard = ones(grid.Nr)
+
+    Rguard = CUDA.CuArray{T}(Rguard)
+    Kguard = CUDA.CuArray{T}(Kguard)
+    return Guard1D(Rguard, Kguard)
+end
+
+
 # ******************************************************************************
 # T
 # ******************************************************************************

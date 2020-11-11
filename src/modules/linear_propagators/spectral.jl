@@ -1,9 +1,12 @@
-struct LinearPropagator{
+abstract type LinearPropagator end
+
+
+struct LinearPropagatorSpectral{
     T<:AbstractFloat,
     A<:AbstractArray{Complex{T}},
     G<:Guards.Guard,
     P<:Union{HankelTransforms.Plan, FFTW.Plan, Nothing}
-}
+} <: LinearPropagator
     KZ :: A
     guard :: G
     PS :: P
@@ -12,7 +15,7 @@ end
 
 function propagate!(
     E::AbstractArray{Complex{T}},
-    LP::LinearPropagator,
+    LP::LinearPropagatorSpectral,
     z::T
 ) where T
     forward_transform_space!(E, LP.PS)
@@ -45,7 +48,7 @@ function LinearPropagator(
     end
     KZ = CUDA.CuArray{Complex{FloatGPU}}(KZ)
 
-    return LinearPropagator(KZ, guard, field.PS)
+    return LinearPropagatorSpectral(KZ, guard, field.PS)
 end
 
 
@@ -68,7 +71,7 @@ function LinearPropagator(
         KZ[i] = KZ[i] - w / vf * unit.z
     end
 
-    return LinearPropagator(KZ, guard, field.PS)
+    return LinearPropagatorSpectral(KZ, guard, field.PS)
 end
 
 
@@ -94,7 +97,7 @@ function LinearPropagator(
     end
     KZ = CUDA.CuArray{Complex{FloatGPU}}(KZ)
 
-    return LinearPropagator(KZ, guard, field.PS)
+    return LinearPropagatorSpectral(KZ, guard, field.PS)
 end
 
 
@@ -121,7 +124,7 @@ function LinearPropagator(
     end
     KZ = CUDA.CuArray{Complex{FloatGPU}}(KZ)
 
-    return LinearPropagator(KZ, guard, field.PS)
+    return LinearPropagatorSpectral(KZ, guard, field.PS)
 end
 
 
@@ -149,7 +152,7 @@ function LinearPropagator(
     end
     KZ = CUDA.CuArray{Complex{FloatGPU}}(KZ)
 
-    return LinearPropagator(KZ, guard, field.PS)
+    return LinearPropagatorSpectral(KZ, guard, field.PS)
 end
 
 

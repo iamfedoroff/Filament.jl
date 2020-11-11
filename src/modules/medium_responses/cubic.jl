@@ -11,11 +11,11 @@ function init_cubic(unit, grid, field, medium, p)
     chi3 = 4 / 3 * real(n0)^2 * EPS0 * C0 * n2
     Rnl = EPS0 * chi3 * Eu^3
 
-    if ! isa(grid, Grids.GridT)   # FIXME: should be removed in a generic code.
+    if ! (grid isa Grids.GridT)   # FIXME: should be removed in a generic code.
         Rnl = convert(FloatGPU, Rnl)
     end
 
-    if isa(grid, Grids.GridR) | isa(grid, Grids.GridXY)
+    if typeof(grid) <: Union{Grids.GridR, Grids.GridRn, Grids.GridXY}
         calc = calc_cubic_nothg_spatial
     else
         if THG

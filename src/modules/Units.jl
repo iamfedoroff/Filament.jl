@@ -7,7 +7,7 @@ abstract type Unit{T} end
 
 
 function Unit(geometry::String, p::Tuple)
-    if geometry == "R"
+    if (geometry == "R") | (geometry == "Rn")
         unit = UnitR(p...)
     elseif geometry == "T"
         unit = UnitT(p...)

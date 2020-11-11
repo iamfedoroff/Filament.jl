@@ -348,6 +348,15 @@ function _write_group_grid(fp, grid::Grids.GridR)
 end
 
 
+function _write_group_grid(fp, grid::Grids.GridRn)
+    HDF5.g_create(fp, GROUP_GRID)
+    group = fp[GROUP_GRID]
+    group["geometry"] = "Rn"
+    group["r"] = grid.r
+    return nothing
+end
+
+
 function _write_group_grid(fp, grid::Grids.GridT)
     HDF5.g_create(fp, GROUP_GRID)
     group = fp[GROUP_GRID]
@@ -443,7 +452,7 @@ function writeHDF(
 
         fp = HDF5.h5open(plothdf.fname, "r+")
         group_fdat = fp[GROUP_FDAT]
-        if plothdf.geometry <: Grids.GridR
+        if plothdf.geometry <: Union{Grids.GridR, Grids.GridRn}
             write_field_r(group_fdat, dset, field)
         elseif plothdf.geometry <: Grids.GridT
             write_field_t(group_fdat, dset, field)

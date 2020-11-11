@@ -10,6 +10,8 @@ abstract type Grid end
 function Grid(geometry::String, p::Tuple)
     if geometry == "R"
         grid = GridR(p...)
+    elseif geometry == "Rn"
+        grid = GridRn(p...)
     elseif geometry == "T"
         grid = GridT(p...)
     elseif geometry == "RT"
@@ -44,6 +46,37 @@ end
 function GridR(rmax::T, Nr::Int) where T<:AbstractFloat
     r, dr, k = _grid_spatial_axial(rmax, Nr)
     return GridR(rmax, Nr, r, dr, k)
+end
+
+
+# ------------------------------------------------------------------------------
+struct GridRn{
+    I<:Int,
+    T<:AbstractFloat,
+    A<:AbstractArray{T},
+} <: Grid
+    rmax :: T
+    Nr :: I
+    r :: A
+    dr :: A
+end
+
+
+function GridRn(rmax::T, Nr::Int, scomp::AbstractFloat) where T<:AbstractFloat
+    NR = Int(round(scomp * Nr))
+    p = 4
+    h = rmax / Nr
+    a = (rmax - h * (NR - 1)) / (NR - 1)^p
+    ii = range(1, NR, length=NR)
+    R = @. h * (ii - 1) + a * (ii - 1)^p
+    R = @. convert(T, R)
+
+    dR = zeros(T, NR)
+    for i=1:NR
+        dR[i] = _step(i, R)
+    end
+
+    return GridRn(rmax, NR, R, dR)
 end
 
 

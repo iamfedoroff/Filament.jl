@@ -18,6 +18,7 @@ Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 TabulatedFunctions = "66d214f4-33c8-4925-bf92-ab65d49643c6"
 TimerOutputs = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
+TridiagonalMatrixAlgorithm = "cc87391e-1865-4f2e-bb46-48d64f648c8d"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

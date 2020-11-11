@@ -32,7 +32,7 @@ end
 
 
 function FieldAnalyzer(
-    grid::Grids.GridR, field::Fields.Field, z::T,
+    grid::Union{Grids.GridR, Grids.GridRn}, field::Fields.Field, z::T,
 ) where T<:AbstractFloat
     Imax, rfil, P = [zero(T) for i=1:3]
 
@@ -47,7 +47,7 @@ end
 
 
 function analyze!(
-    analyzer::FieldAnalyzerR, grid::Grids.GridR, field::Fields.Field, z::T,
+    analyzer::FieldAnalyzerR, grid::Union{Grids.GridR, Grids.GridRn}, field::Fields.Field, z::T,
 ) where T<:AbstractFloat
     analyzer.z = z
 

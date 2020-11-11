@@ -50,6 +50,23 @@ function Field(unit::Units.UnitR, grid::Grids.GridR, p::Tuple)
 end
 
 
+function Field(unit::Units.UnitR, grid::Grids.GridRn, p::Tuple)
+    lam0, initial_condition = p
+    T = typeof(lam0)
+
+    w0 = convert(T, 2 * pi * C0 / lam0)
+
+    E = initial_condition(grid.r, unit.r, unit.I)
+    E = CUDA.CuArray{Complex{T}}(E)
+
+    PS = nothing
+    PT = nothing
+    rho = nothing
+    kdrho = nothing
+    return Field(w0, E, PS, PT, rho, kdrho)
+end
+
+
 function Field(unit::Units.UnitT, grid::Grids.GridT, p::Tuple)
     lam0, initial_condition = p
     T = typeof(lam0)
