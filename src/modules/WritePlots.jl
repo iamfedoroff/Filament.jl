@@ -256,7 +256,7 @@ function PlotHDF(
     fp["version"] = PFVERSION
     _group_unit(fp, unit)
     _group_grid(fp, grid)
-    HDF5.g_create(fp, GROUP_FDAT)
+    HDF5.create_group(fp, GROUP_FDAT)
     if ZDATA
         _group_zdat(fp, grid)
     end
@@ -318,18 +318,18 @@ function _write_field(plothdf::PlotHDF, field::Fields.Field, z::AbstractFloat)
         # is small
         # E = Array(field.E)
         # chunk = guess_chunk(size(E), sizeof(eltype(E)))
-        # group[dset, "chunk", chunk, "shuffle", (), "compress", 9] = E
+        # group[dset, chunk=chunk, shuffle=(), compress=9] = E
         group[dset] = Array(field.E)
     elseif plothdf.geometry <: Grids.GridRT
         E = Array(real.(field.E))
         chunk = guess_chunk(size(E), sizeof(eltype(E)))
-        group[dset, "chunk", chunk, "shuffle", (), "compress", 9] = E
+        group[dset, chunk=chunk, shuffle=(), compress=9] = E
     elseif plothdf.geometry <: Grids.GridXYT
         group[dset] = Array(real.(field.E))
     else
         error("Wrong grid geometry.")
     end
-    HDF5.attrs(group[dset])["z"] = z
+    HDF5.attributes(group[dset])["z"] = z
     HDF5.close(fp)
 
     return nothing
@@ -337,7 +337,7 @@ end
 
 
 function _group_unit(fp, unit::Units.Unit)
-    HDF5.g_create(fp, GROUP_UNIT)
+    HDF5.create_group(fp, GROUP_UNIT)
     group = fp[GROUP_UNIT]
     for name in fieldnames(typeof(unit))
         group[String(name)] = getfield(unit, name)
@@ -347,7 +347,7 @@ end
 
 
 function _group_grid(fp, grid::Grids.Grid)
-    HDF5.g_create(fp, GROUP_GRID)
+    HDF5.create_group(fp, GROUP_GRID)
     group = fp[GROUP_GRID]
     for name in fieldnames(typeof(grid))
         data = getfield(grid, name)
@@ -365,16 +365,16 @@ end
 # RT
 # ------------------------------------------------------------------------------
 function _group_zdat(fp, grid::Grids.GridRT)
-    HDF5.g_create(fp, GROUP_ZDAT)
+    HDF5.create_group(fp, GROUP_ZDAT)
     group = fp[GROUP_ZDAT]
 
     Nw = length(FFTW.rfftfreq(grid.Nt))
 
-    d_create(group, "z", FloatGPU, ((1,), (-1,)))
-    d_create(group, "Fzr", FloatGPU, ((1, grid.Nr), (-1, grid.Nr)))
-    d_create(group, "rhozr", FloatGPU, ((1, grid.Nr), (-1, grid.Nr)))
-    d_create(group, "Fzt", FloatGPU, ((1, grid.Nt), (-1, grid.Nt)))
-    d_create(group, "iSzf", FloatGPU, ((1, Nw), (-1, Nw)))
+    create_dataset(group, "z", FloatGPU, ((1,), (-1,)))
+    create_dataset(group, "Fzr", FloatGPU, ((1, grid.Nr), (-1, grid.Nr)))
+    create_dataset(group, "rhozr", FloatGPU, ((1, grid.Nr), (-1, grid.Nr)))
+    create_dataset(group, "Fzt", FloatGPU, ((1, grid.Nt), (-1, grid.Nt)))
+    create_dataset(group, "iSzf", FloatGPU, ((1, Nw), (-1, Nw)))
     return nothing
 end
 
@@ -418,11 +418,11 @@ end
 # XY
 # ------------------------------------------------------------------------------
 function _group_zdat(fp, grid::Grids.GridXY)
-    HDF5.g_create(fp, GROUP_ZDAT)
+    HDF5.create_group(fp, GROUP_ZDAT)
     group = fp[GROUP_ZDAT]
-    d_create(group, "z", FloatGPU, ((1,), (-1,)))
-    d_create(group, "Izx", FloatGPU, ((1, grid.Nx), (-1, grid.Nx)))
-    d_create(group, "Izy", FloatGPU, ((1, grid.Ny), (-1, grid.Ny)))
+    create_dataset(group, "z", FloatGPU, ((1,), (-1,)))
+    create_dataset(group, "Izx", FloatGPU, ((1, grid.Nx), (-1, grid.Nx)))
+    create_dataset(group, "Izy", FloatGPU, ((1, grid.Ny), (-1, grid.Ny)))
     return nothing
 end
 
@@ -524,16 +524,16 @@ function guess_chunk(shape, typesize)
 end
 
 
-function d_create(
-    parent::Union{HDF5.HDF5File, HDF5.HDF5Group},
+function create_dataset(
+    parent::Union{HDF5.File, HDF5.Group},
     path::String,
     dtype::Type,
     dspace_dims::Tuple{Dims, Dims},
 )
-     shape = dspace_dims[2]
-     typesize = sizeof(dtype)
-     chunk = guess_chunk(shape, typesize)
-     HDF5.d_create(parent, path, dtype, dspace_dims, "chunk", chunk)
+    shape = dspace_dims[2]
+    typesize = sizeof(dtype)
+    chunk = guess_chunk(shape, typesize)
+    HDF5.create_dataset(parent, path, dtype, dspace_dims, chunk=chunk)
 end
 
 
