@@ -389,23 +389,23 @@ function _write_zdata(
     group_zdat = fp[GROUP_ZDAT]
 
     data = group_zdat["z"]
-    HDF5.set_dims!(data, (iz,))
+    HDF5.set_extent_dims(data, (iz,))
     data[iz] = analyzer.z
 
     data = group_zdat["Fzr"]
-    HDF5.set_dims!(data, (iz, length(analyzer.Fr)))
+    HDF5.set_extent_dims(data, (iz, length(analyzer.Fr)))
     data[iz, :] = analyzer.Fr
 
     data = group_zdat["Fzt"]
-    HDF5.set_dims!(data, (iz, length(analyzer.Ft)))
+    HDF5.set_extent_dims(data, (iz, length(analyzer.Ft)))
     data[iz, :] = analyzer.Ft
 
     data = group_zdat["rhozr"]
-    HDF5.set_dims!(data, (iz, length(analyzer.rho)))
+    HDF5.set_extent_dims(data, (iz, length(analyzer.rho)))
     data[iz, :] = analyzer.rho
 
     data = group_zdat["iSzf"]
-    HDF5.set_dims!(data, (iz, length(analyzer.S)))
+    HDF5.set_extent_dims(data, (iz, length(analyzer.S)))
     data[iz, :] = analyzer.S
 
     HDF5.close(fp)
@@ -437,18 +437,18 @@ function _write_zdata(
     group_zdat = fp[GROUP_ZDAT]
 
     data = group_zdat["z"]
-    HDF5.set_dims!(data, (iz,))
+    HDF5.set_extent_dims(data, (iz,))
     data[iz] = analyzer.z
 
     Nx, Ny = size(analyzer.I)
     Nx2, Ny2 = Int(Nx / 2), Int(Ny / 2)
 
     data = group_zdat["Izx"]
-    HDF5.set_dims!(data, (iz, Nx))
+    HDF5.set_extent_dims(data, (iz, Nx))
     data[iz, :] = analyzer.I[:, Ny2]
 
     data = group_zdat["Izy"]
-    HDF5.set_dims!(data, (iz, Ny))
+    HDF5.set_extent_dims(data, (iz, Ny))
     data[iz, :] = analyzer.I[Nx2, :]
 
     HDF5.close(fp)
