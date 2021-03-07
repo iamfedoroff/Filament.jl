@@ -227,6 +227,7 @@ function _grid_spatial_rectangular(
     x = range(xmin, xmax, length=Nx)   # grid coordinates
     dx = x[2] - x[1]   # step
     kx = convert(T, 2 * pi) * FFTW.fftfreq(Nx, 1 / dx)   # angular frequency
+    kx = Array(kx)   # FFTW.Frequencies -> Array
     return x, dx, kx
 end
 
@@ -250,6 +251,7 @@ function _grid_temporal(tmin::T, tmax::T, Nt::Int) where T<:AbstractFloat
     t = range(tmin, tmax, length=Nt)   # grid coordinates
     dt = t[2] - t[1]   # step
     w = convert(T, 2 * pi) * FFTW.fftfreq(Nt, 1 / dt)   # angular frequency
+    w = Array(w)   # FFTW.Frequencies -> Array
     return t, dt, w
 end
 
