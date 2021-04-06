@@ -187,13 +187,13 @@ function analyze!(
     #     Sr = aspec2rspec(Sa)
     #     Sr = 2 * Sr * Nt * dt
     #     S = 2 * pi * Int[|Sr|^2 * r * dr]
-    FFTW.ldiv!(field.E, field.PT, field.E)   # time -> frequency [exp(-i*w*t)]
+    field.PT \ field.E   # time -> frequency [exp(-i*w*t)]
     AnalyticSignals.aspec2rspec!(analyzer.Egpu, field.E)
     Sgpu = convert(T, 2 * pi) *
            vec(sum(abs2.(2 * analyzer.Egpu * grid.Nt * grid.dt) .* analyzer.rdr,
                dims=1))
     copyto!(analyzer.S, Sgpu)
-    FFTW.mul!(field.E, field.PT, field.E)   # frequency -> time [exp(-i*w*t)]
+    field.PT * field.E   # frequency -> time [exp(-i*w*t)]
 
     analyzer.Fmax = maximum(Frgpu)
 

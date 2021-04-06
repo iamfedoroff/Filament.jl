@@ -132,26 +132,18 @@ function inverse_transform_space!(E::AbstractArray, P::Nothing)
 end
 
 
-function forward_transform_space!(E::AbstractArray, P::HankelTransforms.Plan)
-    HankelTransforms.dht!(E, P)
+function forward_transform_space!(
+    E::AbstractArray, P::Union{FFTW.Plan, HankelTransforms.Plan},
+)
+    P * E
     return nothing
 end
 
 
-function inverse_transform_space!(E::AbstractArray, P::HankelTransforms.Plan)
-    HankelTransforms.idht!(E, P)
-    return nothing
-end
-
-
-function forward_transform_space!(E::AbstractArray, P::FFTW.Plan)
-    FFTW.mul!(E, P, E)
-    return nothing
-end
-
-
-function inverse_transform_space!(E::AbstractArray, P::FFTW.Plan)
-    FFTW.ldiv!(E, P, E)
+function inverse_transform_space!(
+    E::AbstractArray, P::Union{FFTW.Plan, HankelTransforms.Plan},
+)
+    P \ E
     return nothing
 end
 
@@ -168,13 +160,13 @@ end
 
 
 function forward_transform_time!(E::AbstractArray, P::FFTW.Plan)
-    FFTW.ldiv!(E, P, E)   # time -> frequency [exp(-i*w*t)]
+    P \ E   # time -> frequency [exp(-i*w*t)]
     return nothing
 end
 
 
 function inverse_transform_time!(E::AbstractArray, P::FFTW.Plan)
-    FFTW.mul!(E, P, E)   # frequency -> time [exp(-i*w*t)]
+    P * E   # frequency -> time [exp(-i*w*t)]
     return nothing
 end
 

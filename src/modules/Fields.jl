@@ -112,10 +112,7 @@ function Field(unit::Units.UnitRT, grid::Grids.GridRT, p::Tuple)
         )
     end
 
-    # in-place FFTs results in segfault after run completion
-    # https://github.com/JuliaGPU/CUDA.jl/issues/95
-    # PT = FFTW.plan_fft!(E, [2])
-    PT = FFTW.plan_fft(E, [2])
+    PT = FFTW.plan_fft!(E, [2])
 
     AnalyticSignals.rsig2asig!(E, PT)   # convert to analytic signal
 
@@ -134,10 +131,7 @@ function Field(unit::Units.UnitXY, grid::Grids.GridXY, p::Tuple)
     E = initial_condition(grid.x, grid.y, unit.x, unit.y, unit.I)
     E = CUDA.CuArray{Complex{T}}(E)
 
-    # in-place FFTs results in segfault after run completion
-    # https://github.com/JuliaGPU/CUDA.jl/issues/95
-    # PS = FFTW.plan_fft!(E)
-    PS = FFTW.plan_fft(E)
+    PS = FFTW.plan_fft!(E)
 
     PT = nothing
     rho = nothing
@@ -157,12 +151,8 @@ function Field(unit::Units.UnitXYT, grid::Grids.GridXYT, p::Tuple)
     )
     E = CUDA.CuArray{Complex{T}}(E)
 
-    # in-place FFTs results in segfault after run completion
-    # https://github.com/JuliaGPU/CUDA.jl/issues/95
-    # PS = FFTW.plan_fft!(E, [1, 2])
-    # PT = FFTW.plan_fft!(E, [3])
-    PS = FFTW.plan_fft(E, [1, 2])
-    PT = FFTW.plan_fft(E, [3])
+    PS = FFTW.plan_fft!(E, [1, 2])
+    PT = FFTW.plan_fft!(E, [3])
 
     AnalyticSignals.rsig2asig!(E, PT)   # convert to analytic signal
 

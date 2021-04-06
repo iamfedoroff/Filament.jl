@@ -70,9 +70,9 @@ function convolution!(
     plan::FFTW.Plan,
     H::AbstractArray{Complex{T}, 1},
 ) where T
-    FFTW.ldiv!(x, plan, x)   # time -> frequency [exp(-i*w*t)]
+    plan \ x   # time -> frequency [exp(-i*w*t)]
     @. x = H * x
-    FFTW.mul!(x, plan, x)   # frequency -> time [exp(-i*w*t)]
+    plan * x   # frequency -> time [exp(-i*w*t)]
     return nothing
 end
 
@@ -82,7 +82,7 @@ function convolution!(
     plan::FFTW.Plan,
     H::CUDA.CuArray{Complex{T}, 1},
 ) where T
-    FFTW.ldiv!(x, plan, x)   # time -> frequency [exp(-i*w*t)]
+    plan \ x   # time -> frequency [exp(-i*w*t)]
 
     N = length(x)
 
@@ -95,7 +95,7 @@ function convolution!(
 
     CUDA.@cuda config=get_config _convolution_kernel!(x, H)
 
-    FFTW.mul!(x, plan, x)   # frequency -> time [exp(-i*w*t)]
+    plan * x   # frequency -> time [exp(-i*w*t)]
     return nothing
 end
 
