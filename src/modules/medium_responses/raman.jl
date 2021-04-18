@@ -86,14 +86,12 @@ function convolution!(
 
     N = length(x)
 
-    function get_config(kernel)
-        fun = kernel.fun
-        config = CUDA.launch_configuration(fun)
-        blocks = cld(N, config.threads)
-        return (threads=config.threads, blocks=blocks)
-    end
+    ckernel = CUDA.@cuda launch=false _convolution_kernel!(x, H)
+    config = CUDA.launch_configuration(ckernel.fun)
+    threads = min(N, config.threads)
+    blocks = cld(N, threads)
 
-    CUDA.@cuda config=get_config _convolution_kernel!(x, H)
+    ckernel(x, H; threads=threads, blocks=blocks)
 
     plan * x   # frequency -> time [exp(-i*w*t)]
     return nothing

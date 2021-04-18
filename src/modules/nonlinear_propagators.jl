@@ -235,14 +235,12 @@ function update_dE!(
 ) where T
     N = length(F)
 
-    function get_config(kernel)
-        fun = kernel.fun
-        config = CUDA.launch_configuration(fun)
-        blocks = cld(N, config.threads)
-        return (threads=config.threads, blocks=blocks)
-    end
+    ckernel = CUDA.@cuda launch=false update_dE_kernel(dE, R, F)
+    config = CUDA.launch_configuration(ckernel.fun)
+    threads = min(N, config.threads)
+    blocks = cld(N, threads)
 
-    CUDA.@cuda config=get_config update_dE_kernel(dE, R, F)
+    ckernel(dE, R, F; threads=threads, blocks=blocks)
     return nothing
 end
 

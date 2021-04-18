@@ -58,14 +58,12 @@ end
 function inverse!(F::CUDA.CuArray{Complex{T}}) where T<:AbstractFloat
     N = length(F)
 
-    function get_config(kernel)
-        fun = kernel.fun
-        config = CUDA.launch_configuration(fun)
-        blocks = cld(N, config.threads)
-        return (threads=config.threads, blocks=blocks)
-    end
+    ckernel = CUDA.@cuda launch=false inverse_kernel(F)
+    config = CUDA.launch_configuration(ckernel.fun)
+    threads = min(N, config.threads)
+    blocks = cld(N, threads)
 
-    CUDA.@cuda config=get_config inverse_kernel(F)
+    ckernel(F; threads=threads, blocks=blocks)
     return nothing
 end
 

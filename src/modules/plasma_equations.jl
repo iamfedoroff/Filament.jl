@@ -31,14 +31,12 @@ function solve!(
 ) where T<:AbstractFloat
     Nr, Nt = size(rho)
 
-    function get_config(kernel)
-        fun = kernel.fun
-        config = CUDA.launch_configuration(fun)
-        blocks = cld(Nr, config.threads)
-        return (threads=config.threads, blocks=blocks)
-    end
+    ckernel = CUDA.@cuda launch=false solve_kernel(rho, kdrho, t, p)
+    config = CUDA.launch_configuration(ckernel.fun)
+    threads = min(Nr, config.threads)
+    blocks = cld(Nr, threads)
 
-    CUDA.@cuda config=get_config solve_kernel(rho, kdrho, t, p)
+    ckernel(rho, kdrho, t, p; threads=threads, blocks=blocks)
     return nothing
 end
 

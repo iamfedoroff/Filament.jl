@@ -198,68 +198,66 @@ end
 # ******************************************************************************
 function apply_field_filter!(E::AbstractArray{T, 1}, guard::Guard1D) where T
     @. E = E * guard.F
+    return nothing
 end
 
 
 function apply_field_filter!(E::CUDA.CuArray{T, 2}, guard::Guard2D) where T
     N = length(E)
 
-    function get_config(kernel)
-        fun = kernel.fun
-        config = CUDA.launch_configuration(fun)
-        blocks = cld(N, config.threads)
-        return (threads=config.threads, blocks=blocks)
-    end
+    ckernel = CUDA.@cuda launch=false kernel!(E, guard.F1, guard.F2)
+    config = CUDA.launch_configuration(ckernel.fun)
+    threads = min(N, config.threads)
+    blocks = cld(N, threads)
 
-    CUDA.@cuda config=get_config kernel!(E, guard.F1, guard.F2)
+    ckernel(E, guard.F1, guard.F2; threads=threads, blocks=blocks)
+    return nothing
 end
 
 
 function apply_field_filter!(E::CUDA.CuArray{T, 3}, guard::Guard3D) where T
     N = length(E)
 
-    function get_config(kernel)
-        fun = kernel.fun
-        config = CUDA.launch_configuration(fun)
-        blocks = cld(N, config.threads)
-        return (threads=config.threads, blocks=blocks)
-    end
+    ckernel = CUDA.@cuda launch=false kernel!(E, guard.F1, guard.F2, guard.F3)
+    config = CUDA.launch_configuration(ckernel.fun)
+    threads = min(N, config.threads)
+    blocks = cld(N, threads)
 
-    CUDA.@cuda config=get_config kernel!(E, guard.F1, guard.F2, guard.F3)
+    ckernel(E, guard.F1, guard.F2, guard.F3; threads=threads, blocks=blocks)
+    return nothing
 end
 
 
 # ******************************************************************************
 function apply_spectral_filter!(E::AbstractArray{T, 1}, guard::Guard1D) where T
     @. E = E * guard.S
+    return nothing
 end
 
 
 function apply_spectral_filter!(E::CUDA.CuArray{T, 2}, guard::Guard2D) where T
     N = length(E)
 
-    function get_config(kernel)
-        fun = kernel.fun
-        config = CUDA.launch_configuration(fun)
-        blocks = cld(N, config.threads)
-        return (threads=config.threads, blocks=blocks)
-    end
+    ckernel = CUDA.@cuda launch=false kernel!(E, guard.S1, guard.S2)
+    config = CUDA.launch_configuration(ckernel.fun)
+    threads = min(N, config.threads)
+    blocks = cld(N, threads)
 
-    CUDA.@cuda config=get_config kernel!(E, guard.S1, guard.S2)
+    ckernel(E, guard.S1, guard.S2; threads=threads, blocks=blocks)
+    return nothing
 end
 
 
 function apply_spectral_filter!(E::CUDA.CuArray{T, 3}, guard::Guard3D) where T
     N = length(E)
 
-    function get_config(kernel)
-        fun = kernel.fun
-        config = CUDA.launch_configuration(fun)
-        blocks = cld(N, config.threads)
-        return (threads=config.threads, blocks=blocks)
-    end
+    ckernel = CUDA.@cuda launch=false kernel!(E, guard.S1, guard.S2, guard.S3)
+    config = CUDA.launch_configuration(ckernel.fun)
+    threads = min(N, config.threads)
+    blocks = cld(N, threads)
 
-    CUDA.@cuda config=get_config kernel!(E, guard.S1, guard.S2, guard.S3)
+    ckernel(E, guard.S1, guard.S2, guard.S3; threads=threads, blocks=blocks)
+    return nothing
 end
 
 
