@@ -30,35 +30,27 @@ end
 # ******************************************************************************
 # R
 # ******************************************************************************
-struct GridR{
-    I<:Int,
-    T<:AbstractFloat,
-    A<:AbstractArray{T},
-} <: Grid
+struct GridR{T} <: Grid
     rmax :: T
-    Nr :: I
-    r :: A
-    dr :: A
-    k :: A
+    Nr :: Int
+    r :: Vector{T}
+    dr :: Vector{T}
+    k :: Vector{T}
 end
 
 
 function GridR(rmax::T, Nr::Int) where T<:AbstractFloat
     r, dr, k = _grid_spatial_axial(rmax, Nr)
-    return GridR(rmax, Nr, r, dr, k)
+    return GridR{T}(rmax, Nr, r, dr, k)
 end
 
 
 # ------------------------------------------------------------------------------
-struct GridRn{
-    I<:Int,
-    T<:AbstractFloat,
-    A<:AbstractArray{T},
-} <: Grid
+struct GridRn{T} <: Grid
     rmax :: T
-    Nr :: I
-    r :: A
-    dr :: A
+    Nr :: Int
+    r :: Vector{T}
+    dr :: Vector{T}
 end
 
 
@@ -76,55 +68,45 @@ function GridRn(rmax::T, Nr::Int, scomp::AbstractFloat) where T<:AbstractFloat
         dR[i] = _step(i, R)
     end
 
-    return GridRn(rmax, NR, R, dR)
+    return GridRn{T}(rmax, NR, R, dR)
 end
 
 
 # ******************************************************************************
 # T
 # ******************************************************************************
-struct GridT{
-    I<:Int,
-    T<:AbstractFloat,
-    A<:AbstractArray{T},
-    AR<:AbstractArray{T},
-} <: Grid
+struct GridT{T} <: Grid
     tmin :: T
     tmax :: T
-    Nt :: I
-    t :: AR
+    Nt :: Int
+    t :: StepRangeLen{T}
     dt :: T
-    w :: A
+    w :: Vector{T}
 end
 
 
 function GridT(tmin::T, tmax::T, Nt::Int) where T<:AbstractFloat
     t, dt, w = _grid_temporal(tmin, tmax, Nt)
-    return GridT(tmin, tmax, Nt, t, dt, w)
+    return GridT{T}(tmin, tmax, Nt, t, dt, w)
 end
 
 
 # ******************************************************************************
 # RT
 # ******************************************************************************
-struct GridRT{
-    I<:Int,
-    T<:AbstractFloat,
-    A<:AbstractArray{T},
-    AR<:AbstractArray{T},
-} <: Grid
+struct GridRT{T} <: Grid
     rmax :: T
-    Nr :: I
-    r :: A
-    dr :: A
-    k :: A
+    Nr :: Int
+    r :: Vector{T}
+    dr :: Vector{T}
+    k :: Vector{T}
 
     tmin :: T
     tmax :: T
-    Nt :: I
-    t :: AR
+    Nt :: Int
+    t :: StepRangeLen{T}
     dt :: T
-    w :: A
+    w :: Vector{T}
 end
 
 
@@ -133,7 +115,7 @@ function GridRT(
 ) where {I<:Int, T<:AbstractFloat}
     r, dr, k = _grid_spatial_axial(rmax, Nr)
     t, dt, w = _grid_temporal(tmin, tmax, Nt)
-    return GridRT(
+    return GridRT{T}(
         rmax, Nr, r, dr, k, tmin, tmax, Nt, t, dt, w,
     )
 end
@@ -142,25 +124,20 @@ end
 # ******************************************************************************
 # XY
 # ******************************************************************************
-struct GridXY{
-    I<:Int,
-    T<:AbstractFloat,
-    A<:AbstractArray{T},
-    AR<:AbstractArray{T},
-} <: Grid
+struct GridXY{T} <: Grid
     xmin :: T
     xmax :: T
-    Nx :: I
-    x :: AR
+    Nx :: Int
+    x :: StepRangeLen{T}
     dx :: T
-    kx :: A
+    kx :: Vector{T}
 
     ymin :: T
     ymax :: T
-    Ny :: I
-    y :: AR
+    Ny :: Int
+    y :: StepRangeLen{T}
     dy :: T
-    ky :: A
+    ky :: Vector{T}
 end
 
 
@@ -169,7 +146,7 @@ function GridXY(
 ) where {I<:Int, T<:AbstractFloat}
     x, dx, kx = _grid_spatial_rectangular(xmin, xmax, Nx)
     y, dy, ky = _grid_spatial_rectangular(ymin, ymax, Ny)
-    return GridXY(
+    return GridXY{T}(
         xmin, xmax, Nx, x, dx, kx, ymin, ymax, Ny, y, dy, ky,
     )
 end
@@ -178,32 +155,27 @@ end
 # ******************************************************************************
 # XYT
 # ******************************************************************************
-struct GridXYT{
-    I<:Int,
-    T<:AbstractFloat,
-    A<:AbstractArray{T},
-    AR<:AbstractArray{T},
-} <: Grid
+struct GridXYT{T} <: Grid
     xmin :: T
     xmax :: T
-    Nx :: I
-    x :: AR
+    Nx :: Int
+    x :: StepRange{T}
     dx :: T
-    kx :: A
+    kx :: Vector{T}
 
     ymin :: T
     ymax :: T
-    Ny :: I
-    y :: AR
+    Ny :: Int
+    y :: StepRange{T}
     dy :: T
-    ky :: A
+    ky :: Vector{T}
 
     tmin :: T
     tmax :: T
-    Nt :: I
-    t :: AR
+    Nt :: Int
+    t :: StepRange{T}
     dt :: T
-    w :: A
+    w :: Vector{T}
 end
 
 
@@ -213,7 +185,7 @@ function GridXYT(
     x, dx, kx = _grid_spatial_rectangular(xmin, xmax, Nx)
     y, dy, ky = _grid_spatial_rectangular(ymin, ymax, Ny)
     t, dt, w = _grid_temporal(tmin, tmax, Nt)
-    return GridXYT(
+    return GridXYT{T}(
         xmin, xmax, Nx, x, dx, kx, ymin, ymax, Ny, y, dy, ky,
         tmin, tmax, Nt, t, dt, w,
     )
@@ -221,25 +193,21 @@ end
 
 
 # ******************************************************************************
-function _grid_spatial_rectangular(
-    xmin::T, xmax::T, Nx::Int,
-) where T<:AbstractFloat
+function _grid_spatial_rectangular(xmin, xmax, Nx)
     x = range(xmin, xmax, length=Nx)   # grid coordinates
     dx = x[2] - x[1]   # step
-    kx = convert(T, 2 * pi) * FFTW.fftfreq(Nx, 1 / dx)   # angular frequency
-    kx = Array(kx)   # FFTW.Frequencies -> Array
+    kx = 2 * pi * FFTW.fftfreq(Nx, 1 / dx)   # angular frequency
     return x, dx, kx
 end
 
 
-function _grid_spatial_axial(rmax::T, Nr::Int) where T<:AbstractFloat
+function _grid_spatial_axial(rmax, Nr)
     r = HankelTransforms.htcoord(rmax, Nr)
-    v = HankelTransforms.htfreq(rmax, Nr)
-    k = convert(T, 2 * pi) * v   # angular frequency
+    k = 2 * pi * HankelTransforms.htfreq(rmax, Nr)   # angular frequency
 
     # nonuniform steps:
     Nr = length(r)
-    dr = zeros(T, Nr)
+    dr = zeros(Nr)
     for i=1:Nr
         dr[i] = _step(i, r)
     end
@@ -247,17 +215,16 @@ function _grid_spatial_axial(rmax::T, Nr::Int) where T<:AbstractFloat
 end
 
 
-function _grid_temporal(tmin::T, tmax::T, Nt::Int) where T<:AbstractFloat
+function _grid_temporal(tmin, tmax, Nt)
     t = range(tmin, tmax, length=Nt)   # grid coordinates
     dt = t[2] - t[1]   # step
-    w = convert(T, 2 * pi) * FFTW.fftfreq(Nt, 1 / dt)   # angular frequency
-    w = Array(w)   # FFTW.Frequencies -> Array
+    w = 2 * pi * FFTW.fftfreq(Nt, 1 / dt)   # angular frequency
     return t, dt, w
 end
 
 
 """Calculates step dx for a specific index i on a nonuniform grid x."""
-function _step(i::Int, x::AbstractArray)
+function _step(i::Int, x::Vector)
     Nx = length(x)
     if i == 1
         dx = x[2] - x[1]
