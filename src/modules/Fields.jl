@@ -38,9 +38,9 @@ function Field(unit::Units.UnitR, grid::Grids.GridR, p::Tuple)
     E = CUDA.CuArray{Complex{T}}(E)
 
     if HTLOAD
-        PS = HankelTransforms.plan(file_ht)
+        PS = HankelTransforms.plan_dht(file_ht)
     else
-        PS = HankelTransforms.plan(grid.rmax, E, save=true, fname="ht.jld2")
+        PS = HankelTransforms.plan_dht(grid.rmax, E; save=true)
     end
 
     PT = nothing
@@ -103,13 +103,11 @@ function Field(unit::Units.UnitRT, grid::Grids.GridRT, p::Tuple)
     E = CUDA.CuArray{Complex{T}}(E)
 
     if HTLOAD
-        PS = HankelTransforms.plan(file_ht)
+        PS = HankelTransforms.plan_dht(file_ht)
     else
         Nthalf = AnalyticSignals.half(grid.Nt)
-        region = CartesianIndices((grid.Nr, Nthalf))
-        PS = HankelTransforms.plan(
-            grid.rmax, E, region, save=true, fname="ht.jld2",
-        )
+        region = (grid.Nr, Nthalf)
+        PS = HankelTransforms.plan_dht(grid.rmax, E; region=region, save=true)
     end
 
     PT = FFTW.plan_fft!(E, [2])

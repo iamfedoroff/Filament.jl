@@ -202,8 +202,8 @@ end
 
 
 function _grid_spatial_axial(rmax, Nr)
-    r = HankelTransforms.htcoord(rmax, Nr)
-    k = 2 * pi * HankelTransforms.htfreq(rmax, Nr)   # angular frequency
+    r = HankelTransforms.dhtcoord(rmax, Nr)
+    k = 2 * pi * HankelTransforms.dhtfreq(rmax, Nr)   # angular frequency
 
     # nonuniform steps:
     Nr = length(r)

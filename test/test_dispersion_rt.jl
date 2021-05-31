@@ -22,6 +22,6 @@ Ith = @. tau0 / tauth   # [I0] theoretical intensity
 
 # Delete output files:
 rm("results", recursive=true)
-rm("ht.jld2")
+rm("plan_dht.jld2")
 
 cd(here)
