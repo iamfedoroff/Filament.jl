@@ -35,7 +35,7 @@ Istop = 1e3   # [Iu] maixmum intensity in the problem (stop if exceeded)
 HTLOAD = false   # load Hankel transform plan from file
 file_ht = "plan_dht.jld2"   # file with Hankel transfrom plan
 
-ALG = "RK4"   # Solver algorithm for nonlinear part ("RK2", "RK3", "RK4", "Tsit5", or "ATsit5")
+ALG = RK4()   # Solver algorithm for nonlinear part (RK2, RK3, RK4, Tsit5, or ATsit5)
 
 # Plots ------------------------------------------------------------------------
 dz_plothdf = zmax / 200   # [zu] z step for writing the field into the HDF5 file

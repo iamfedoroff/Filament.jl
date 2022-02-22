@@ -3,6 +3,8 @@ using Test
 
 import Filament
 
+cd(@__DIR__)
+
 @testset "physics" begin
     @testset "diffraction" begin
         @testset "r" begin

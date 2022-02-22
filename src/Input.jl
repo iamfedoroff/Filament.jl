@@ -3,7 +3,7 @@ module Input
 # Global packages:
 import CUDA
 import FFTW
-import ODEIntegrators
+using ODEIntegrators
 import StaticArrays
 import TabulatedFunctions
 
