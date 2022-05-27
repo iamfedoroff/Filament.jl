@@ -318,12 +318,12 @@ function _write_field(plothdf::PlotHDF, field::Fields.Field, z::AbstractFloat)
         # is small
         # E = Array(field.E)
         # chunk = guess_chunk(size(E), sizeof(eltype(E)))
-        # group[dset, chunk=chunk, shuffle=(), compress=9] = E
+        # group[dset, chunk=chunk, shuffle=true, deflate=9] = E
         group[dset] = Array(field.E)
     elseif plothdf.geometry <: Grids.GridRT
         E = Array(real.(field.E))
         chunk = guess_chunk(size(E), sizeof(eltype(E)))
-        group[dset, chunk=chunk, shuffle=(), compress=9] = E
+        group[dset, chunk=chunk, shuffle=true, deflate=9] = E
     elseif plothdf.geometry <: Grids.GridXYT
         group[dset] = Array(real.(field.E))
     else
