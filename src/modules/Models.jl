@@ -63,7 +63,7 @@ function Model(
         init = plasma_equation["init"]
         pe = init(grid.t, field.E, w0, units, plasma_equation)
 
-        solve!(field.rho, field.kdrho, grid.t, pe)
+        solve!(field.rho, field.kdrho, field.E, grid.t, pe)
     else
         pe = nothing
     end
@@ -82,7 +82,7 @@ function zstep(
 ) where T<:AbstractFloat
     if model.PLASMA
         @timeit "plasma" begin
-            solve!(field.rho, field.kdrho, grid.t, model.pe)
+            solve!(field.rho, field.kdrho, field.E, grid.t, model.pe)
             CUDA.synchronize()
         end
     end

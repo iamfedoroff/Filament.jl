@@ -60,32 +60,30 @@ function init_photoionization_avalanche(t, E, w0, units, params)
 
     # Problems and integrators:
     if ndims(E) == 1
-        p = (tabfuncs, fiarg, frhonts, Ravas, t, E)
+        p = (tabfuncs, fiarg, frhonts, Ravas, t)
         prob = ODEIntegrators.Problem(func_photoionization_avalanche, rho0u, p)
         integs = ODEIntegrators.Integrator(prob, ALG)
 
-        p = (tabfuncs, fiarg, frhonts, t, E)
+        p = (tabfuncs, fiarg, frhonts, t)
         prob = ODEIntegrators.Problem(func_photoionization, rho0u, p)
         kdrho_integs = ODEIntegrators.Integrator(prob, ALG)
 
-        kdrho_ps = (tabfuncs, fiarg, frhonts, Ks, KDEP, t, E)
+        kdrho_ps = (tabfuncs, fiarg, frhonts, Ks, KDEP, t)
     else
         Nr, Nt = size(E)
         integs = Array{ODEIntegrators.Integrator}(undef, Nr)
         kdrho_integs = Array{ODEIntegrators.Integrator}(undef, Nr)
         kdrho_ps = Array{Tuple}(undef, Nr)
         for i=1:Nr
-            Ei = CUDA.cudaconvert(view(E, i, :))
-
-            p = (tabfuncs, fiarg, frhonts, Ravas, t, Ei)
+            p = (tabfuncs, fiarg, frhonts, Ravas, t)
             prob = ODEIntegrators.Problem(func_photoionization_avalanche, rho0u, p)
             integs[i] = ODEIntegrators.Integrator(prob, ALG)
 
-            p = (tabfuncs, fiarg, frhonts, t, Ei)
+            p = (tabfuncs, fiarg, frhonts, t)
             prob = ODEIntegrators.Problem(func_photoionization, rho0u, p)
             kdrho_integs[i] = ODEIntegrators.Integrator(prob, ALG)
 
-            kdrho_ps[i] = (tabfuncs, fiarg, frhonts, Ks, KDEP, t, Ei)
+            kdrho_ps[i] = (tabfuncs, fiarg, frhonts, Ks, KDEP, t)
         end
         integs = CUDA.CuArray(hcat([integs[i] for i in 1:Nr]))
         kdrho_integs = CUDA.CuArray(hcat([kdrho_integs[i] for i in 1:Nr]))
@@ -103,8 +101,9 @@ function func_photoionization_avalanche(
     rho::AbstractArray{T},
     p::Tuple,
     t::T,
+    EE::AbstractVector{Complex{T}},
 ) where T<:AbstractFloat
-    tabfuncs, fiarg, frhonts, Ravas, tt, EE = p
+    tabfuncs, fiarg, frhonts, Ravas, tt = p
 
     E = TabulatedFunctions.linterp(t, tt, EE)
     I = fiarg(E)
@@ -133,8 +132,9 @@ function func_photoionization(
     rho::AbstractArray{T},
     p::Tuple,
     t::T,
+    EE::AbstractVector{Complex{T}},
 ) where T<:AbstractFloat
-    tabfuncs, fiarg, frhonts, tt, EE = p
+    tabfuncs, fiarg, frhonts, tt = p
 
     E = TabulatedFunctions.linterp(t, tt, EE)
     I = fiarg(E)
@@ -158,8 +158,9 @@ function kdrho_func(
     rho::AbstractArray{T},
     p::Tuple,
     t::T,
+    EE::AbstractVector{Complex{T}},
 ) where T<:AbstractFloat
-    tabfuncs, fiarg, frhonts, Ks, KDEP, tt, EE = p
+    tabfuncs, fiarg, frhonts, Ks, KDEP, tt = p
 
     E = TabulatedFunctions.linterp(t, tt, EE)
     I = fiarg(E)
