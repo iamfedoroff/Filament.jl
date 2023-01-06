@@ -49,7 +49,7 @@ function init_photoionization_avalanche(t, E, w0, units, params)
         # K * drho/dt:
         Ks[i] = ceil(Ui / (HBAR * w0))
     end
-    tabfuncs = StaticArrays.SVector{Ncomp}(tabfuncs)
+    tabfuncs = Tuple(tabfuncs)
     frhonts = StaticArrays.SVector{Ncomp, TFloat}(frhonts)
     Ravas = StaticArrays.SVector{Ncomp, TFloat}(Ravas)
     Ks = StaticArrays.SVector{Ncomp, TFloat}(Ks)
