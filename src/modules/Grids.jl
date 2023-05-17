@@ -159,21 +159,21 @@ struct GridXYT{T} <: Grid
     xmin :: T
     xmax :: T
     Nx :: Int
-    x :: StepRange{T}
+    x :: StepRangeLen{T}
     dx :: T
     kx :: Vector{T}
 
     ymin :: T
     ymax :: T
     Ny :: Int
-    y :: StepRange{T}
+    y :: StepRangeLen{T}
     dy :: T
     ky :: Vector{T}
 
     tmin :: T
     tmax :: T
     Nt :: Int
-    t :: StepRange{T}
+    t :: StepRangeLen{T}
     dt :: T
     w :: Vector{T}
 end
