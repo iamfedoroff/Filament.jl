@@ -1,4 +1,3 @@
-push!(LOAD_PATH, joinpath("..", "..", "src"))
 import Filament
 
 fname = "input.jl"
