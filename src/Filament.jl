@@ -3,7 +3,7 @@ module Filament
 # Global packages --------------------------------------------------------------
 import CUDA
 import Dates
-import Formatting
+import Printf
 using TimerOutputs
 
 # Local modules ----------------------------------------------------------------
@@ -112,7 +112,7 @@ function main_loop(
     z, zmax, unit, grid, field, guard, model, dzadaptive, analyzer, info,
     plotdat, plothdf, Istop,
 )
-    fmt(x) = Formatting.fmt("18.12e", Float64(x))   # output print format
+    fmt(x) = Printf.@sprintf("%18.12e", Float64(x))   # output print format
 
     stime = Dates.now()
 

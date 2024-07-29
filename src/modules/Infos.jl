@@ -1,7 +1,7 @@
 module Infos
 
 import Dates
-import Formatting
+import Printf
 
 import ..Constants: C0, QE, HBAR
 import ..FieldAnalyzers
@@ -11,7 +11,7 @@ import ..Media
 import ..Units
 
 
-fmt(x) = Formatting.fmt("18.12e", x)
+fmt(x) = Printf.@sprintf("%18.12e", Float64(x))
 
 
 struct Info
@@ -597,7 +597,7 @@ function info_plasma(components)
     --------------------------------------------------------------------------------
     """
     for comp in components
-        sdata = sdata * "$(Formatting.fmt("<25", comp.name)) $(comp.K)\n"
+        sdata = sdata * Printf.@sprintf("%-25s %f\n", comp.name, comp.K)
     end
     return sdata
 end

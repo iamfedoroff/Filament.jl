@@ -2,8 +2,8 @@ module WritePlots
 
 import CUDA
 import FFTW
-import Formatting
 import HDF5
+import Printf
 
 import ..Constants: FloatGPU
 import ..FieldAnalyzers
@@ -27,7 +27,7 @@ struct PlotDAT{S<:AbstractString}
 end
 
 
-fmt(x) = Formatting.fmt("18.12e", Float64(x))
+fmt(x) = Printf.@sprintf("%18.12e", Float64(x))
 
 
 function _write_header(fname, plotvars)
@@ -36,21 +36,21 @@ function _write_header(fname, plotvars)
     # write names:
     write(fp, "#")
     for pvar in plotvars
-        write(fp, " $(Formatting.fmt("<18", pvar.name))")
+        write(fp, " $(Printf.@sprintf("%-18s", pvar.name))")
     end
     write(fp, "\n")
 
     # write SI units:
     write(fp, "#")
     for pvar in plotvars
-        write(fp, " $(Formatting.fmt("<18", pvar.siunit))")
+        write(fp, " $(Printf.@sprintf("%-18s", pvar.siunit))")
     end
     write(fp, "\n")
 
     # write dimensionless units:
     write(fp, "#")
     for pvar in plotvars
-        write(fp, " $(Formatting.fmt("<18", pvar.unit))")
+        write(fp, " $(Printf.@sprintf("%-18s", pvar.unit))")
     end
     write(fp, "\n")
 
@@ -306,7 +306,7 @@ end
 
 
 function _write_field(plothdf::PlotHDF, field::Fields.Field, z::AbstractFloat)
-    dset = "$(Formatting.fmt("03d", plothdf.ifield))"
+    dset = "$(Printf.@sprintf("%03d", plothdf.ifield))"
     println(" Writing dataset $(dset)...")
 
     fp = HDF5.h5open(plothdf.fname, "r+")
