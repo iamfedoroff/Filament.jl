@@ -187,9 +187,10 @@ end
 function PlotDAT(fname::String, unit::Units.UnitXYT)
     plotvars = [
         PlotVar("z", "m", unit.z),
+        PlotVar("Fmax", "J/m^2", unit.t * unit.I),
         PlotVar("Imax", "W/m^2", unit.I),
         PlotVar("Nemax", "1/m^3", unit.rho),
-        PlotVar("Fmax", "J/m^2", unit.t * unit.I),
+        PlotVar("De", "1/m", unit.x * unit.y * unit.rho),
         PlotVar("ax", "m", unit.x),
         PlotVar("ay", "m", unit.y),
         PlotVar("W", "J", unit.x * unit.y * unit.t * unit.I),
@@ -203,9 +204,10 @@ function writeDAT(plotdat::PlotDAT, analyzer::FieldAnalyzers.FieldAnalyzerXYT)
     fp = open(plotdat.fname, "a")
     write(fp, "  ")
     write(fp, "$(fmt(analyzer.z)) ")
+    write(fp, "$(fmt(analyzer.Fmax)) ")
     write(fp, "$(fmt(analyzer.Imax)) ")
     write(fp, "$(fmt(analyzer.rhomax)) ")
-    write(fp, "$(fmt(analyzer.Fmax)) ")
+    write(fp, "$(fmt(analyzer.De)) ")
     write(fp, "$(fmt(analyzer.ax)) ")
     write(fp, "$(fmt(analyzer.ay)) ")
     write(fp, "$(fmt(analyzer.W)) ")
@@ -246,7 +248,7 @@ function PlotHDF(
     dz_field::T,
     dz_zdata::T,
 ) where T<:AbstractFloat
-    if (grid isa Grids.GridRT) | (grid isa Grids.GridXY)
+    if (grid isa Grids.GridRT) | (grid isa Grids.GridXY) | (grid isa Grids.GridXYT)
         ZDATA = true
     else
         ZDATA = false
@@ -450,6 +452,50 @@ function _write_zdata(
     data = group_zdat["Izy"]
     HDF5.set_extent_dims(data, (iz, Ny))
     data[iz, :] = analyzer.I[Nx2, :]
+
+    HDF5.close(fp)
+
+    return nothing
+end
+
+
+# ------------------------------------------------------------------------------
+# XYT
+# ------------------------------------------------------------------------------
+function _group_zdat(fp, grid::Grids.GridXYT)
+    HDF5.create_group(fp, GROUP_ZDAT)
+    group = fp[GROUP_ZDAT]
+
+    Nw = length(FFTW.rfftfreq(grid.Nt))
+
+    create_dataset(group, "z", FloatGPU, ((1,), (-1,)))
+    create_dataset(group, "Fzxy", FloatGPU, ((1, grid.Nx, grid.Ny), (-1, grid.Nx, grid.Ny)))
+    create_dataset(group, "rhozxy", FloatGPU, ((1, grid.Nx, grid.Ny), (-1, grid.Nx, grid.Ny)))
+    create_dataset(group, "iSzf", FloatGPU, ((1, Nw), (-1, Nw)))
+    return nothing
+end
+
+
+function _write_zdata(
+    plothdf::PlotHDF, analyzer::FieldAnalyzers.FieldAnalyzerXYT,
+)
+    iz = plothdf.izdata
+
+    fp = HDF5.h5open(plothdf.fname, "r+")
+
+    group_zdat = fp[GROUP_ZDAT]
+
+    data = group_zdat["z"]
+    HDF5.set_extent_dims(data, (iz,))
+    data[iz] = analyzer.z
+
+    data = group_zdat["Fzxy"]
+    HDF5.set_extent_dims(data, (iz, size(analyzer.Fxy)...))
+    data[iz,:,:] = analyzer.Fxy
+
+    data = group_zdat["rhozxy"]
+    HDF5.set_extent_dims(data, (iz, size(analyzer.rho)...))
+    data[iz,:,:] = analyzer.rho
 
     HDF5.close(fp)
 

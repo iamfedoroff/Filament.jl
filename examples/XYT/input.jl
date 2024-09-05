@@ -18,10 +18,10 @@ rhou = 2.5e25   # [1/m**3] unit of plasma density
 geometry = "XYT"   # grid geometry (R, T, RT, XY, XYT)
 
 xmin, xmax = -10.0, 10.0   # [xu] area in x spatial domain
-Nx = 500  # number of points in x spatial domain
+Nx = 256  # number of points in x spatial domain
 
 ymin, ymax = -10.0, 10.0   # [yu] area in y spatial domain
-Ny = 500  # number of points in y spatial domain
+Ny = 256  # number of points in y spatial domain
 
 tmin, tmax = -200.0, 200.0   # [tu] area in time domain
 Nt = 1024   # number of points in the time domain

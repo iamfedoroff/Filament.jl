@@ -272,36 +272,31 @@ mutable struct FieldAnalyzerXYT{
     T<:AbstractFloat,
     U1<:AbstractArray{T},
     U2<:AbstractArray{T},
-    UG1<:AbstractArray{T},
-    UG2<:AbstractArray{T},
 } <: FieldAnalyzer
     # Observed variables:
     z :: T
+    Fmax :: T
     Imax :: T
     rhomax :: T
-    Fmax :: T
+    De :: T
     ax :: T
     ay :: T
     W :: T
     # Storage arrays:
     Fxy :: U2
     Ft :: U1
-    Fxygpu :: UG2
-    Ftgpu :: UG1
+    rho :: U2
 end
 
 
 function FieldAnalyzer(
     grid::Grids.GridXYT, field::Fields.Field, z::T,
 ) where T<:AbstractFloat
-    Imax, rhomax, Fmax, ax, ay, W = [zero(T) for i=1:6]
-    Fxy = zeros(T, (grid.Nx, grid.Ny, 1))
-    Ft = zeros(T, (1, 1, grid.Nt))
-    Fxygpu = CUDA.zeros(T, (grid.Nx, grid.Ny, 1))
-    Ftgpu = CUDA.zeros(T, (1, 1, grid.Nt))
-    return FieldAnalyzerXYT(
-        z, Imax, rhomax, Fmax, ax, ay, W,  Fxy, Ft, Fxygpu, Ftgpu,
-    )
+    Fmax, Imax, rhomax, De, ax, ay, W = [zero(T) for i=1:7]
+    Fxy = zeros(T, (grid.Nx, grid.Ny))
+    Ft = zeros(T, grid.Nt)
+    rho = zeros(T, (grid.Nx, grid.Ny))
+    return FieldAnalyzerXYT(z, Fmax, Imax, rhomax, De, ax, ay, W, Fxy, Ft, rho)
 end
 
 
@@ -310,21 +305,26 @@ function analyze!(
 ) where T<:AbstractFloat
     analyzer.z = z
 
-    analyzer.Imax = maximum(abs2.(field.E))
-    analyzer.rhomax = maximum(field.rho)
+    Fxygpu = dropdims(sum(abs2.(field.E) .* grid.dt, dims=3); dims=3)
+    copyto!(analyzer.Fxy, Fxygpu)
 
-    analyzer.Fxygpu .= sum(abs2.(field.E) .* grid.dt, dims=3)
-    copyto!(analyzer.Fxy, analyzer.Fxygpu)
+    Ftgpu = dropdims(sum(abs2.(field.E) .* grid.dx .* grid.dy, dims=(1,2)); dims=(1,2))
+    copyto!(analyzer.Ft, Ftgpu)
 
-    analyzer.Ftgpu .= sum(abs2.(field.E) .* grid.dx .* grid.dy, dims=[1, 2])
-    copyto!(analyzer.Ft, analyzer.Ftgpu)
+    @views copyto!(analyzer.rho, field.rho[:,:,end])
 
     analyzer.Fmax, imax = findmax(analyzer.Fxy)
+
+    analyzer.Imax = maximum(abs2, field.E)
+
+    analyzer.rhomax = maximum(field.rho)
+
+    analyzer.De = sum(analyzer.rho .* grid.dx .* grid.dy)
 
     @views analyzer.ax = radius(grid.x, analyzer.Fxy[:, imax[2], 1])
     @views analyzer.ay = radius(grid.y, analyzer.Fxy[imax[1], :, 1])
 
-    analyzer.W = sum(analyzer.Ftgpu) * grid.dt
+    analyzer.W = sum(analyzer.Ft) * grid.dt
     return nothing
 end
 
