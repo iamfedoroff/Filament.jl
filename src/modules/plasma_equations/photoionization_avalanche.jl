@@ -69,7 +69,7 @@ function init_photoionization_avalanche(t, E, w0, units, params)
         kdrho_integs = ODEIntegrators.Integrator(prob, ALG)
 
         kdrho_ps = (tabfuncs, fiarg, frhonts, Ks, KDEP, t)
-    else
+    elseif ndims(E) == 2
         Nr, Nt = size(E)
         integs = Array{ODEIntegrators.Integrator}(undef, Nr)
         kdrho_integs = Array{ODEIntegrators.Integrator}(undef, Nr)
@@ -88,6 +88,25 @@ function init_photoionization_avalanche(t, E, w0, units, params)
         integs = CUDA.CuArray(hcat([integs[i] for i in 1:Nr]))
         kdrho_integs = CUDA.CuArray(hcat([kdrho_integs[i] for i in 1:Nr]))
         kdrho_ps = CUDA.CuArray(hcat([kdrho_ps[i] for i in 1:Nr]))
+    else
+        Nx, Ny, Nt = size(E)
+        integs = Array{ODEIntegrators.Integrator}(undef, Nx, Ny)
+        kdrho_integs = Array{ODEIntegrators.Integrator}(undef, Nx, Ny)
+        kdrho_ps = Array{Tuple}(undef, Nx, Ny)
+        for iy=1:Ny, ix=1:Nx
+            p = (tabfuncs, fiarg, frhonts, Ravas, t)
+            prob = ODEIntegrators.Problem(func_photoionization_avalanche, rho0u, p)
+            integs[ix,iy] = ODEIntegrators.Integrator(prob, ALG)
+
+            p = (tabfuncs, fiarg, frhonts, t)
+            prob = ODEIntegrators.Problem(func_photoionization, rho0u, p)
+            kdrho_integs[ix,iy] = ODEIntegrators.Integrator(prob, ALG)
+
+            kdrho_ps[ix,iy] = (tabfuncs, fiarg, frhonts, Ks, KDEP, t)
+        end
+        integs = CUDA.CuArray(hcat([integs[i,j] for i in 1:Nx, j in 1:Ny]))
+        kdrho_integs = CUDA.CuArray(hcat([kdrho_integs[i,j] for i in 1:Nx, j in 1:Ny]))
+        kdrho_ps = CUDA.CuArray(hcat([kdrho_ps[i,j] for i in 1:Nx, j in 1:Ny]))
     end
 
     # Function to extract electron density out of the problem solution:

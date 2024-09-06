@@ -122,7 +122,7 @@ function main_loop(
 
     while z < zmax
 
-        if isa(grid, Grids.GridT) | isa(grid, Grids.GridRT)
+        if isa(grid, Grids.GridT) | isa(grid, Grids.GridRT) | isa(grid, Grids.GridXYT)
             println("z=$(fmt(z))[zu] I=$(fmt(analyzer.Imax))[Iu]" *
                     " rho=$(fmt(analyzer.rhomax))[rhou]")
         else
