@@ -33,7 +33,7 @@ function solve!(
 ) where T<:AbstractFloat
     Nr, Nt = size(rho)
 
-    ckernel = CUDA.@cuda launch=false solve_kernel(rho, kdrho, E, t, p)
+    ckernel = CUDA.@cuda launch=false solve_kernel_rt(rho, kdrho, E, t, p)
     config = CUDA.launch_configuration(ckernel.fun)
     threads = min(Nr, config.threads)
     blocks = cld(Nr, threads)
@@ -43,7 +43,7 @@ function solve!(
 end
 
 
-function solve_kernel(rho, kdrho, E, t, p)
+function solve_kernel_rt(rho, kdrho, E, t, p)
     id = (CUDA.blockIdx().x - 1) * CUDA.blockDim().x + CUDA.threadIdx().x
     stride = CUDA.blockDim().x * CUDA.gridDim().x
 
@@ -81,7 +81,7 @@ function solve!(
 ) where T<:AbstractFloat
     Nx, Ny, Nt = size(rho)
 
-    ckernel = CUDA.@cuda launch=false solve_kernel(rho, kdrho, E, t, p)
+    ckernel = CUDA.@cuda launch=false solve_kernel_xyt(rho, kdrho, E, t, p)
     config = CUDA.launch_configuration(ckernel.fun)
     threads = min(Nx*Ny, config.threads)
     blocks = cld(Nx*Ny, threads)
@@ -91,7 +91,7 @@ function solve!(
 end
 
 
-function solve_kernel(rho, kdrho, E, t, p)
+function solve_kernel_xyt(rho, kdrho, E, t, p)
     id = (CUDA.blockIdx().x - 1) * CUDA.blockDim().x + CUDA.threadIdx().x
     stride = CUDA.blockDim().x * CUDA.gridDim().x
 
