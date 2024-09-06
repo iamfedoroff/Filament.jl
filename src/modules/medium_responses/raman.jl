@@ -78,7 +78,7 @@ end
 
 
 function convolution!(
-    x::CUDA.CuArray{Complex{T}, 2},
+    x::Union{CUDA.CuArray{Complex{T}, 2}, CUDA.CuArray{Complex{T}, 3}},
     plan::FFTW.Plan,
     H::CUDA.CuArray{Complex{T}, 1},
 ) where T
@@ -101,12 +101,11 @@ end
 function _convolution_kernel!(x, H)
     id = (CUDA.blockIdx().x - 1) * CUDA.blockDim().x + CUDA.threadIdx().x
     stride = CUDA.blockDim().x * CUDA.gridDim().x
-    Nr, Nt = size(x)
-    cartesian = CartesianIndices((Nr, Nt))
-    for k=id:stride:Nr*Nt
-        i = cartesian[k][1]
-        j = cartesian[k][2]
-        x[i, j] = H[j] * x[i, j]
+    nt = ndims(x)
+    cartesian = CartesianIndices(size(x))
+    for I=id:stride:length(x)
+        it = cartesian[I][nt]
+        x[I] = H[it] * x[I]
     end
     return nothing
 end

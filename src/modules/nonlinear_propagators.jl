@@ -181,6 +181,31 @@ function QZfunc(
 end
 
 
+function QZfunc(
+    unit::Units.UnitXYT,
+    grid::Grids.GridXYT,
+    medium::Media.Medium,
+    field::Fields.Field,
+    PARAXIAL,
+)
+    w0 = field.w0
+    n0 = Media.refractive_index(medium, w0)
+    Eu = Units.E(unit, real(n0))
+
+    QZ = zeros(ComplexF64, (grid.Nx, grid.Ny, grid.Nt))
+    for k=1:grid.Nt
+    for j=1:grid.Ny
+    for i=1:grid.Nx
+        kt = sqrt((grid.kx[i] * unit.kx)^2 + (grid.ky[j] * unit.ky)^2)
+        w = grid.w[k] * unit.w
+        QZ[i, j, k] = Qfunc(PARAXIAL, medium, w, kt) * unit.z / Eu
+    end
+    end
+    end
+    return CUDA.CuArray{Complex{FloatGPU}}(QZ)
+end
+
+
 # ******************************************************************************
 function Qfunc(PARAXIAL, medium, w, kt)
     if PARAXIAL
@@ -229,9 +254,9 @@ end
 
 
 function update_dE!(
-    dE::CUDA.CuArray{Complex{T}, 2},
+    dE::Union{CUDA.CuArray{Complex{T}, 2}, CUDA.CuArray{Complex{T}, 3}},
     R::CUDA.CuArray{Complex{T}, 1},
-    F::CUDA.CuArray{Complex{T}, 2},
+    F::Union{CUDA.CuArray{Complex{T}, 2}, CUDA.CuArray{Complex{T}, 3}},
 ) where T
     N = length(F)
 
@@ -248,12 +273,11 @@ end
 function update_dE_kernel(dE, R, F)
     id = (CUDA.blockIdx().x - 1) * CUDA.blockDim().x + CUDA.threadIdx().x
     stride = CUDA.blockDim().x * CUDA.gridDim().x
-    Nr, Nt = size(F)
-    cartesian = CartesianIndices((Nr, Nt))
-    for k=id:stride:Nr*Nt
-        i = cartesian[k][1]
-        j = cartesian[k][2]
-        dE[i, j] = dE[i, j] + R[j] * F[i, j]
+    nt = ndims(F)
+    cartesian = CartesianIndices(size(F))
+    for I=id:stride:length(F)
+        it = cartesian[I][nt]
+        dE[I] = dE[I] + R[it] * F[I]
     end
     return nothing
 end
