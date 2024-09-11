@@ -121,7 +121,6 @@ mutable struct FieldAnalyzerRT{
     T<:AbstractFloat,
     A<:AbstractArray{T},
     AG<:AbstractArray{T},
-    ACG<:AbstractArray{Complex{T}},
 } <: FieldAnalyzer
     # Observed variables:
     z :: T
@@ -140,7 +139,6 @@ mutable struct FieldAnalyzerRT{
     S :: A
     rdr :: AG
     rhogpu :: AG
-    Egpu :: ACG
 end
 
 
@@ -159,10 +157,8 @@ function FieldAnalyzer(
     rho = zeros(T, Nr)
     S = zeros(T, Nw)
     rhogpu = CUDA.zeros(T, Nr)
-    Egpu = CUDA.zeros(Complex{T}, (Nr, Nw))
     return FieldAnalyzerRT(
-        z, Fmax, Imax, rhomax, De, rfil, rpl, tau, W,
-        Fr, Ft, rho, S, rdr, rhogpu, Egpu,
+        z, Fmax, Imax, rhomax, De, rfil, rpl, tau, W, Fr, Ft, rho, S, rdr, rhogpu,
     )
 end
 
@@ -187,12 +183,17 @@ function analyze!(
     #     Sr = aspec2rspec(Sa)
     #     Sr = 2 * Sr * Nt * dt
     #     S = 2 * pi * Int[|Sr|^2 * r * dr]
+    Nw = length(FFTW.rfftfreq(grid.Nt))
     field.PT \ field.E   # time -> frequency [exp(-i*w*t)]
-    AnalyticSignals.aspec2rspec!(analyzer.Egpu, field.E)
-    Sgpu = convert(T, 2 * pi) *
-           vec(sum(abs2.(2 * analyzer.Egpu * grid.Nt * grid.dt) .* analyzer.rdr,
-               dims=1))
+    AnalyticSignals.aspec2rspec!(field.E)
+    Sgpu = @views convert(T, 2 * pi) * vec(
+        sum(
+            abs2.(2 * field.E[:,1:Nw] * grid.Nt * grid.dt) .* analyzer.rdr;
+            dims=1
+        )
+    )
     copyto!(analyzer.S, Sgpu)
+    AnalyticSignals.rspec2aspec!(field.E)
     field.PT * field.E   # frequency -> time [exp(-i*w*t)]
 
     analyzer.Fmax = maximum(Frgpu)
@@ -272,6 +273,7 @@ mutable struct FieldAnalyzerXYT{
     T<:AbstractFloat,
     U1<:AbstractArray{T},
     U2<:AbstractArray{T},
+    U3<:AbstractArray{T},
 } <: FieldAnalyzer
     # Observed variables:
     z :: T
@@ -286,6 +288,7 @@ mutable struct FieldAnalyzerXYT{
     Fxy :: U2
     Ft :: U1
     rho :: U2
+    S :: U3
 end
 
 
@@ -296,7 +299,9 @@ function FieldAnalyzer(
     Fxy = zeros(T, (grid.Nx, grid.Ny))
     Ft = zeros(T, grid.Nt)
     rho = zeros(T, (grid.Nx, grid.Ny))
-    return FieldAnalyzerXYT(z, Fmax, Imax, rhomax, De, ax, ay, W, Fxy, Ft, rho)
+    Nw = length(FFTW.rfftfreq(grid.Nt))
+    S = zeros(T, Nw)
+    return FieldAnalyzerXYT(z, Fmax, Imax, rhomax, De, ax, ay, W, Fxy, Ft, rho, S)
 end
 
 
@@ -312,6 +317,25 @@ function analyze!(
     copyto!(analyzer.Ft, Ftgpu)
 
     @views copyto!(analyzer.rho, field.rho[:,:,end])
+
+    # Integral power spectrum:
+    #     Sa = ifft(Ea)
+    #     Sr = aspec2rspec(Sa)
+    #     Sr = 2 * Sr * Nt * dt
+    #     S = Int[|Sr|^2 * dx * dy]
+    Nw = length(FFTW.rfftfreq(grid.Nt))
+    field.PT \ field.E   # time -> frequency [exp(-i*w*t)]
+    AnalyticSignals.aspec2rspec!(field.E)
+    Sgpu = @views vec(
+        sum(
+            abs2.(2 * field.E[:,:,1:Nw] * grid.Nt * grid.dt) .* grid.dx .* grid.dy;
+            dims=(1,2)
+        )
+    )
+    copyto!(analyzer.S, Sgpu)
+    AnalyticSignals.rspec2aspec!(field.E)
+    field.PT * field.E   # frequency -> time [exp(-i*w*t)]
+
 
     analyzer.Fmax, imax = findmax(analyzer.Fxy)
 

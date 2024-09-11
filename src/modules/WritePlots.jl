@@ -497,6 +497,10 @@ function _write_zdata(
     HDF5.set_extent_dims(data, (iz, size(analyzer.rho)...))
     data[iz,:,:] = analyzer.rho
 
+    data = group_zdat["iSzf"]
+    HDF5.set_extent_dims(data, (iz, length(analyzer.S)))
+    data[iz, :] = analyzer.S
+
     HDF5.close(fp)
 
     return nothing
